@@ -4,6 +4,15 @@ einer temporären Datei (nicht in-memory, weil die App mit
 `connect_args={"check_same_thread": False}` arbeitet und manche Endpunkte
 mehrere Connections aus demselben Engine ziehen - eine echte Datei verhält
 sich da vorhersehbarer als eine In-Memory-DB, die pro Connection neu wäre).
+
+Wichtig: `TestClient(app)` als Context-Manager löst FastAPIs `lifespan`-Handler
+aus (siehe `app/main.py`), der `Base.metadata.create_all` und
+`seed_default_poses` direkt gegen das modulglobale `engine`/`SessionLocal`
+aus `app.core.database` ausführt - nicht gegen die per `get_db`-Dependency
+überschriebene Session. Damit die Tests wirklich isoliert bleiben (und nicht
+die echte lokale `backend/data/bodycomp.db` befüllen), patchen wir dieses
+modulglobale `engine`/`SessionLocal` per `monkeypatch` auf die Temp-DB, bevor
+der `client`-Fixture den TestClient (und damit den Lifespan-Hook) startet.
 """
 import tempfile
 from pathlib import Path
@@ -18,21 +27,26 @@ from app.main import app
 
 
 @pytest.fixture()
-def db_session():
-    tmp_dir = tempfile.mkdtemp()
-    db_path = Path(tmp_dir) / "test.db"
-    engine = create_engine(
-        f"sqlite:///{db_path.as_posix()}", connect_args={"check_same_thread": False}
-    )
-    Base.metadata.create_all(bind=engine)
-    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+def db_session(monkeypatch):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        db_path = Path(tmp_dir) / "test.db"
+        engine = create_engine(
+            f"sqlite:///{db_path.as_posix()}", connect_args={"check_same_thread": False}
+        )
+        Base.metadata.create_all(bind=engine)
+        TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-    session = TestSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-        engine.dispose()
+        import app.core.database as database_module
+
+        monkeypatch.setattr(database_module, "engine", engine)
+        monkeypatch.setattr(database_module, "SessionLocal", TestSessionLocal)
+
+        session = TestSessionLocal()
+        try:
+            yield session
+        finally:
+            session.close()
+            engine.dispose()
 
 
 @pytest.fixture()
