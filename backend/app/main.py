@@ -16,6 +16,8 @@ from app.core.database import Base, SessionLocal, engine
 from app.core.migrations import run_lightweight_migrations
 from app.core.seed import seed_default_poses
 from app.models import app_setting  # noqa: F401 - Import registriert Table bei create_all
+from app.models import user  # noqa: F401 - Import registriert Table bei create_all
+from app.models import client  # noqa: F401 - Import registriert Table bei create_all
 from app.routers import comparisons, day_logs, photos, poses, settings as settings_router
 
 
