@@ -18,7 +18,7 @@ from app.core.seed import seed_default_poses
 from app.models import app_setting  # noqa: F401 - Import registriert Table bei create_all
 from app.models import user  # noqa: F401 - Import registriert Table bei create_all
 from app.models import client  # noqa: F401 - Import registriert Table bei create_all
-from app.routers import auth, comparisons, day_logs, photos, poses, settings as settings_router
+from app.routers import auth, clients, comparisons, day_logs, photos, poses, settings as settings_router
 
 
 @asynccontextmanager
@@ -49,6 +49,7 @@ app.add_middleware(
 app.mount("/media", StaticFiles(directory=settings.data_dir), name="media")
 
 app.include_router(auth.router)
+app.include_router(clients.router)
 app.include_router(poses.router)
 app.include_router(day_logs.router)
 app.include_router(photos.router)
