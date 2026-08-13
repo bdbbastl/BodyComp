@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     # Erlaubte Dateiendungen beim Ordner-Sync
     allowed_extensions: tuple[str, ...] = (".jpg", ".jpeg", ".png", ".heic")
 
+    # Signiert die Session-Cookies (siehe services/auth.py). In Produktion
+    # per BODYCOMP_SESSION_SECRET_KEY überschreiben - der Default ist nur
+    # fürs lokale Dev-Setup gedacht.
+    session_secret_key: str = "dev-only-insecure-secret-change-me"
+
 
 settings = Settings()
 
