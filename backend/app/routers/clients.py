@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.seed import seed_default_poses_for_client
 from app.models.client import Client
 from app.models.user import User
 from app.routers.auth import get_current_user
@@ -57,6 +58,7 @@ def create_client(
     db.add(client_row)
     db.commit()
     db.refresh(client_row)
+    seed_default_poses_for_client(db, client_row.id)
     return client_row
 
 

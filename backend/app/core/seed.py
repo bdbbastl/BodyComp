@@ -1,4 +1,4 @@
-"""Legt die 7 Standard-Posen an, falls die Tabelle leer ist (Erststart)."""
+"""Legt die 7 Standard-Posen für einen neu angelegten Client an."""
 from sqlalchemy.orm import Session
 
 from app.models.pose import Pose
@@ -14,9 +14,7 @@ DEFAULT_POSES = [
 ]
 
 
-def seed_default_poses(db: Session) -> None:
-    if db.query(Pose).count() > 0:
-        return
+def seed_default_poses_for_client(db: Session, client_id: int) -> None:
     for i, name in enumerate(DEFAULT_POSES):
-        db.add(Pose(name=name, sort_order=i))
+        db.add(Pose(client_id=client_id, name=name, sort_order=i))
     db.commit()

@@ -12,9 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.core.database import Base, SessionLocal, engine
+from app.core.database import Base, SessionLocal, engine  # noqa: F401 - SessionLocal wird von tests/conftest.py gepatcht
 from app.core.migrations import run_lightweight_migrations
-from app.core.seed import seed_default_poses
 from app.models import app_setting  # noqa: F401 - Import registriert Table bei create_all
 from app.models import user  # noqa: F401 - Import registriert Table bei create_all
 from app.models import client  # noqa: F401 - Import registriert Table bei create_all
@@ -25,11 +24,6 @@ from app.routers import auth, clients, comparisons, day_logs, photos, poses, set
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     run_lightweight_migrations(engine)
-    db = SessionLocal()
-    try:
-        seed_default_poses(db)
-    finally:
-        db.close()
     yield
 
 

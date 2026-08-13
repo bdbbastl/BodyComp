@@ -54,3 +54,14 @@ def test_update_client_metrics(client, db_session):
 def test_unauthenticated_request_rejected(client, db_session):
     response = client.get("/api/clients")
     assert response.status_code == 401
+
+
+def test_creating_client_seeds_default_poses(client, db_session):
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+
+    from app.models.pose import Pose
+
+    poses = db_session.query(Pose).filter(Pose.client_id == created["id"]).order_by(Pose.sort_order).all()
+    assert len(poses) == 7
+    assert poses[0].name == "Front Double Biceps"
