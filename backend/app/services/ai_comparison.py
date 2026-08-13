@@ -120,12 +120,16 @@ class AiComparisonError(Exception):
     Gemini-API-Fehler, etc.) - wird vom Router 1:1 durchgereicht."""
 
 
-def resolve_gemini_api_key(db: Session) -> tuple[str | None, str | None]:
+def resolve_gemini_api_key(db: Session, owner_id: int) -> tuple[str | None, str | None]:
     """Liefert (key, source) - DB-Wert (source="settings") hat Vorrang vor
     GEMINI_API_KEY aus .env (source="env"). (None, None) wenn nichts gesetzt."""
     from app.models.app_setting import AppSetting  # lokal um Zirkelimporte zu vermeiden
 
-    setting = db.get(AppSetting, GEMINI_KEY_SETTING)
+    setting = (
+        db.query(AppSetting)
+        .filter(AppSetting.owner_id == owner_id, AppSetting.key == GEMINI_KEY_SETTING)
+        .first()
+    )
     if setting and setting.value:
         return setting.value, "settings"
     env_key = os.environ.get("GEMINI_API_KEY")
@@ -215,8 +219,8 @@ def _generate_with_retries(client: genai.Client, contents: list) -> str:
     return text
 
 
-def _require_client(db: Session) -> genai.Client:
-    api_key, _source = resolve_gemini_api_key(db)
+def _require_client(db: Session, owner_id: int) -> genai.Client:
+    api_key, _source = resolve_gemini_api_key(db, owner_id)
     if not api_key:
         raise AiComparisonError(
             "Kein Gemini-API-Key konfiguriert. Kostenlosen Key unter "
@@ -228,6 +232,7 @@ def _require_client(db: Session) -> genai.Client:
 
 def compare_photos(
     db: Session,
+    owner_id: int,
     path_x: Path,
     path_y: Path,
     pose_name: str,
@@ -244,7 +249,7 @@ def compare_photos(
     if not path_x.exists() or not path_y.exists():
         raise AiComparisonError("Eines der Bilder konnte auf der Platte nicht gefunden werden.")
 
-    client = _require_client(db)
+    client = _require_client(db, owner_id)
 
     try:
         bytes_x = _encode_image(path_x)
@@ -276,6 +281,7 @@ def compare_photos(
 
 def compare_photos_all(
     db: Session,
+    owner_id: int,
     pairs: list[tuple[str, Path, Path]],
     date_x: date_,
     date_y: date_,
@@ -291,7 +297,7 @@ def compare_photos_all(
             "Für keine Pose existieren Fotos an beiden gewählten Terminen."
         )
 
-    client = _require_client(db)
+    client = _require_client(db, owner_id)
 
     weight_x_str = f", {weight_x:.1f} kg" if weight_x is not None else ""
     weight_y_str = f", {weight_y:.1f} kg" if weight_y is not None else ""
