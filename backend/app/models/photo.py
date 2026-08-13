@@ -1,5 +1,6 @@
 """
-Photo = ein einzelnes Bild aus dem überwachten Ordner.
+Photo = ein einzelnes Bild aus dem überwachten Ordner, gehört zu GENAU
+EINEM Client.
 
 Lifecycle:
 1. Ordner-Sync (services/folder_sync.py) findet neue Datei in
@@ -33,6 +34,9 @@ class Photo(Base):
     __tablename__ = "photos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    client_id: Mapped[int] = mapped_column(
+        ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     # Dateiname wie im Quellordner gefunden (informativ, für Debugging).
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
