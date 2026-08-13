@@ -7,12 +7,16 @@ sich da vorhersehbarer als eine In-Memory-DB, die pro Connection neu wäre).
 
 Wichtig: `TestClient(app)` als Context-Manager löst FastAPIs `lifespan`-Handler
 aus (siehe `app/main.py`), der `Base.metadata.create_all` und
-`seed_default_poses` direkt gegen das modulglobale `engine`/`SessionLocal`
-aus `app.core.database` ausführt - nicht gegen die per `get_db`-Dependency
-überschriebene Session. Damit die Tests wirklich isoliert bleiben (und nicht
-die echte lokale `backend/data/bodycomp.db` befüllen), patchen wir dieses
-modulglobale `engine`/`SessionLocal` per `monkeypatch` auf die Temp-DB, bevor
-der `client`-Fixture den TestClient (und damit den Lifespan-Hook) startet.
+`seed_default_poses` direkt gegen `engine`/`SessionLocal` ausführt - nicht
+gegen die per `get_db`-Dependency überschriebene Session. `app/main.py`
+importiert `engine`/`SessionLocal` per `from app.core.database import ...`
+(bare-name-Import), wodurch `app.main` eigene, unabhängige Namensbindungen
+im eigenen Modul-Namespace erhält. Ein `monkeypatch.setattr(app.core.database,
+"engine", ...)` patcht nur das Attribut auf `app.core.database` und erreicht
+`app.main`s bereits gebundenen Namen NICHT. Deshalb patchen wir hier
+`app.main`s eigene Namen direkt - das ist die Stelle, die `lifespan()`
+tatsächlich liest -, bevor der `client`-Fixture den TestClient (und damit
+den Lifespan-Hook) startet.
 """
 import tempfile
 from pathlib import Path
@@ -36,10 +40,10 @@ def db_session(monkeypatch):
         Base.metadata.create_all(bind=engine)
         TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-        import app.core.database as database_module
+        import app.main as main_module
 
-        monkeypatch.setattr(database_module, "engine", engine)
-        monkeypatch.setattr(database_module, "SessionLocal", TestSessionLocal)
+        monkeypatch.setattr(main_module, "engine", engine)
+        monkeypatch.setattr(main_module, "SessionLocal", TestSessionLocal)
 
         session = TestSessionLocal()
         try:
