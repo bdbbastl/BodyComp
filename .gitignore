@@ -1,0 +1,36 @@
+# Secrets - niemals committen
+backend/.env
+*.env
+!.env.example
+
+# Nutzerdaten - Fotos (teils sensibel/privat) und SQLite-DB gehören nicht
+# ins Repo. Bei Bedarf separat sichern (Backup, Cloud-Storage), nicht git.
+backend/data/photos_incoming/
+backend/data/photos_processed/
+backend/data/photos_normalized/
+backend/data/*.db
+backend/data/*.db-journal
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Brainstorming-Companion (temporäre Mockups)
+.superpowers/
+
+# Claude Code lokale Einstellungen (persönlich, nicht fürs Team)
+.claude/settings.local.json
+
+# Editor/OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

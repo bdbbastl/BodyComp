@@ -1,0 +1,296 @@
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, mediaUrl } from "../api/client";
+import type { UnprocessedPhoto } from "../types";
+import { formatDateWithWeek } from "../utils/date";
+import { numberedPoseOptionLabel } from "../utils/poseLabel";
+
+interface DateGroup {
+  date: string; // YYYY-MM-DD
+  photos: UnprocessedPhoto[];
+}
+
+export default function Unprocessed() {
+  const queryClient = useQueryClient();
+  const [selectedPoseId, setSelectedPoseId] = useState<Record<number, number | "">>({});
+  // Ein Gewicht pro Tag statt pro Foto - gilt für alle Fotos dieses
+  // Datums, wie gewünscht ("für alle Bilder eines Tages").
+  const [weightByDate, setWeightByDate] = useState<Record<string, string>>({});
+
+  const posesQuery = useQuery({ queryKey: ["poses"], queryFn: api.poses.list });
+  const photosQuery = useQuery({ queryKey: ["photos", "unprocessed"], queryFn: api.photos.unprocessed });
+
+  // Neue Fotos mit ihrem Pose-Vorschlag vorbelegen (siehe backend
+  // services/pose_suggestion.py). Nur für Fotos, die noch keinen Eintrag
+  // in selectedPoseId haben - überschreibt also nie eine bereits
+  // getroffene (manuelle oder vorbelegte) Auswahl bei einem Refetch.
+  useEffect(() => {
+    if (!photosQuery.data) return;
+    setSelectedPoseId((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const photo of photosQuery.data) {
+        if (!(photo.id in next) && photo.suggested_pose_id != null) {
+          next[photo.id] = photo.suggested_pose_id;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [photosQuery.data]);
+
+  const syncMutation = useMutation({
+    mutationFn: api.photos.sync,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", "unprocessed"] }),
+  });
+
+  // Datei-Upload: Dateien werden nach photos_incoming/ kopiert und im
+  // selben Request direkt verarbeitet (Backend ruft intern denselben Scan
+  // wie /sync auf) - kein separater "Ordner synchronisieren"-Klick nötig
+  // für hochgeladene Dateien.
+  const uploadMutation = useMutation({
+    mutationFn: (files: File[]) => api.photos.upload(files),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", "unprocessed"] }),
+  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const assignMutation = useMutation({
+    mutationFn: ({ id, poseId, weight }: { id: number; poseId: number; weight: string }) =>
+      api.photos.assign(id, {
+        pose_id: poseId,
+        weight_kg: weight.trim() === "" ? null : Number(weight),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["photos", "unprocessed"] });
+      queryClient.invalidateQueries({ queryKey: ["photos", "processed"] });
+      queryClient.invalidateQueries({ queryKey: ["day-logs"] });
+    },
+  });
+
+  const bulkAssignMutation = useMutation({
+    mutationFn: (items: { photo_id: number; pose_id: number; weight_kg: number | null }[]) =>
+      api.photos.assignBulk(items),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["photos", "unprocessed"] });
+      queryClient.invalidateQueries({ queryKey: ["photos", "processed"] });
+      queryClient.invalidateQueries({ queryKey: ["day-logs"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.photos.remove(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", "unprocessed"] }),
+  });
+
+  const poses = posesQuery.data ?? [];
+  const photos = photosQuery.data ?? [];
+
+  const groups: DateGroup[] = Object.values(
+    photos.reduce<Record<string, DateGroup>>((acc, photo) => {
+      const date = photo.taken_at.slice(0, 10);
+      (acc[date] ??= { date, photos: [] }).photos.push(photo);
+      return acc;
+    }, {})
+  ).sort((a, b) => (a.date < b.date ? 1 : -1)); // neueste Session zuerst
+
+  // Nur Fotos mit gesetzter Pose werden mitgeschickt - alle anderen
+  // (leeres Dropdown, keine passende Vorschlags-Position) bleiben
+  // unverändert in der Queue für die manuelle Einzelzuordnung.
+  const readyToBulkAssign = photos.filter((p) => selectedPoseId[p.id]);
+
+  function weightForDate(date: string): number | null {
+    const raw = weightByDate[date] ?? "";
+    return raw.trim() === "" ? null : Number(raw);
+  }
+
+  function handleBulkAssign() {
+    const items = readyToBulkAssign.map((photo) => ({
+      photo_id: photo.id,
+      pose_id: Number(selectedPoseId[photo.id]),
+      weight_kg: weightForDate(photo.taken_at.slice(0, 10)),
+    }));
+    bulkAssignMutation.mutate(items);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-white">Import</h1>
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/jpeg,image/png,image/heic,.heic"
+            className="hidden"
+            onChange={(e) => {
+              const files = e.target.files ? Array.from(e.target.files) : [];
+              if (files.length > 0) uploadMutation.mutate(files);
+              e.target.value = ""; // erlaubt erneuten Upload derselben Datei(en)
+            }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadMutation.isPending}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {uploadMutation.isPending ? "Lade hoch…" : "📤 Fotos hochladen"}
+          </button>
+          <button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            className="rounded-lg border border-white/10 bg-black/30 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-50"
+            title="Scannt backend/data/photos_incoming erneut nach Dateien, die dort direkt auf der Festplatte abgelegt wurden"
+          >
+            {syncMutation.isPending ? "Synchronisiere…" : "Ordner synchronisieren"}
+          </button>
+          <button
+            onClick={handleBulkAssign}
+            disabled={readyToBulkAssign.length === 0 || bulkAssignMutation.isPending}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            title={
+              readyToBulkAssign.length === 0
+                ? "Keine Fotos mit gesetzter Pose"
+                : `${readyToBulkAssign.length} Foto(s) zuordnen`
+            }
+          >
+            {bulkAssignMutation.isPending
+              ? "Ordne zu…"
+              : `Alle zugeordneten speichern (${readyToBulkAssign.length})`}
+          </button>
+        </div>
+      </div>
+
+      {uploadMutation.isError && (
+        <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
+          Upload fehlgeschlagen. Bitte erneut versuchen.
+        </p>
+      )}
+
+      {photosQuery.isLoading && <p className="text-slate-500">Lade…</p>}
+
+      {!photosQuery.isLoading && photos.length === 0 && (
+        <div className="rounded-xl border border-white/5 bg-surface p-8 text-center text-slate-400">
+          Keine unverarbeiteten Fotos. Klicke "Fotos hochladen", um Bilder von der eigenen
+          Festplatte auszuwählen, oder lege sie direkt in{" "}
+          <code className="text-accent">backend/data/photos_incoming</code> ab und klicke
+          "Ordner synchronisieren".
+        </div>
+      )}
+
+      <div className="space-y-8">
+        {groups.map((group) => (
+          <section key={group.date} className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-2">
+              <h2 className="text-base font-semibold text-white">
+                {formatDateWithWeek(group.date)}
+                <span className="ml-2 text-sm font-normal text-slate-500">
+                  ({group.photos.length} Foto{group.photos.length === 1 ? "" : "s"})
+                </span>
+              </h2>
+              <label className="flex items-center gap-2 text-sm text-slate-400">
+                Körpergewicht für diesen Tag
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="kg, optional"
+                  value={weightByDate[group.date] ?? ""}
+                  onChange={(e) =>
+                    setWeightByDate((s) => ({ ...s, [group.date]: e.target.value }))
+                  }
+                  className="w-32 rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white placeholder:text-slate-600 focus:border-accent focus:outline-none"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {group.photos.map((photo) => {
+                const pose = selectedPoseId[photo.id] ?? "";
+                const isAssigning =
+                  assignMutation.isPending && assignMutation.variables?.id === photo.id;
+                const isSuggested =
+                  photo.suggested_pose_id != null && pose === photo.suggested_pose_id;
+
+                const isDeleting = deleteMutation.isPending && deleteMutation.variables === photo.id;
+
+                return (
+                  <div
+                    key={photo.id}
+                    className="overflow-hidden rounded-xl border border-white/5 bg-surface"
+                  >
+                    <div className="relative">
+                      <img
+                        src={mediaUrl(photo.thumb_path)}
+                        alt={photo.filename}
+                        className="aspect-[3/4] w-full object-cover"
+                      />
+                      <button
+                        onClick={() => {
+                          if (confirm(`"${photo.filename}" wirklich löschen?`)) {
+                            deleteMutation.mutate(photo.id);
+                          }
+                        }}
+                        disabled={isDeleting}
+                        title="Foto löschen"
+                        aria-label="Foto löschen"
+                        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white/80 backdrop-blur transition-colors hover:bg-red-500/80 hover:text-white disabled:opacity-50"
+                      >
+                        {isDeleting ? "…" : "✕"}
+                      </button>
+                    </div>
+                    <div className="space-y-2 p-3">
+                      <p className="truncate text-xs text-slate-500">
+                        {photo.filename} ·{" "}
+                        {new Date(photo.taken_at).toLocaleTimeString("de-DE")}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={pose}
+                          onChange={(e) =>
+                            setSelectedPoseId((s) => ({
+                              ...s,
+                              [photo.id]: e.target.value ? Number(e.target.value) : "",
+                            }))
+                          }
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
+                        >
+                          <option value="">Pose wählen…</option>
+                          {poses.map((p, index) => (
+                            <option key={p.id} value={p.id}>
+                              {numberedPoseOptionLabel(index, p.name)}
+                            </option>
+                          ))}
+                        </select>
+                        {isSuggested && (
+                          <span
+                            title="Vorschlag basierend auf letzter Session"
+                            className="shrink-0 rounded-full bg-accent/20 px-2 py-1 text-xs text-accent"
+                          >
+                            Vorschlag
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        disabled={!pose || isAssigning}
+                        onClick={() =>
+                          assignMutation.mutate({
+                            id: photo.id,
+                            poseId: Number(pose),
+                            weight: weightByDate[group.date] ?? "",
+                          })
+                        }
+                        className="w-full rounded-lg border border-white/10 bg-black/30 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {isAssigning ? "Ordne zu…" : "Einzeln zuordnen"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
