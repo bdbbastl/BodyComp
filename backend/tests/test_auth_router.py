@@ -60,3 +60,24 @@ def test_logout_clears_session(client, db_session):
     client.post("/api/auth/logout")
     response = client.get("/api/auth/me")
     assert response.status_code == 401
+
+
+def test_switch_to_coach_flips_account_type(client, db_session):
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+
+    response = client.post("/api/auth/switch-to-coach")
+    assert response.status_code == 200
+    assert response.json()["account_type"] == "coach"
+
+    me_response = client.get("/api/auth/me")
+    assert me_response.json()["account_type"] == "coach"
+
+
+def test_switch_to_coach_is_idempotent(client, db_session):
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    client.post("/api/auth/switch-to-coach")
+    second_response = client.post("/api/auth/switch-to-coach")
+    assert second_response.status_code == 200
+    assert second_response.json()["account_type"] == "coach"

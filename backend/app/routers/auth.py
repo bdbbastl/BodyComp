@@ -4,7 +4,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.user import User
+from app.models.user import AccountType, User
 from app.schemas.auth import LoginRequest, UserOut
 from app.services.auth import (
     SESSION_COOKIE_NAME,
@@ -59,4 +59,18 @@ def logout(response: Response):
 
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.post("/switch-to-coach", response_model=UserOut)
+def switch_to_coach(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Kippt account_type auf `coach`. Legt KEINEN neuen Client an und
+    verschiebt keine Daten - der implizite Client existiert seit
+    Account-Erstellung bereits (siehe services/account.py), er wird nur
+    im Dashboard sichtbar. Siehe Design-Spec Abschnitt "Kontotyp"."""
+    current_user.account_type = AccountType.COACH
+    db.commit()
+    db.refresh(current_user)
     return current_user
