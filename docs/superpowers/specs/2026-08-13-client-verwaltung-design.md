@@ -36,13 +36,15 @@ sie aber nicht.
 
 ## Datenmodell
 
-### Neu: `User` (der Coach)
+### Neu: `User` (der Account — Single-User *oder* Coach)
 
 | Feld | Typ | Hinweis |
 |---|---|---|
 | id | int, PK | |
 | email | string, unique | Login-Kennung |
 | password_hash | string | bcrypt |
+| display_name | string, Pflichtfeld | Wird als Name des automatisch angelegten Client verwendet (siehe unten) |
+| account_type | enum: `single` \| `coach` | Steuert, ob das Dashboard sichtbar ist (siehe Abschnitt "Kontotyp") |
 | created_at | datetime | |
 
 ### Neu: `Client` (das Athleten-Profil)
@@ -76,13 +78,49 @@ etc.) sind rein additive Migrationen.
   eindeutig (der Pfad enthält ja den Kunden-Ordner, siehe unten), keine
   Änderung an der Constraint nötig.
 
-### `AppSetting` wandert zum Coach
+### `AppSetting` wandert zum Account
 
 Der Gemini-API-Key und die Anzeige-Einstellungen (Timeline-Spaltenzahl,
-Wochen/Seite) hängen künftig am `User` (Coach), nicht mehr global und nicht
-pro Kunde — ein Coach hat einen Key/eine Bedienpräferenz für alle seine
-Kunden. Dafür wird `AppSetting` um `owner_id` (FK → User) erweitert, bzw. die
-bisherige Key-Value-Struktur bleibt, nur pro Coach statt global eindeutig.
+Wochen/Seite) hängen künftig am `User`, nicht mehr global und nicht pro
+Kunde — ein Account hat einen Key/eine Bedienpräferenz für alle seine
+Kunden (bei `single` ist das eben nur der eine automatisch angelegte).
+Dafür wird `AppSetting` um `owner_id` (FK → User) erweitert, bzw. die
+bisherige Key-Value-Struktur bleibt, nur pro Account statt global eindeutig.
+
+## Kontotyp: Single-User vs. Coach
+
+Nicht jeder Nutzer verwaltet mehrere Athleten — manche wollen nur ihren
+eigenen Fortschritt tracken. Statt zweier unterschiedlicher Datenmodelle
+bekommt **jeder Account, unabhängig vom Typ, bei der Erstellung automatisch
+genau einen `Client`** angelegt, benannt nach `display_name`. Der
+Unterschied zwischen `single` und `coach` ist rein eine
+Sichtbarkeits-Weiche im Frontend, keine unterschiedliche Datenstruktur:
+
+- **`single`** — kein Dashboard, keine Kundenliste. Nach dem Login geht's
+  direkt in das eine automatisch angelegte Profil (`/clients/:autoId/timeline`),
+  die App sieht exakt so aus wie heute vor der Mandantenfähigkeit. Der Link
+  "zurück zum Dashboard" ist ausgeblendet.
+- **`coach`** — Dashboard mit Kundenliste ist sichtbar, das automatisch
+  angelegte Profil erscheint dort ganz normal als erster Eintrag, weitere
+  Kunden lassen sich anlegen.
+
+**Umschalten `single` → `coach`:** Ein Toggle im Account-Bereich (siehe
+"Frontend") kippt nur `account_type`. Es wird **nichts kopiert oder
+verschoben** — der `Client` existierte strukturell schon immer, er wird nur
+sichtbar. Für den Nutzer fühlt es sich an wie "meine Daten werden zu meinem
+ersten Kunden", technisch ist es ein einzelnes Flag. Das ist robuster als
+eine echte Datenmigration beim Umschalten (kein Risiko eines Abbruchs auf
+halber Strecke) und spart Code.
+
+Die Rückrichtung (`coach` → `single`) ist nicht Teil dieser Umsetzung — sie
+wurde nicht angefragt und wirft zusätzliche Fragen auf (was passiert mit
+mehreren Kunden?), die YAGNI bis zum tatsächlichen Bedarf zurückgestellt
+werden.
+
+**Payment-Hook (nicht Teil dieser Umsetzung):** `account_type` ist der
+natürliche Anknüpfungspunkt für unterschiedliche Preismodelle in Stufe 4
+("bei Kunden andere Payment-Optionen") — hier nur als Feld vorbereitet,
+keine weitere Ausgestaltung.
 
 ## Authentifizierung
 
@@ -92,7 +130,8 @@ bisherige Key-Value-Struktur bleibt, nur pro Coach statt global eindeutig.
   (bcrypt), setzt bei Erfolg ein signiertes, **httpOnly** Cookie.
 - `POST /api/auth/logout` löscht das Cookie.
 - Eine zentrale FastAPI-Dependency (`get_current_user`) liest das Cookie,
-  validiert die Signatur und liefert den eingeloggten `User` — oder `401`.
+  validiert die Signatur und liefert den eingeloggten `User` (Account) —
+  oder `401`.
 - Kein Token-Handling im Frontend nötig (kein Storage, kein manuelles
   Anhängen an Requests) — der Browser übernimmt das automatisch bei
   Same-Origin-Requests.
@@ -130,17 +169,19 @@ GET    /api/clients/{client_id}/day-logs
 GET    /api/clients/{client_id}/comparisons
 ...
 
-GET    /api/settings/gemini-key           unverändert, hängt am Coach
+GET    /api/settings/gemini-key           unverändert, hängt am eingeloggten Account
 PUT    /api/settings/gemini-key
 GET    /api/settings/display
 PUT    /api/settings/display
 ```
 
 Eine zentrale Dependency (`get_owned_client`) prüft bei **jedem**
-`/clients/{client_id}/...`-Aufruf: (1) ist der Coach eingeloggt, (2) gehört
-`client_id` zu genau diesem Coach. Trifft (2) nicht zu (fremder oder
+`/clients/{client_id}/...`-Aufruf: (1) ist ein Account eingeloggt, (2) gehört
+`client_id` zu genau diesem Account. Trifft (2) nicht zu (fremder oder
 nicht-existenter Kunde), liefert die API `404` — nicht `403` — damit sie
-nicht einmal verrät, ob eine fremde Kunden-ID überhaupt existiert.
+nicht einmal verrät, ob eine fremde Kunden-ID überhaupt existiert. Das gilt
+unabhängig von `account_type` — auch bei `single` prüft dieselbe Dependency
+den Zugriff auf das eine automatisch angelegte Profil.
 
 ## Dateiablage
 
@@ -168,18 +209,24 @@ Adapter-Austausch bleibt statt eines Umbaus.
 
 ## Frontend
 
-- **`/login`** — E-Mail + Passwort, Redirect zum Dashboard bei Erfolg.
-- **`/` (Dashboard)** — Liste/Kacheln aller eigenen Kunden, Button "Neuen
-  Kunden anlegen" (Formular: Name, Größe, Alter, Geschlecht, Startdatum).
-  Klick auf einen Kunden → `/clients/:id/timeline`.
+- **`/login`** — E-Mail + Passwort. Nach Erfolg: bei `account_type=coach`
+  Redirect zum Dashboard, bei `account_type=single` Redirect direkt ins
+  automatisch angelegte Profil.
+- **`/` (Dashboard, nur `coach`)** — Liste/Kacheln aller eigenen Kunden,
+  Button "Neuen Kunden anlegen" (Formular: Name, Größe, Alter, Geschlecht,
+  Startdatum). Klick auf einen Kunden → `/clients/:id/timeline`. Für
+  `account_type=single` ist diese Route nicht erreichbar (Redirect ins
+  eigene Profil).
 - **Bestehende Seiten** (Timeline, Import, Compare, Statistik) wandern
-  inhaltlich unverändert unter `/clients/:id/*`. Die Navigationsleiste zeigt
-  zusätzlich den Namen des aktiven Kunden und einen Link zurück zum
-  Dashboard.
+  inhaltlich unverändert unter `/clients/:id/*`. Bei `coach` zeigt die
+  Navigationsleiste zusätzlich den Namen des aktiven Kunden und einen Link
+  zurück zum Dashboard; bei `single` bleibt die Navigationsleiste wie heute,
+  ohne Kunden-Kontext-Anzeige.
 - **Settings wird aufgeteilt:** Posen-Konfiguration bleibt kundenspezifisch
   unter `/clients/:id/settings`. Gemini-Key und Anzeige-Einstellungen
-  wandern in einen neuen, kundenunabhängigen Bereich (z.B. `/account`), da
-  sie am Coach hängen.
+  wandern in einen neuen, kundenunabhängigen Bereich `/account`. Dort auch
+  der **Konto-Typ-Toggle** ("Ich betreue auch andere Kunden" o.ä.), der
+  `single` → `coach` umschaltet (siehe "Kontotyp").
 - **Logout** — Button in der Navigationsleiste, überall sichtbar.
 
 ## Migration des bestehenden Datenbestands
@@ -187,11 +234,14 @@ Adapter-Austausch bleibt statt eines Umbaus.
 Einmaliges Migrationsscript, das beim ersten Start nach dem Umbau automatisch
 läuft (Erkennungsmerkmal: noch kein `User` in der DB vorhanden):
 
-1. Legt den Coach-Account an (`basti.auer@outlook.com`, Startpasswort wurde
-   im Chat übergeben — **nicht** im Repo gespeichert, wird bei der
-   Implementierung direkt gehasht in die DB geschrieben, taucht in keiner
-   committeten Datei im Klartext auf).
-2. Legt den Kunden **"Mein Profil"** an, diesem Coach zugeordnet.
+1. Legt den Account an (`basti.auer@outlook.com`, `display_name="Basti"`,
+   `account_type=coach`. Startpasswort wurde im Chat übergeben — **nicht**
+   im Repo gespeichert, wird bei der Implementierung direkt gehasht in die
+   DB geschrieben, taucht in keiner committeten Datei im Klartext auf).
+2. Legt den Kunden **"Mein Profil"** an, diesem Account zugeordnet (dieser
+   Schritt ist hier bewusst noch eine echte Migration bereits bestehender
+   Daten, keine Neuanlage wie beim regulären Signup-Flow aus dem
+   "Kontotyp"-Abschnitt — es gibt ja schon Daten ohne `client_id`).
 3. Befüllt `client_id` auf allen bestehenden `Photo`-, `DayLog`- und
    `Pose`-Zeilen (aktuell: 175 Fotos, 27 Tage-Einträge, 7 Posen) mit der ID
    von "Mein Profil".
@@ -199,7 +249,7 @@ läuft (Erkennungsmerkmal: noch kein `User` in der DB vorhanden):
    (`photos_processed/<mein-profil-id>/<datum>/...` usw.) und aktualisiert
    die in der DB gespeicherten Pfade entsprechend.
 5. Übernimmt den aktuellen Gemini-Key aus der bestehenden `AppSetting`/`.env`
-   in den neuen Coach-Account.
+   in den neuen Account.
 
 Bestehende Bilddateien und normalisierte Versionen bleiben inhaltlich
 unangetastet — nur Pfade und Zuordnungen ändern sich.
@@ -210,9 +260,12 @@ unangetastet — nur Pfade und Zuordnungen ändern sich.
   (→ Stufe 2)
 - Wechsel auf Postgres oder Object-Storage (→ Stufe 3)
 - Payment/Billing, Pläne, Limits (→ Stufe 4)
-- Rollen/Rechte für Athleten-Logins (nur Coach-Login in Stufe 1)
+- Rollen/Rechte für Athleten-Logins (in Stufe 1 loggen sich nur Accounts
+  selbst ein — `single` oder `coach` —, nie ein Athlet für sich)
 - Eine UI zum Anlegen weiterer Coach-Accounts (passiert vorerst manuell,
   analog zum bestehenden Migrationsscript)
+- Rückumschalten `coach` → `single` (nur die Richtung `single` → `coach`
+  wurde angefragt)
 
 ## Offene technische Fragen für die Umsetzungsplanung
 
