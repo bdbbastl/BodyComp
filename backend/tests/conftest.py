@@ -62,6 +62,9 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
+    # base_url mit https, weil das Session-Cookie `secure=True` setzt (siehe
+    # app/routers/auth.py) - httpx' Cookie-Jar würde ein Secure-Cookie sonst
+    # bei einem http://-Base-URL stillschweigend nicht zurücksenden.
+    with TestClient(app, base_url="https://testserver") as test_client:
         yield test_client
     app.dependency_overrides.clear()

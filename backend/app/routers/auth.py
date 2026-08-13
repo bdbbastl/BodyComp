@@ -27,10 +27,10 @@ def get_current_user(
         raise HTTPException(401, "Nicht eingeloggt")
     user_id = verify_session_token(session)
     if user_id is None:
-        raise HTTPException(401, "Session ungültig oder abgelaufen")
+        raise HTTPException(401, "Nicht eingeloggt")
     user = db.get(User, user_id)
     if user is None:
-        raise HTTPException(401, "Session ungültig oder abgelaufen")
+        raise HTTPException(401, "Nicht eingeloggt")
     return user
 
 
@@ -47,13 +47,14 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
         max_age=SESSION_MAX_AGE_SECONDS,
         httponly=True,
         samesite="lax",
+        secure=True,
     )
     return user
 
 
 @router.post("/logout", status_code=204)
 def logout(response: Response):
-    response.delete_cookie(SESSION_COOKIE_NAME)
+    response.delete_cookie(SESSION_COOKIE_NAME, secure=True)
 
 
 @router.get("/me", response_model=UserOut)
