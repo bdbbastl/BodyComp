@@ -26,6 +26,9 @@ frontend/.vite/
 # Brainstorming-Companion (temporäre Mockups)
 .superpowers/
 
+# Git-Worktrees für isolierte Feature-Umsetzung (superpowers-Skills)
+.worktrees/
+
 # Claude Code lokale Einstellungen (persönlich, nicht fürs Team)
 .claude/settings.local.json
 
