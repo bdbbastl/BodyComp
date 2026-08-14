@@ -59,6 +59,23 @@ class Settings(BaseSettings):
     # fürs lokale Dev-Setup gedacht.
     session_secret_key: str = "dev-only-insecure-secret-change-me"
 
+    # Google OAuth (siehe routers/auth_google.py). In Google Cloud Console
+    # unter "APIs & Services > Credentials" anzulegen.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    # Muss exakt der in der Google Cloud Console hinterlegten Redirect-URI
+    # entsprechen. Lokal: http://localhost:8000/api/auth/google/callback
+    google_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
+
+    # Resend (transaktionaler E-Mail-Versand, siehe services/email.py).
+    resend_api_key: str = ""
+    # Absenderadresse - im Sandbox-Modus (keine verifizierte Domain) muss
+    # das Resends Standard-Testadresse sein: onboarding@resend.dev
+    email_from_address: str = "onboarding@resend.dev"
+
+    # Basis-URL des Frontends, für Links in E-Mails (Bestätigung, Reset).
+    frontend_base_url: str = "http://localhost:5173"
+
 
 settings = Settings()
 
