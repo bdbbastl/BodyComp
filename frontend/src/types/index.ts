@@ -1,3 +1,13 @@
+export interface Client {
+  id: number;
+  name: string;
+  height_cm: number | null;
+  age: number | null;
+  gender: string | null;
+  start_date: string | null;
+  created_at: string;
+}
+
 export interface Pose {
   id: number;
   name: string;

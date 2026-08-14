@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { DayLog, Photo, Pose, UnprocessedPhoto } from "../types";
+import type { Client, DayLog, Photo, Pose, UnprocessedPhoto } from "../types";
 
 export interface DisplaySettings {
   timeline_columns_max: number;
@@ -30,6 +30,19 @@ export const api = {
     me: () => client.get<CurrentUser>("/auth/me").then((r) => r.data),
     switchToCoach: () =>
       client.post<CurrentUser>("/auth/switch-to-coach").then((r) => r.data),
+  },
+  clients: {
+    list: () => client.get<Client[]>("/clients").then((r) => r.data),
+    get: (clientId: number) => client.get<Client>(`/clients/${clientId}`).then((r) => r.data),
+    create: (payload: {
+      name: string;
+      height_cm?: number | null;
+      age?: number | null;
+      gender?: string | null;
+      start_date?: string | null;
+    }) => client.post<Client>("/clients", payload).then((r) => r.data),
+    update: (clientId: number, payload: Partial<Omit<Client, "id" | "created_at">>) =>
+      client.patch<Client>(`/clients/${clientId}`, payload).then((r) => r.data),
   },
   poses: {
     list: () => client.get<Pose[]>("/poses").then((r) => r.data),
