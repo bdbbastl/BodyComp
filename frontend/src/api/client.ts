@@ -6,7 +6,16 @@ export interface DisplaySettings {
   timeline_weeks_per_page: number;
 }
 
-const client = axios.create({ baseURL: "/api" });
+export type AccountType = "single" | "coach";
+
+export interface CurrentUser {
+  id: number;
+  email: string;
+  display_name: string;
+  account_type: AccountType;
+}
+
+const client = axios.create({ baseURL: "/api", withCredentials: true });
 
 /** Löst einen server-relativen Bildpfad (original_path/normalized_path) zur /media-URL auf. */
 export function mediaUrl(relativePath: string): string {
@@ -14,6 +23,14 @@ export function mediaUrl(relativePath: string): string {
 }
 
 export const api = {
+  auth: {
+    login: (email: string, password: string) =>
+      client.post<CurrentUser>("/auth/login", { email, password }).then((r) => r.data),
+    logout: () => client.post("/auth/logout"),
+    me: () => client.get<CurrentUser>("/auth/me").then((r) => r.data),
+    switchToCoach: () =>
+      client.post<CurrentUser>("/auth/switch-to-coach").then((r) => r.data),
+  },
   poses: {
     list: () => client.get<Pose[]>("/poses").then((r) => r.data),
     create: (name: string) => client.post<Pose>("/poses", { name }).then((r) => r.data),
