@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { DisplaySettings } from "../api/client";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import PageHeader from "../components/PageHeader";
 
 const COLUMNS_MAX_LIMIT = 10;
 const WEEKS_PER_PAGE_LIMIT = 25;
@@ -328,7 +329,7 @@ export default function Account() {
 
   return (
     <div className="max-w-xl space-y-6">
-      <h1 className="text-xl font-semibold text-white">Account</h1>
+      <PageHeader title="Account" />
 
       {user?.account_type === "single" && (
         <div className="rounded-xl border border-white/5 bg-surface p-4">
