@@ -299,6 +299,7 @@ def compare_photos_all(
 
     client = _require_client(db, owner_id)
 
+
     weight_x_str = f", {weight_x:.1f} kg" if weight_x is not None else ""
     weight_y_str = f", {weight_y:.1f} kg" if weight_y is not None else ""
     time_delta = _format_time_delta(date_x, date_y)

@@ -1,10 +1,10 @@
 """
-Ordner-Sync: scannt photos_incoming/ nach neuen Bilddateien, die noch
-nicht als Photo-Row in der DB existieren, und legt sie mit
+Ordner-Sync: scannt photos_incoming/<client_id>/ nach neuen Bilddateien, die
+noch nicht als Photo-Row in der DB existieren, und legt sie mit
 status=UNPROCESSED an.
 
-POC: einfacher Scan-on-Demand (Endpoint POST /api/photos/sync). Eine
-spätere Ausbaustufe könnte watchdog.Observer für Live-Filesystem-Events
+POC: einfacher Scan-on-Demand (Endpoint POST /api/clients/{id}/photos/sync).
+Eine spätere Ausbaustufe könnte watchdog.Observer für Live-Filesystem-Events
 nutzen (Dependency ist bereits in requirements.txt vorbereitet).
 """
 from pathlib import Path
@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.models.photo import Photo, ProcessingStatus
 from app.services.exif import get_dimensions, get_taken_at
 from app.services.heic import generate_preview, is_heic
+from app.services.storage_paths import incoming_dir_for_client
 from app.services.thumbnails import generate_thumbnail, thumbnail_path_for
 
 
@@ -25,7 +26,7 @@ def _preview_path_for(original: Path) -> Path:
     return original.parent / f"{original.name}.preview.jpg"
 
 
-def _backfill_missing_previews(db: Session) -> None:
+def _backfill_missing_previews(db: Session, client_id: int) -> None:
     """
     Erzeugt Vorschauen für HEIC-Fotos nach, die vor Einführung der
     HEIC-Unterstützung synchronisiert wurden (preview_path noch NULL).
@@ -34,6 +35,7 @@ def _backfill_missing_previews(db: Session) -> None:
     """
     candidates = (
         db.query(Photo)
+        .filter(Photo.client_id == client_id)
         .filter(Photo.status == ProcessingStatus.UNPROCESSED)
         .filter(Photo.preview_path.is_(None))
         .all()
@@ -56,13 +58,19 @@ def _backfill_missing_previews(db: Session) -> None:
         db.commit()
 
 
-def sync_incoming_folder(db: Session) -> list[Photo]:
-    _backfill_missing_previews(db)
+def sync_incoming_folder(db: Session, client_id: int) -> list[Photo]:
+    _backfill_missing_previews(db, client_id)
 
-    existing_paths = {p.original_path for p in db.query(Photo.original_path).all()}
+    existing_paths = {
+        p.original_path
+        for p in db.query(Photo.original_path).filter(Photo.client_id == client_id).all()
+    }
     new_photos: list[Photo] = []
 
-    for file in sorted(settings.photos_incoming_dir.rglob("*")):
+    incoming_dir = incoming_dir_for_client(client_id)
+    incoming_dir.mkdir(parents=True, exist_ok=True)
+
+    for file in sorted(incoming_dir.rglob("*")):
         if not file.is_file() or file.suffix.lower() not in settings.allowed_extensions:
             continue
         # Selbst erzeugte HEIC-Vorschaudateien nicht als eigenständiges
@@ -96,6 +104,7 @@ def sync_incoming_folder(db: Session) -> list[Photo]:
         )
 
         photo = Photo(
+            client_id=client_id,
             filename=file.name,
             original_path=rel_path,
             preview_path=preview_rel_path,

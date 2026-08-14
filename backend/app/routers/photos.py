@@ -1,6 +1,6 @@
 """
-Foto-Workflow: Ordner-Sync, Unprocessed-Queue, manuelle Zuordnung,
-Timeline-Dashboard-Daten.
+Foto-Workflow pro Kunde: Ordner-Sync, Unprocessed-Queue, manuelle
+Zuordnung, Timeline-Dashboard-Daten.
 """
 import shutil
 from datetime import date as date_
@@ -12,9 +12,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.models.client import Client
 from app.models.day_log import DayLog
 from app.models.photo import Photo, ProcessingStatus
 from app.models.pose import Pose
+from app.routers.clients import get_owned_client
 from app.schemas.photo import (
     PhotoAssign,
     PhotoBulkAssign,
@@ -25,28 +27,39 @@ from app.schemas.photo import (
 from app.services.folder_sync import sync_incoming_folder
 from app.services.pose_normalization import normalize_photo
 from app.services.pose_suggestion import compute_pose_suggestions
+from app.services.storage_paths import (
+    incoming_dir_for_client,
+    normalized_dir_for_client_pose,
+    processed_dir_for_client_date,
+)
 from app.services.thumbnails import generate_thumbnail, thumbnail_path_for
 
-router = APIRouter(prefix="/api/photos", tags=["photos"])
+router = APIRouter(prefix="/api/clients/{client_id}/photos", tags=["photos"])
 
 
 @router.post("/sync", response_model=list[PhotoOut])
-def sync_photos(db: Session = Depends(get_db)):
-    """Scannt photos_incoming/ und legt neue Photo-Rows als UNPROCESSED an."""
-    return sync_incoming_folder(db)
+def sync_photos(client_row: Client = Depends(get_owned_client), db: Session = Depends(get_db)):
+    """Scannt photos_incoming/<client_id>/ und legt neue Photo-Rows als
+    UNPROCESSED an."""
+    return sync_incoming_folder(db, client_row.id)
 
 
 @router.post("/upload", response_model=list[PhotoOut])
-def upload_photos(files: list[UploadFile], db: Session = Depends(get_db)):
+def upload_photos(
+    files: list[UploadFile],
+    client_row: Client = Depends(get_owned_client),
+    db: Session = Depends(get_db),
+):
     """
     Datei-Upload für die Import-Seite: Der User wählt Dateien von der
-    eigenen Festplatte, diese werden nach photos_incoming/ kopiert und
-    direkt im Anschluss verarbeitet (derselbe Scan wie /sync) - der User
-    muss also nicht extra einen Ordner auf dem Server-Rechner befüllen
-    und anschließend "Sync" klicken, sondern kann Dateien direkt aus dem
-    Browser hochladen.
+    eigenen Festplatte, diese werden nach photos_incoming/<client_id>/
+    kopiert und direkt im Anschluss verarbeitet (derselbe Scan wie /sync) -
+    der User muss also nicht extra einen Ordner auf dem Server-Rechner
+    befüllen und anschließend "Sync" klicken, sondern kann Dateien direkt
+    aus dem Browser hochladen.
     """
-    settings.photos_incoming_dir.mkdir(parents=True, exist_ok=True)
+    incoming_dir = incoming_dir_for_client(client_row.id)
+    incoming_dir.mkdir(parents=True, exist_ok=True)
     saved_any = False
     for upload in files:
         if not upload.filename:
@@ -54,12 +67,12 @@ def upload_photos(files: list[UploadFile], db: Session = Depends(get_db)):
         suffix = Path(upload.filename).suffix.lower()
         if suffix not in settings.allowed_extensions:
             continue
-        dest = settings.photos_incoming_dir / upload.filename
+        dest = incoming_dir / upload.filename
         # Namenskollision (z.B. gleicher Dateiname erneut hochgeladen):
         # Zähler anhängen statt zu überschreiben.
         counter = 1
         while dest.exists():
-            dest = settings.photos_incoming_dir / f"{Path(upload.filename).stem}_{counter}{suffix}"
+            dest = incoming_dir / f"{Path(upload.filename).stem}_{counter}{suffix}"
             counter += 1
         with dest.open("wb") as f:
             shutil.copyfileobj(upload.file, f)
@@ -68,14 +81,14 @@ def upload_photos(files: list[UploadFile], db: Session = Depends(get_db)):
     if not saved_any:
         raise HTTPException(400, "Keine gültigen Bilddateien im Upload gefunden")
 
-    return sync_incoming_folder(db)
+    return sync_incoming_folder(db, client_row.id)
 
 
 @router.get("/unprocessed", response_model=list[PhotoUnprocessedOut])
-def list_unprocessed(db: Session = Depends(get_db)):
+def list_unprocessed(client_row: Client = Depends(get_owned_client), db: Session = Depends(get_db)):
     photos = (
         db.query(Photo)
-        .filter(Photo.status == ProcessingStatus.UNPROCESSED)
+        .filter(Photo.client_id == client_row.id, Photo.status == ProcessingStatus.UNPROCESSED)
         .order_by(Photo.taken_at)
         .all()
     )
@@ -92,10 +105,11 @@ def list_unprocessed(db: Session = Depends(get_db)):
 def list_photos(
     pose_id: int | None = None,
     status: ProcessingStatus | None = None,
+    client_row: Client = Depends(get_owned_client),
     db: Session = Depends(get_db),
 ):
     """Für Timeline-Dashboard und Comparison-Mode (Filter nach Pose)."""
-    q = db.query(Photo)
+    q = db.query(Photo).filter(Photo.client_id == client_row.id)
     if pose_id is not None:
         q = q.filter(Photo.pose_id == pose_id)
     if status is not None:
@@ -104,21 +118,25 @@ def list_photos(
 
 
 @router.post("/renormalize-all", response_model=list[PhotoOut])
-def renormalize_all(db: Session = Depends(get_db)):
+def renormalize_all(client_row: Client = Depends(get_owned_client), db: Session = Depends(get_db)):
     """
     Berechnet die normalisierten Versionen aller bereits zugeordneten Fotos
     neu (z.B. nach einer Verbesserung des Normalisierungs-Algorithmus).
     Originale bleiben unangetastet, nur normalized_path/landmarks_json/status
     werden aktualisiert.
     """
-    photos = db.query(Photo).filter(Photo.pose_id.isnot(None)).all()
+    photos = (
+        db.query(Photo)
+        .filter(Photo.client_id == client_row.id, Photo.pose_id.isnot(None))
+        .all()
+    )
     for photo in photos:
         # HEIC-Originale kann OpenCV nicht lesen - dann die JPEG-Vorschau
         # als Quelle für die Normalisierung verwenden (siehe services/heic.py).
         src = settings.data_dir / (photo.preview_path or photo.original_path)
         if not src.exists():
             continue
-        dest = settings.photos_normalized_dir / str(photo.pose_id) / f"{photo.id}.jpg"
+        dest = normalized_dir_for_client_pose(client_row.id, photo.pose_id) / f"{photo.id}.jpg"
         result = normalize_photo(src, dest)
         if result.success and result.normalized_path:
             photo.normalized_path = result.normalized_path.relative_to(settings.data_dir).as_posix()
@@ -133,7 +151,11 @@ def renormalize_all(db: Session = Depends(get_db)):
 
 
 @router.post("/backfill-thumbnails")
-def backfill_thumbnails(force: bool = False, db: Session = Depends(get_db)) -> dict:
+def backfill_thumbnails(
+    force: bool = False,
+    client_row: Client = Depends(get_owned_client),
+    db: Session = Depends(get_db),
+) -> dict:
     """
     Generiert Thumbnails für alle Fotos nach, die noch keins haben (z.B.
     Bestandsfotos von vor der Thumbnail-Einführung). Einmalig auszuführen
@@ -144,7 +166,7 @@ def backfill_thumbnails(force: bool = False, db: Session = Depends(get_db)) -> d
     z.B. nach einem Fix in der Thumbnail-Generierung selbst (etwa der
     fehlenden EXIF-Rotation), wo die alten Dateien einfach falsch sind.
     """
-    query = db.query(Photo)
+    query = db.query(Photo).filter(Photo.client_id == client_row.id)
     if not force:
         query = query.filter(Photo.thumbnail_path.is_(None))
     photos = query.all()
@@ -165,24 +187,29 @@ def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None
     """
     Ordnet ein Unprocessed-Bild einer Pose zu:
     1. DayLog für das EXIF-Datum holen/anlegen, optional Gewicht setzen.
-    2. Datei von photos_incoming/ nach photos_processed/<date>/ verschieben.
+    2. Datei von photos_incoming/<client_id>/ nach
+       photos_processed/<client_id>/<date>/ verschieben.
     3. MediaPipe-Normalisierung anstoßen (best effort - Fehler blockieren
        die Zuordnung nicht, siehe ProcessingStatus.NORMALIZATION_FAILED).
     Von /assign (Einzelfoto) und /assign-bulk (Massenzuordnung) gemeinsam
     genutzt, damit beide exakt dieselbe Logik durchlaufen.
     """
     day_date = photo.taken_at.date()
-    day_log = db.query(DayLog).filter(DayLog.date == day_date).first()
+    day_log = (
+        db.query(DayLog)
+        .filter(DayLog.client_id == photo.client_id, DayLog.date == day_date)
+        .first()
+    )
     if day_log is None:
-        day_log = DayLog(date=day_date)
+        day_log = DayLog(client_id=photo.client_id, date=day_date)
         db.add(day_log)
         db.flush()
     if weight_kg is not None:
         day_log.weight_kg = weight_kg
 
-    # Datei physisch verschieben: photos_processed/<YYYY-MM-DD>/<filename>
+    # Datei physisch verschieben: photos_processed/<client_id>/<YYYY-MM-DD>/<filename>
     src = settings.data_dir / photo.original_path
-    dest_dir = settings.photos_processed_dir / day_date.isoformat()
+    dest_dir = processed_dir_for_client_date(photo.client_id, day_date.isoformat())
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / photo.filename
     if src.exists():
@@ -225,7 +252,7 @@ def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None
     # nur der Overlay-Vergleich ist für dieses Bild dann nicht verfügbar.
     # HEIC-Originale kann OpenCV nicht lesen -> Vorschau als Quelle nutzen.
     normalize_source = settings.data_dir / (photo.preview_path or photo.original_path)
-    normalized_dest = settings.photos_normalized_dir / str(pose.id) / f"{photo.id}.jpg"
+    normalized_dest = normalized_dir_for_client_pose(photo.client_id, pose.id) / f"{photo.id}.jpg"
     result = normalize_photo(normalize_source, normalized_dest)
     if result.success and result.normalized_path:
         photo.normalized_path = result.normalized_path.relative_to(settings.data_dir).as_posix()
@@ -239,7 +266,11 @@ def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None
 
 
 @router.post("/assign-bulk", response_model=list[PhotoOut])
-def assign_photos_bulk(payload: PhotoBulkAssign, db: Session = Depends(get_db)):
+def assign_photos_bulk(
+    payload: PhotoBulkAssign,
+    client_row: Client = Depends(get_owned_client),
+    db: Session = Depends(get_db),
+):
     """
     Ordnet mehrere Fotos auf einmal zu (z.B. "Alle zugeordneten speichern"
     in der Unprocessed-Ansicht). Fotos ohne gewählte Pose werden vom
@@ -249,8 +280,16 @@ def assign_photos_bulk(payload: PhotoBulkAssign, db: Session = Depends(get_db)):
     """
     results: list[Photo] = []
     for item in payload.items:
-        photo = db.get(Photo, item.photo_id)
-        pose = db.get(Pose, item.pose_id)
+        photo = (
+            db.query(Photo)
+            .filter(Photo.id == item.photo_id, Photo.client_id == client_row.id)
+            .first()
+        )
+        pose = (
+            db.query(Pose)
+            .filter(Pose.id == item.pose_id, Pose.client_id == client_row.id)
+            .first()
+        )
         if not photo or not pose or photo.status != ProcessingStatus.UNPROCESSED:
             continue
         results.append(_assign_photo(db, photo, pose, item.weight_kg))
@@ -258,12 +297,17 @@ def assign_photos_bulk(payload: PhotoBulkAssign, db: Session = Depends(get_db)):
 
 
 @router.post("/{photo_id}/assign", response_model=PhotoOut)
-def assign_photo(photo_id: int, payload: PhotoAssign, db: Session = Depends(get_db)):
-    photo = db.get(Photo, photo_id)
+def assign_photo(
+    photo_id: int,
+    payload: PhotoAssign,
+    client_row: Client = Depends(get_owned_client),
+    db: Session = Depends(get_db),
+):
+    photo = db.query(Photo).filter(Photo.id == photo_id, Photo.client_id == client_row.id).first()
     if not photo:
         raise HTTPException(404, "Foto nicht gefunden")
 
-    pose = db.get(Pose, payload.pose_id)
+    pose = db.query(Pose).filter(Pose.id == payload.pose_id, Pose.client_id == client_row.id).first()
     if not pose:
         raise HTTPException(404, "Pose nicht gefunden")
 
@@ -283,7 +327,9 @@ def _delete_photo_files(photo: Photo) -> None:
 
 
 @router.delete("/by-date/{date}", status_code=200)
-def delete_photos_by_date(date: date_, db: Session = Depends(get_db)):
+def delete_photos_by_date(
+    date: date_, client_row: Client = Depends(get_owned_client), db: Session = Depends(get_db)
+):
     """
     Löscht alle Fotos eines Kalendertags auf einmal (z.B. "Tag löschen" in
     der Timeline). Der DayLog-Eintrag (Gewicht) bleibt bestehen - der Tag
@@ -299,6 +345,7 @@ def delete_photos_by_date(date: date_, db: Session = Depends(get_db)):
     """
     photos = (
         db.query(Photo)
+        .filter(Photo.client_id == client_row.id)
         .filter(Photo.taken_at >= date)
         .filter(Photo.taken_at < date.fromordinal(date.toordinal() + 1))
         .all()
@@ -311,7 +358,9 @@ def delete_photos_by_date(date: date_, db: Session = Depends(get_db)):
 
 
 @router.delete("/{photo_id}", status_code=204)
-def delete_photo(photo_id: int, db: Session = Depends(get_db)):
+def delete_photo(
+    photo_id: int, client_row: Client = Depends(get_owned_client), db: Session = Depends(get_db)
+):
     """
     Löscht ein Foto (egal ob noch unverarbeitet oder bereits einer Pose
     zugeordnet) inkl. aller zugehörigen Dateien von der Platte. Der
@@ -319,7 +368,7 @@ def delete_photo(photo_id: int, db: Session = Depends(get_db)):
     Fotos mehr für diesen Tag existieren - das Gewicht ist eine eigene
     Angabe, kein Foto-Metadatum.
     """
-    photo = db.get(Photo, photo_id)
+    photo = db.query(Photo).filter(Photo.id == photo_id, Photo.client_id == client_row.id).first()
     if not photo:
         raise HTTPException(404, "Foto nicht gefunden")
 
@@ -329,18 +378,23 @@ def delete_photo(photo_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{photo_id}/pose", response_model=PhotoOut)
-def change_photo_pose(photo_id: int, payload: PhotoRepose, db: Session = Depends(get_db)):
+def change_photo_pose(
+    photo_id: int,
+    payload: PhotoRepose,
+    client_row: Client = Depends(get_owned_client),
+    db: Session = Depends(get_db),
+):
     """
     Ordnet ein bereits zugeordnetes Foto nachträglich einer anderen Pose
     zu (z.B. Fehlzuordnung in der Timeline korrigieren). Normalisierte
     Version wird für die neue Pose neu berechnet, die alte Datei am alten
     Pose-Pfad wird aufgeräumt.
     """
-    photo = db.get(Photo, photo_id)
+    photo = db.query(Photo).filter(Photo.id == photo_id, Photo.client_id == client_row.id).first()
     if not photo:
         raise HTTPException(404, "Foto nicht gefunden")
 
-    pose = db.get(Pose, payload.pose_id)
+    pose = db.query(Pose).filter(Pose.id == payload.pose_id, Pose.client_id == client_row.id).first()
     if not pose:
         raise HTTPException(404, "Pose nicht gefunden")
 
@@ -353,7 +407,7 @@ def change_photo_pose(photo_id: int, payload: PhotoRepose, db: Session = Depends
     photo.updated_at = datetime.utcnow()
 
     normalize_source = settings.data_dir / (photo.preview_path or photo.original_path)
-    normalized_dest = settings.photos_normalized_dir / str(pose.id) / f"{photo.id}.jpg"
+    normalized_dest = normalized_dir_for_client_pose(client_row.id, pose.id) / f"{photo.id}.jpg"
     result = normalize_photo(normalize_source, normalized_dest)
     if result.success and result.normalized_path:
         photo.normalized_path = result.normalized_path.relative_to(settings.data_dir).as_posix()
