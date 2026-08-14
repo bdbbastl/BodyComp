@@ -42,7 +42,11 @@ def test_create_email_token_is_verifiable():
 
 def test_verify_email_token_signature_rejects_tampered_token():
     token = create_email_token(user_id=42, purpose="verify_email")
-    tampered = token[:-1] + ("a" if token[-1] != "a" else "b")
+    # Nicht das letzte Zeichen kippen: bei Base64url-Padding kann ein
+    # geänderter letzter Zeichen manchmal auf dieselben Bytes dekodieren
+    # (ungenutzte Padding-Bits), was den Test nichtdeterministisch macht.
+    # Stattdessen ein Zeichen weiter vorne im Payload-Segment kippen.
+    tampered = token[:-8] + ("X" if token[-8] != "X" else "Y") + token[-7:]
     assert verify_email_token_signature(tampered, max_age_seconds=3600) is None
 
 

@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine  # noqa: F401 - SessionLocal wird von tests/conftest.py gepatcht
@@ -38,6 +39,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Wird von authlib fürs Google-OAuth-State/Nonce-Handling gebraucht
+# (request.session) - siehe routers/auth.py google_login/google_callback.
+# Middleware-Reihenfolge: Starlette führt Middlewares in umgekehrter
+# Registrierungsreihenfolge aus (zuletzt hinzugefügt = äußerste Schicht),
+# das spielt hier aber keine Rolle, da CORS und Session unabhängig sind.
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret_key)
 
 # Statische Auslieferung der Bilddateien (Originale + normalisierte
 # Versionen) direkt aus dem lokalen data_dir.

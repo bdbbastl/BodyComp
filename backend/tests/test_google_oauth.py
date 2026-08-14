@@ -4,6 +4,18 @@ from app.models.user import AccountType, User
 from app.services.auth import hash_password
 
 
+def test_google_login_redirects_to_google_without_crashing(client):
+    # Bewusst NICHT gemockt: prüft, dass SessionMiddleware installiert ist,
+    # denn authlibs authorize_redirect greift intern auf request.session zu
+    # (State/Nonce fürs CSRF-Schutz), was ohne SessionMiddleware mit einem
+    # AssertionError crasht.
+    response = client.get("/api/auth/google/login", follow_redirects=False)
+
+    assert response.status_code in (302, 307)
+    assert "accounts.google.com" in response.headers["location"]
+    assert "session" in response.cookies
+
+
 def _fake_google_userinfo(sub="google-sub-123", email="google@example.com", name="Google User"):
     return {"sub": sub, "email": email, "email_verified": True, "name": name}
 
