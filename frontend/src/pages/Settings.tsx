@@ -1,18 +1,24 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
 import { api } from "../api/client";
 
 export default function Settings() {
+  const { clientId } = useParams<{ clientId: string }>();
+  const clientIdNum = Number(clientId);
   const queryClient = useQueryClient();
   const [newPoseName, setNewPoseName] = useState("");
   const [editing, setEditing] = useState<Record<number, string>>({});
 
-  const posesQuery = useQuery({ queryKey: ["poses"], queryFn: api.poses.list });
+  const posesQuery = useQuery({
+    queryKey: ["poses", clientIdNum],
+    queryFn: () => api.poses.list(clientIdNum),
+  });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["poses"] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["poses", clientIdNum] });
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => api.poses.create(name),
+    mutationFn: (name: string) => api.poses.create(clientIdNum, name),
     onSuccess: () => {
       setNewPoseName("");
       invalidate();
@@ -20,12 +26,13 @@ export default function Settings() {
   });
 
   const renameMutation = useMutation({
-    mutationFn: ({ id, name }: { id: number; name: string }) => api.poses.update(id, { name }),
+    mutationFn: ({ id, name }: { id: number; name: string }) =>
+      api.poses.update(clientIdNum, id, { name }),
     onSuccess: invalidate,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.poses.remove(id),
+    mutationFn: (id: number) => api.poses.remove(clientIdNum, id),
     onSuccess: invalidate,
   });
 

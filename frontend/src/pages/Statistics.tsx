@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { formatDateShortWithWeek } from "../utils/date";
 
@@ -18,9 +19,14 @@ const CHART_HEIGHT = 320;
 const PADDING = { top: 20, right: 20, bottom: 32, left: 48 };
 
 export default function Statistics() {
+  const { clientId } = useParams<{ clientId: string }>();
+  const clientIdNum = Number(clientId);
   const [range, setRange] = useState<RangeKey>("3m");
 
-  const dayLogsQuery = useQuery({ queryKey: ["day-logs"], queryFn: api.dayLogs.list });
+  const dayLogsQuery = useQuery({
+    queryKey: ["day-logs", clientIdNum],
+    queryFn: () => api.dayLogs.list(clientIdNum),
+  });
 
   const points = useMemo(() => {
     const withWeight = (dayLogsQuery.data ?? [])

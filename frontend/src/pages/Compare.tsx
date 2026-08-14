@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import type { Photo, Pose } from "../types";
 import { formatDateShortWithWeek } from "../utils/date";
@@ -22,6 +23,8 @@ const BRIGHTNESS_MAX = 250;
 const BRIGHTNESS_DEFAULT = 100;
 
 export default function Compare() {
+  const { clientId } = useParams<{ clientId: string }>();
+  const clientIdNum = Number(clientId);
   const [poseSelection, setPoseSelection] = useState<PoseSelection>("");
   const [dateX, setDateX] = useState("");
   const [dateY, setDateY] = useState("");
@@ -52,15 +55,18 @@ export default function Compare() {
 
   const isAllPoses = poseSelection === ALL_POSES;
 
-  const posesQuery = useQuery({ queryKey: ["poses"], queryFn: api.poses.list });
+  const posesQuery = useQuery({
+    queryKey: ["poses", clientIdNum],
+    queryFn: () => api.poses.list(clientIdNum),
+  });
 
   // Sobald eine einzelne Pose gewählt ist: alle Fotos dieser Pose laden, um
   // die Datums-Dropdowns auf die tatsächlich vorhandenen Tage zu
   // beschränken (statt einer freien Datumseingabe, bei der man leere Tage
   // treffen kann).
   const posePhotosQuery = useQuery({
-    queryKey: ["photos", "by-pose", poseSelection],
-    queryFn: () => api.photos.list({ pose_id: Number(poseSelection) }),
+    queryKey: ["photos", clientIdNum, "by-pose", poseSelection],
+    queryFn: () => api.photos.list(clientIdNum, { pose_id: Number(poseSelection) }),
     enabled: typeof poseSelection === "number",
   });
 
@@ -68,8 +74,8 @@ export default function Compare() {
   // sowohl die Datums-Dropdowns zu befüllen als auch pro Pose das Bildpaar
   // für die zwei gewählten Termine client-seitig herauszusuchen.
   const allPhotosQuery = useQuery({
-    queryKey: ["photos", "all-for-compare"],
-    queryFn: () => api.photos.list(),
+    queryKey: ["photos", clientIdNum, "all-for-compare"],
+    queryFn: () => api.photos.list(clientIdNum),
     select: (photos) => photos.filter((p) => p.pose_id != null),
     enabled: isAllPoses,
   });
@@ -83,9 +89,9 @@ export default function Compare() {
   ].sort((a, b) => (a < b ? 1 : -1)); // absteigend, neueste zuerst
 
   const comparisonQuery = useQuery({
-    queryKey: ["comparison", poseSelection, dateX, dateY],
+    queryKey: ["comparison", clientIdNum, poseSelection, dateX, dateY],
     queryFn: () =>
-      api.comparisons.get({ pose_id: Number(poseSelection), date_x: dateX, date_y: dateY }),
+      api.comparisons.get(clientIdNum, { pose_id: Number(poseSelection), date_x: dateX, date_y: dateY }),
     enabled: typeof poseSelection === "number" && dateX !== "" && dateY !== "",
     retry: false,
   });
@@ -154,10 +160,14 @@ export default function Compare() {
   // eine Einzelpose oder "Alle Posen" gewählt ist.
   const aiAnalysisMutation = useMutation({
     mutationFn: () =>
-      api.comparisons.aiAnalysis({ pose_id: Number(poseSelection), date_x: dateX, date_y: dateY }),
+      api.comparisons.aiAnalysis(clientIdNum, {
+        pose_id: Number(poseSelection),
+        date_x: dateX,
+        date_y: dateY,
+      }),
   });
   const aiAnalysisAllMutation = useMutation({
-    mutationFn: () => api.comparisons.aiAnalysisAll({ date_x: dateX, date_y: dateY }),
+    mutationFn: () => api.comparisons.aiAnalysisAll(clientIdNum, { date_x: dateX, date_y: dateY }),
   });
   const activeAiMutation = isAllPoses ? aiAnalysisAllMutation : aiAnalysisMutation;
 

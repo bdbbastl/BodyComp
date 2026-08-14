@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import type { UnprocessedPhoto } from "../types";
 import { formatDateWithWeek } from "../utils/date";
@@ -11,14 +12,22 @@ interface DateGroup {
 }
 
 export default function Unprocessed() {
+  const { clientId } = useParams<{ clientId: string }>();
+  const clientIdNum = Number(clientId);
   const queryClient = useQueryClient();
   const [selectedPoseId, setSelectedPoseId] = useState<Record<number, number | "">>({});
   // Ein Gewicht pro Tag statt pro Foto - gilt für alle Fotos dieses
   // Datums, wie gewünscht ("für alle Bilder eines Tages").
   const [weightByDate, setWeightByDate] = useState<Record<string, string>>({});
 
-  const posesQuery = useQuery({ queryKey: ["poses"], queryFn: api.poses.list });
-  const photosQuery = useQuery({ queryKey: ["photos", "unprocessed"], queryFn: api.photos.unprocessed });
+  const posesQuery = useQuery({
+    queryKey: ["poses", clientIdNum],
+    queryFn: () => api.poses.list(clientIdNum),
+  });
+  const photosQuery = useQuery({
+    queryKey: ["photos", clientIdNum, "unprocessed"],
+    queryFn: () => api.photos.unprocessed(clientIdNum),
+  });
 
   // Neue Fotos mit ihrem Pose-Vorschlag vorbelegen (siehe backend
   // services/pose_suggestion.py). Nur für Fotos, die noch keinen Eintrag
@@ -40,8 +49,8 @@ export default function Unprocessed() {
   }, [photosQuery.data]);
 
   const syncMutation = useMutation({
-    mutationFn: api.photos.sync,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", "unprocessed"] }),
+    mutationFn: () => api.photos.sync(clientIdNum),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] }),
   });
 
   // Datei-Upload: Dateien werden nach photos_incoming/ kopiert und im
@@ -49,37 +58,35 @@ export default function Unprocessed() {
   // wie /sync auf) - kein separater "Ordner synchronisieren"-Klick nötig
   // für hochgeladene Dateien.
   const uploadMutation = useMutation({
-    mutationFn: (files: File[]) => api.photos.upload(files),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", "unprocessed"] }),
+    mutationFn: (files: File[]) => api.photos.upload(clientIdNum, files),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] }),
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const assignMutation = useMutation({
     mutationFn: ({ id, poseId, weight }: { id: number; poseId: number; weight: string }) =>
-      api.photos.assign(id, {
+      api.photos.assign(clientIdNum, id, {
         pose_id: poseId,
         weight_kg: weight.trim() === "" ? null : Number(weight),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["photos", "unprocessed"] });
-      queryClient.invalidateQueries({ queryKey: ["photos", "processed"] });
-      queryClient.invalidateQueries({ queryKey: ["day-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] });
+      queryClient.invalidateQueries({ queryKey: ["day-logs", clientIdNum] });
     },
   });
 
   const bulkAssignMutation = useMutation({
     mutationFn: (items: { photo_id: number; pose_id: number; weight_kg: number | null }[]) =>
-      api.photos.assignBulk(items),
+      api.photos.assignBulk(clientIdNum, items),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["photos", "unprocessed"] });
-      queryClient.invalidateQueries({ queryKey: ["photos", "processed"] });
-      queryClient.invalidateQueries({ queryKey: ["day-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] });
+      queryClient.invalidateQueries({ queryKey: ["day-logs", clientIdNum] });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => api.photos.remove(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", "unprocessed"] }),
+    mutationFn: (id: number) => api.photos.remove(clientIdNum, id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] }),
   });
 
   const poses = posesQuery.data ?? [];

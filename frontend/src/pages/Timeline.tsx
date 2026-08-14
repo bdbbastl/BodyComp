@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import type { Photo, Pose } from "../types";
 import { formatDateWithWeek } from "../utils/date";
@@ -29,17 +30,25 @@ interface DayGroup {
 }
 
 export default function Timeline() {
+  const { clientId } = useParams<{ clientId: string }>();
+  const clientIdNum = Number(clientId);
   // Kein status-Filter: Fotos gelten als "zugeordnet" sobald pose_id gesetzt
   // ist, unabhängig davon ob die MediaPipe-Normalisierung geklappt hat
   // (normalization_failed-Fotos gehören trotzdem in die Timeline, nur der
   // Overlay-Vergleich ist für sie nicht verfügbar).
   const photosQuery = useQuery({
-    queryKey: ["photos", "all"],
-    queryFn: () => api.photos.list(),
+    queryKey: ["photos", clientIdNum, "all"],
+    queryFn: () => api.photos.list(clientIdNum),
     select: (photos) => photos.filter((p) => p.pose_id != null),
   });
-  const dayLogsQuery = useQuery({ queryKey: ["day-logs"], queryFn: api.dayLogs.list });
-  const posesQuery = useQuery({ queryKey: ["poses"], queryFn: api.poses.list });
+  const dayLogsQuery = useQuery({
+    queryKey: ["day-logs", clientIdNum],
+    queryFn: () => api.dayLogs.list(clientIdNum),
+  });
+  const posesQuery = useQuery({
+    queryKey: ["poses", clientIdNum],
+    queryFn: () => api.poses.list(clientIdNum),
+  });
   const displaySettingsQuery = useQuery({
     queryKey: ["settings", "display"],
     queryFn: api.settings.getDisplay,
@@ -97,6 +106,7 @@ export default function Timeline() {
 
   return (
     <TimelineWithLightbox
+      clientId={clientIdNum}
       sortedGroups={sortedGroups}
       poses={poses}
       poseNameById={poseNameById}
@@ -113,12 +123,14 @@ export default function Timeline() {
  * für sehr viele Tage gleichzeitig (das eigentliche Performance-Ziel laut
  * Anforderung). */
 function TimelineWithLightbox({
+  clientId,
   sortedGroups,
   poses,
   poseNameById,
   columnsMax,
   weeksPerPage,
 }: {
+  clientId: number;
   sortedGroups: DayGroup[];
   poses: Pose[];
   poseNameById: Map<number, string>;
@@ -143,6 +155,7 @@ function TimelineWithLightbox({
       {pageGroups.map((group) => (
         <DayGroupSection
           key={group.date}
+          clientId={clientId}
           group={group}
           poses={poses}
           poseNameById={poseNameById}
@@ -199,12 +212,14 @@ function TimelinePagination({
 }
 
 function DayGroupSection({
+  clientId,
   group,
   poses,
   poseNameById,
   onOpenPhoto,
   columnsMax,
 }: {
+  clientId: number;
   group: DayGroup;
   poses: Pose[];
   poseNameById: Map<number, string>;
@@ -218,9 +233,9 @@ function DayGroupSection({
   const [collapsed, setCollapsed] = useState(false);
 
   const deleteDayMutation = useMutation({
-    mutationFn: () => api.photos.removeByDate(group.date),
+    mutationFn: () => api.photos.removeByDate(clientId, group.date),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      queryClient.invalidateQueries({ queryKey: ["photos", clientId] });
       setConfirmingDelete(false);
     },
   });
@@ -243,7 +258,7 @@ function DayGroupSection({
           <h2 className="text-lg font-semibold text-white">{formatDateWithWeek(group.date)}</h2>
         </div>
         <div className="flex items-center gap-2">
-          <WeightEditor date={group.date} weightKg={group.weight_kg} />
+          <WeightEditor clientId={clientId} date={group.date} weightKg={group.weight_kg} />
           {confirmingDelete ? (
             <span className="flex items-center gap-1 text-xs">
               <span className="text-slate-400">Alle {group.photos.length} Fotos löschen?</span>
@@ -280,6 +295,7 @@ function DayGroupSection({
           {group.photos.map((photo) => (
             <PhotoCard
               key={photo.id}
+              clientId={clientId}
               photo={photo}
               poses={poses}
               poseNameById={poseNameById}
@@ -293,11 +309,13 @@ function DayGroupSection({
 }
 
 function PhotoCard({
+  clientId,
   photo,
   poses,
   poseNameById,
   onOpen,
 }: {
+  clientId: number;
   photo: Photo;
   poses: Pose[];
   poseNameById: Map<number, string>;
@@ -307,13 +325,13 @@ function PhotoCard({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const deleteMutation = useMutation({
-    mutationFn: () => api.photos.remove(photo.id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos"] }),
+    mutationFn: () => api.photos.remove(clientId, photo.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", clientId] }),
   });
 
   const changePoseMutation = useMutation({
-    mutationFn: (poseId: number) => api.photos.changePose(photo.id, poseId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos"] }),
+    mutationFn: (poseId: number) => api.photos.changePose(clientId, photo.id, poseId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", clientId] }),
   });
 
   return (
@@ -376,7 +394,15 @@ function PhotoCard({
 /** Klick auf das Gewicht (oder "Gewicht eintragen", falls noch keins
  * erfasst ist) blendet ein Eingabefeld ein - so lässt sich das
  * Körpergewicht auch nachträglich pro Tag eintragen/korrigieren. */
-function WeightEditor({ date, weightKg }: { date: string; weightKg: number | null }) {
+function WeightEditor({
+  clientId,
+  date,
+  weightKg,
+}: {
+  clientId: number;
+  date: string;
+  weightKg: number | null;
+}) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(weightKg != null ? String(weightKg) : "");
@@ -387,9 +413,9 @@ function WeightEditor({ date, weightKg }: { date: string; weightKg: number | nul
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.dayLogs.upsert({ date, weight_kg: value.trim() === "" ? null : Number(value) }),
+      api.dayLogs.upsert(clientId, { date, weight_kg: value.trim() === "" ? null : Number(value) }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["day-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["day-logs", clientId] });
       setEditing(false);
     },
   });
