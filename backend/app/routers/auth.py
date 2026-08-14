@@ -13,7 +13,7 @@ from app.core.rate_limit import RateLimiter
 from app.models.email_token import EmailToken, EmailTokenPurpose
 from app.models.user import AccountType, User
 from app.schemas.auth import LoginRequest, UserOut
-from app.schemas.signup import ForgotPasswordRequest, SignupRequest
+from app.schemas.signup import ForgotPasswordRequest, ResetPasswordRequest, SignupRequest
 from app.services.account import create_account
 from app.services.auth import (
     SESSION_COOKIE_NAME,
@@ -21,11 +21,12 @@ from app.services.auth import (
     create_email_token,
     create_session_token,
     hash_email_token,
+    hash_password,
     verify_email_token_signature,
     verify_password,
     verify_session_token,
 )
-from app.services.email import send_verification_email
+from app.services.email import send_password_reset_email, send_verification_email
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -41,6 +42,7 @@ oauth.register(
 signup_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
 login_rate_limit = RateLimiter(max_requests=10, window_seconds=3600)
 resend_verification_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
+forgot_password_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
 
 
 def get_current_user(
@@ -48,15 +50,26 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     """FastAPI-Dependency: liest das Session-Cookie, validiert Signatur +
-    Ablauf, lädt den User. Wirft 401, wenn irgendwas davon fehlschlägt."""
+    Ablauf, lädt den User, prüft dass die Session nicht durch einen
+    Passwort-Reset invalidiert wurde. Wirft 401, wenn irgendwas davon
+    fehlschlägt."""
     if session is None:
         raise HTTPException(401, "Nicht eingeloggt")
-    user_id = verify_session_token(session)
-    if user_id is None:
+    payload = verify_session_token(session)
+    if payload is None:
         raise HTTPException(401, "Nicht eingeloggt")
-    user = db.get(User, user_id)
+    user = db.get(User, payload["user_id"])
     if user is None:
         raise HTTPException(401, "Nicht eingeloggt")
+    if user.sessions_invalidated_at is not None:
+        issued_at = datetime.fromisoformat(payload["issued_at"])
+        if issued_at.tzinfo is None:
+            issued_at = issued_at.replace(tzinfo=timezone.utc)
+        invalidated_at = user.sessions_invalidated_at
+        if invalidated_at.tzinfo is None:
+            invalidated_at = invalidated_at.replace(tzinfo=timezone.utc)
+        if issued_at < invalidated_at:
+            raise HTTPException(401, "Nicht eingeloggt")
     return user
 
 
@@ -227,3 +240,50 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         secure=True,
     )
     return response
+
+
+@router.post("/forgot-password", status_code=204)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+    _rate_limit: None = Depends(forgot_password_rate_limit),
+):
+    user = db.query(User).filter(User.email == payload.email).first()
+    if user is not None and user.password_hash is not None:
+        raw_token = create_email_token(user_id=user.id, purpose=EmailTokenPurpose.RESET_PASSWORD.value)
+        db.add(EmailToken(
+            user_id=user.id,
+            token_hash=hash_email_token(raw_token),
+            purpose=EmailTokenPurpose.RESET_PASSWORD,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        ))
+        db.commit()
+        reset_url = f"{settings.frontend_base_url}/reset-password?token={raw_token}"
+        send_password_reset_email(to=user.email, reset_url=reset_url)
+    # immer 204 - kein Enumeration-Leak, egal ob Account existiert/Passwort hat
+
+
+@router.post("/reset-password", status_code=204)
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    token_payload = verify_email_token_signature(payload.token, max_age_seconds=60 * 60)
+    if token_payload is None or token_payload.get("purpose") != EmailTokenPurpose.RESET_PASSWORD.value:
+        raise HTTPException(400, "Link ist ungültig oder abgelaufen")
+
+    token_row = (
+        db.query(EmailToken)
+        .filter(
+            EmailToken.user_id == token_payload["user_id"],
+            EmailToken.token_hash == hash_email_token(payload.token),
+            EmailToken.purpose == EmailTokenPurpose.RESET_PASSWORD,
+            EmailToken.used_at.is_(None),
+        )
+        .first()
+    )
+    if token_row is None:
+        raise HTTPException(400, "Link ist ungültig, abgelaufen oder bereits verwendet")
+
+    user = db.get(User, token_payload["user_id"])
+    user.password_hash = hash_password(payload.new_password)
+    user.sessions_invalidated_at = datetime.now(timezone.utc)
+    token_row.used_at = datetime.now(timezone.utc)
+    db.commit()

@@ -4,6 +4,7 @@ selbstgebauten Hashings, weil bcrypt Salting und einen konfigurierbaren
 Work-Factor eingebaut hat - der Industriestandard für Passwort-Hashes.
 """
 import hashlib
+from datetime import datetime, timezone
 
 import bcrypt
 from itsdangerous import BadSignature, URLSafeTimedSerializer
@@ -26,17 +27,17 @@ _serializer = URLSafeTimedSerializer(settings.session_secret_key, salt="session-
 
 
 def create_session_token(user_id: int) -> str:
-    return _serializer.dumps({"user_id": user_id})
+    return _serializer.dumps({"user_id": user_id, "issued_at": datetime.now(timezone.utc).isoformat()})
 
 
-def verify_session_token(token: str) -> int | None:
-    """Gibt die user_id zurück, wenn die Signatur gültig und das Cookie
-    nicht abgelaufen ist - sonst None (nie eine Exception nach außen)."""
+def verify_session_token(token: str) -> dict | None:
+    """Gibt das Token-Payload (user_id, issued_at) zurück, wenn die
+    Signatur gültig und das Cookie nicht abgelaufen ist - sonst None
+    (nie eine Exception nach außen)."""
     try:
-        data = _serializer.loads(token, max_age=SESSION_MAX_AGE_SECONDS)
+        return _serializer.loads(token, max_age=SESSION_MAX_AGE_SECONDS)
     except BadSignature:
         return None
-    return data.get("user_id")
 
 
 _email_token_serializer = URLSafeTimedSerializer(settings.session_secret_key, salt="email-token")
