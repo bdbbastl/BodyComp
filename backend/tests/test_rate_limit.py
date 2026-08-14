@@ -1,8 +1,17 @@
+from unittest.mock import Mock
+
 import pytest
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.testclient import TestClient
 
 from app.core.rate_limit import RateLimiter
+
+
+def _make_request(ip: str) -> Mock:
+    request = Mock()
+    request.client.host = ip
+    request.headers = {}
+    return request
 
 
 def _make_test_app():
@@ -34,13 +43,18 @@ def test_blocks_requests_over_the_limit():
 
 
 def test_limits_are_tracked_per_ip_independently():
-    app, limiter = _make_test_app()
-    client = TestClient(app)
+    # Direkter Unit-Test auf RateLimiter.__call__ mit Mock-Requests, da
+    # TestClient keine unterschiedlichen Socket-Client-IPs pro Request
+    # simulieren kann (X-Forwarded-For wird bewusst nicht mehr vertraut).
+    limiter = RateLimiter(max_requests=3, window_seconds=3600)
+
     for _ in range(3):
-        client.post("/limited", headers={"X-Forwarded-For": "1.1.1.1"})
+        limiter(_make_request("1.1.1.1"))
+
+    # erste IP ist jetzt blockiert
+    with pytest.raises(HTTPException) as exc_info:
+        limiter(_make_request("1.1.1.1"))
+    assert exc_info.value.status_code == 429
+
     # andere IP darf noch
-    response = client.post("/limited", headers={"X-Forwarded-For": "2.2.2.2"})
-    assert response.status_code == 200
-    # erste IP bleibt blockiert
-    response = client.post("/limited", headers={"X-Forwarded-For": "1.1.1.1"})
-    assert response.status_code == 429
+    limiter(_make_request("2.2.2.2"))  # löst keine Exception aus

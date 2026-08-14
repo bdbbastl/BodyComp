@@ -20,14 +20,23 @@ class RateLimiter:
         self._hits: dict[str, list[float]] = defaultdict(list)
 
     def __call__(self, request: Request) -> None:
-        ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
+        # Nur die Socket-Client-IP wird vertraut - X-Forwarded-For ist ein
+        # vom Client frei setzbarer Header und würde das Limit ohne
+        # vorgeschalteten, vertrauenswürdigen Reverse-Proxy aushebeln.
+        ip = request.client.host if request.client else "unknown"
         now = time.monotonic()
         cutoff = now - self.window_seconds
 
         hits = self._hits[ip]
         hits[:] = [t for t in hits if t > cutoff]
 
+        if not hits:
+            # Kein Eintrag mehr im Fenster - Speicher freigeben, damit
+            # _hits nicht unbegrenzt für jede jemals gesehene IP wächst.
+            del self._hits[ip]
+
         if len(hits) >= self.max_requests:
             raise HTTPException(429, "Zu viele Versuche - bitte später erneut probieren.")
 
         hits.append(now)
+        self._hits[ip] = hits
