@@ -1,13 +1,16 @@
 from datetime import datetime
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base
 from app.core.migrate_to_multitenancy import migrate_to_multitenancy
 from app.core.migrations import run_lightweight_migrations
+from app.models.app_setting import AppSetting
 from app.models.client import Client
 from app.models.user import User
+
+LEGACY_DISPLAY_SETTINGS_VALUE = '{"timeline_columns_max": 7, "timeline_weeks_per_page": 8}'
 
 
 def _make_legacy_engine(tmp_path):
@@ -89,6 +92,26 @@ def _seed_pre_migration_data(engine):
         )
 
 
+def _seed_legacy_app_settings(engine, value=LEGACY_DISPLAY_SETTINGS_VALUE):
+    """Legt `app_settings` exakt so an, wie es in der ECHTEN Alt-DB von
+    vor Task 10 aussieht: Einzel-Spalten-PK auf `key`, keine
+    `owner_id`-Spalte, mit einer echten bestehenden
+    `display_settings`-Zeile."""
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE TABLE app_settings ("
+                "\"key\" VARCHAR(100) NOT NULL, "
+                "value VARCHAR(2000), "
+                "PRIMARY KEY (\"key\"))"
+            )
+        )
+        conn.execute(
+            text("INSERT INTO app_settings (\"key\", value) VALUES ('display_settings', :value)"),
+            {"value": value},
+        )
+
+
 def test_migration_creates_account_and_client(tmp_path):
     engine = _make_legacy_engine(tmp_path)
     _seed_pre_migration_data(engine)
@@ -162,5 +185,112 @@ def test_migration_is_a_noop_when_a_user_already_exists(tmp_path):
         user_count_after_second_run = session.query(User).count()
 
         assert user_count_after_first_run == user_count_after_second_run == 1
+    finally:
+        session.close()
+
+
+def test_migration_fixes_legacy_app_settings_schema_and_preserves_data(tmp_path):
+    """Reproduziert den echten 500er auf GET /api/settings/display:
+    eine reale Alt-DB hat `app_settings` noch mit Einzel-PK auf `key`
+    und einer echten `display_settings`-Zeile. Nach der Migration muss
+    die Zeile erhalten bleiben, per ORM-Composite-PK auffindbar sein
+    und dem neu migrierten Account gehören."""
+    engine = _make_legacy_engine(tmp_path)
+    _seed_pre_migration_data(engine)
+    _seed_legacy_app_settings(engine)
+    run_lightweight_migrations(engine)
+
+    session = sessionmaker(bind=engine)()
+    try:
+        migrate_to_multitenancy(
+            session,
+            email="basti@example.com",
+            password="Grindcore123!",
+            display_name="Basti",
+        )
+
+        user = session.query(User).filter(User.email == "basti@example.com").first()
+        assert user is not None
+
+        inspector = inspect(engine)
+        pk_columns = set(inspector.get_pk_constraint("app_settings")["constrained_columns"])
+        assert pk_columns == {"owner_id", "key"}
+
+        row = session.get(AppSetting, (user.id, "display_settings"))
+        assert row is not None
+        assert row.value == LEGACY_DISPLAY_SETTINGS_VALUE
+        assert row.owner_id == user.id
+    finally:
+        session.close()
+
+
+def test_migration_fixes_app_settings_even_when_user_already_exists(tmp_path):
+    """Deckt den exakten realen Zustand dieser Worktree-DB ab: User
+    existiert bereits (frühere migrate_to_multitenancy()-Läufe), aber
+    `app_settings` bekam den Schema-Fix erst durch einen späteren
+    Deploy dieses Fixes. Der frühe No-Op-Return bei existierendem User
+    darf den app_settings-Fix nicht verhindern."""
+    engine = _make_legacy_engine(tmp_path)
+    _seed_pre_migration_data(engine)
+    run_lightweight_migrations(engine)
+
+    session = sessionmaker(bind=engine)()
+    try:
+        migrate_to_multitenancy(
+            session,
+            email="basti@example.com",
+            password="Grindcore123!",
+            display_name="Basti",
+        )
+
+        # Simuliert: app_settings existiert erst jetzt in der alten Form
+        # (z.B. weil dieser Fix erst in einem späteren Deploy dazukam).
+        _seed_legacy_app_settings(engine)
+
+        migrate_to_multitenancy(
+            session,
+            email="basti@example.com",
+            password="Grindcore123!",
+            display_name="Basti",
+        )
+
+        user = session.query(User).filter(User.email == "basti@example.com").first()
+        row = session.get(AppSetting, (user.id, "display_settings"))
+        assert row is not None
+        assert row.value == LEGACY_DISPLAY_SETTINGS_VALUE
+        assert row.owner_id == user.id
+    finally:
+        session.close()
+
+
+def test_migration_app_settings_fix_is_idempotent(tmp_path):
+    """Zweiter Lauf gegen eine bereits reparierte app_settings-Tabelle
+    darf weder crashen noch Daten duplizieren/verlieren."""
+    engine = _make_legacy_engine(tmp_path)
+    _seed_pre_migration_data(engine)
+    _seed_legacy_app_settings(engine)
+    run_lightweight_migrations(engine)
+
+    session = sessionmaker(bind=engine)()
+    try:
+        migrate_to_multitenancy(
+            session,
+            email="basti@example.com",
+            password="Grindcore123!",
+            display_name="Basti",
+        )
+        user = session.query(User).filter(User.email == "basti@example.com").first()
+
+        migrate_to_multitenancy(
+            session,
+            email="basti@example.com",
+            password="Grindcore123!",
+            display_name="Basti",
+        )
+
+        rows = session.query(AppSetting).all()
+        assert len(rows) == 1
+        assert rows[0].owner_id == user.id
+        assert rows[0].value == LEGACY_DISPLAY_SETTINGS_VALUE
     finally:
         session.close()

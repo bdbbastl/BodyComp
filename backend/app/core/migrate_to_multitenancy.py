@@ -14,8 +14,11 @@ client-gescopte Ordnerstruktur (siehe services/storage_paths.py) und
 aktualisiert die in der DB gespeicherten Pfade entsprechend.
 """
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 
+from sqlalchemy import inspect, text
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -62,11 +65,106 @@ def _move_file_into_client_folder(rel_path: str | None, client_id: int) -> str |
     return dest.relative_to(settings.data_dir).as_posix()
 
 
+def _app_settings_has_legacy_schema(conn: Connection) -> bool:
+    """True, wenn `app_settings` noch den alten Einzel-Spalten-PK auf
+    `key` allein hat (Stand vor Task 10), statt des aktuellen
+    Composite-PK `(owner_id, key)` (siehe app/models/app_setting.py).
+    Erkennung anhand des tatsächlichen Primary-Key-Constraints in der
+    DB - nicht anhand von Datenzuständen, analog zu
+    migrate_legacy_unique_constraints.py."""
+    inspector = inspect(conn)
+    pk_columns = set(inspector.get_pk_constraint("app_settings").get("constrained_columns") or [])
+    return "owner_id" not in pk_columns
+
+
+def _rebuild_app_settings_table(conn: Connection, owner_id: int) -> None:
+    """Baut `app_settings` von Einzel-PK (`key`) auf Composite-PK
+    (`owner_id`, `key`) um - gleiches resumable Rebuild-Verfahren wie
+    `_rebuild_poses_table`/`_rebuild_day_logs_table` in
+    migrate_legacy_unique_constraints.py (SQLite kann eine bestehende
+    PRIMARY KEY-Definition nicht per ALTER TABLE ändern). Jede
+    bestehende Zeile gehört dem einzigen Account, der vor dieser
+    Migration existierte."""
+    conn.execute(text("DROP TABLE IF EXISTS app_settings_new"))
+    conn.execute(text(
+        "CREATE TABLE app_settings_new ("
+        "owner_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE, "
+        "\"key\" VARCHAR(100) NOT NULL, "
+        "value VARCHAR(2000), "
+        "PRIMARY KEY (owner_id, \"key\"))"
+    ))
+    conn.execute(
+        text(
+            "INSERT INTO app_settings_new (owner_id, \"key\", value) "
+            "SELECT :owner_id, \"key\", value FROM app_settings"
+        ),
+        {"owner_id": owner_id},
+    )
+    conn.execute(text("DROP TABLE app_settings"))
+    conn.execute(text("ALTER TABLE app_settings_new RENAME TO app_settings"))
+
+
+def _app_settings_backup_path(db_path: Path) -> Path:
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return db_path.with_name(f"{db_path.name}.pre-app-settings-fix-{ts}")
+
+
+def _sqlite_file_path(engine: Engine) -> Path | None:
+    """Siehe gleichnamige Funktion in migrate_legacy_unique_constraints.py
+    - Datei-Backup ist nur bei echten Datei-SQLite-DBs möglich/nötig,
+    nicht bei `:memory:` (Tests)."""
+    url = engine.url
+    if url.get_backend_name() != "sqlite" or not url.database or url.database == ":memory:":
+        return None
+    return Path(url.database)
+
+
+def _fix_app_settings_schema(engine: Engine, owner_id: int) -> None:
+    """Repariert eine `app_settings`-Tabelle mit dem alten
+    Einzel-Spalten-PK auf `key`, indem sie auf den aktuellen
+    Composite-PK `(owner_id, key)` umgebaut wird und bestehende Zeilen
+    dem übergebenen Account zugeordnet werden (siehe Modul-/Task-Doku).
+    Sicherer No-Op, wenn `app_settings` noch gar nicht existiert (ganz
+    frische Installation vor dem ersten `create_all()`) oder bereits
+    das korrekte Composite-PK-Schema hat (frische Installation oder
+    bereits reparierte DB)."""
+    inspector = inspect(engine)
+    if "app_settings" not in inspector.get_table_names():
+        return
+
+    db_file = _sqlite_file_path(engine)
+
+    with engine.begin() as conn:
+        if not _app_settings_has_legacy_schema(conn):
+            return
+        if db_file is not None and db_file.exists():
+            shutil.copy2(db_file, _app_settings_backup_path(db_file))
+        _rebuild_app_settings_table(conn, owner_id)
+
+
 def migrate_to_multitenancy(
     db: Session, *, email: str, password: str, display_name: str
 ) -> None:
-    if db.query(User).count() > 0:
-        return  # schon migriert (oder frische Installation ohne Altdaten)
+    engine = db.get_bind()
+    user_count = db.query(User).count()
+
+    if user_count > 0:
+        # Schon migriert (oder frische Installation ohne Altdaten). Ein
+        # bereits existierender User verhindert die eigentliche
+        # Daten-Migration hier - ABER `app_settings` kann trotzdem noch
+        # das alte Einzel-PK-Schema haben, falls dieser Fix erst in
+        # einem SPÄTEREN Deploy als die ursprüngliche
+        # migrate_to_multitenancy()-Migration dazukam (genau der reale
+        # Zustand dieser Worktree-DB: User "Basti" existiert bereits,
+        # `app_settings` wurde aber nie umgebaut). Bei genau einem
+        # existierenden User reparieren wir das hier nachträglich, mit
+        # dessen id als owner_id. Bei mehreren Usern ist unklar, wem
+        # bestehende Legacy-Zeilen gehören sollen - dann bewusst nichts
+        # tun (sollte im Ein-Account-POC nicht vorkommen).
+        if user_count == 1:
+            existing_user = db.query(User).first()
+            _fix_app_settings_schema(engine, existing_user.id)
+        return
 
     user = create_account(
         db, email=email, password=password, display_name=display_name
@@ -98,3 +196,12 @@ def migrate_to_multitenancy(
         photo.normalized_path = _move_file_into_client_folder(photo.normalized_path, client_row.id)
 
     db.commit()
+
+    # app_settings existiert auf einer ECHTEN Alt-DB bereits vor dieser
+    # Migration (Einzel-PK auf `key`) - jetzt, wo der Account feststeht,
+    # können bestehende Zeilen ihm zugeordnet werden (siehe
+    # _fix_app_settings_schema-Docstring). Auf einer frischen Installation
+    # ohne Altdaten ist das ein No-Op (Tabelle existiert entweder noch
+    # nicht, oder create_all() hat sie von Anfang an mit dem korrekten
+    # Composite-PK angelegt).
+    _fix_app_settings_schema(engine, user.id)
