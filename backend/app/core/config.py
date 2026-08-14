@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     # fürs lokale Dev-Setup gedacht.
     session_secret_key: str = "dev-only-insecure-secret-change-me"
 
-    # Google OAuth (siehe routers/auth_google.py). In Google Cloud Console
+    # Google OAuth (siehe routers/auth.py). In Google Cloud Console
     # unter "APIs & Services > Credentials" anzulegen.
     google_client_id: str = ""
     google_client_secret: str = ""

@@ -77,3 +77,42 @@ def test_google_callback_links_to_existing_email_password_account(client, db_ses
     assert existing.google_id == "google-sub-123"
     assert db_session.query(User).count() == 1
     assert existing.id == existing_id
+
+
+def test_google_callback_clears_password_when_linking_unverified_account(client, db_session):
+    """Verhindert Account-Übernahme: ein Angreifer registriert die
+    E-Mail-Adresse des Opfers per Signup mit einem selbstgewählten
+    Passwort und lässt den Account unverifiziert (Login per Passwort
+    bleibt so gesperrt). Wenn das Opfer sich später per Google mit
+    derselben E-Mail-Adresse einloggt, ist Google die erste Partei,
+    die den Besitz der Adresse tatsächlich nachweist - das vom
+    Angreifer gesetzte Passwort muss deshalb ungültig gemacht werden."""
+    attacker_password = "AttackerChosen123!"
+    victim = User(
+        email="google@example.com",
+        display_name="Victim (pre-registered by attacker)",
+        password_hash=hash_password(attacker_password),
+        email_verified_at=None,  # nie verifiziert - der Angreifer hat den Link nie geklickt
+    )
+    db_session.add(victim)
+    db_session.commit()
+    victim_id = victim.id
+
+    with patch("app.routers.auth.oauth.google.authorize_access_token", new_callable=AsyncMock) as mock_token:
+        mock_token.return_value = {"userinfo": _fake_google_userinfo()}
+        response = client.get("/api/auth/google/callback", follow_redirects=False)
+
+    assert "session" in response.cookies
+    db_session.refresh(victim)
+    assert victim.id == victim_id
+    assert db_session.query(User).count() == 1
+    assert victim.google_id == "google-sub-123"
+    assert victim.email_verified_at is not None
+    assert victim.password_hash is None  # Angreifer-Passwort ist entwertet
+
+    # Der Angreifer kann sich nicht mehr per Passwort einloggen.
+    login_response = client.post(
+        "/api/auth/login",
+        json={"email": "google@example.com", "password": attacker_password},
+    )
+    assert login_response.status_code == 401

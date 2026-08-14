@@ -48,6 +48,8 @@ signup_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
 login_rate_limit = RateLimiter(max_requests=10, window_seconds=3600)
 resend_verification_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
 forgot_password_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
+verify_email_rate_limit = RateLimiter(max_requests=20, window_seconds=3600)
+reset_password_rate_limit = RateLimiter(max_requests=20, window_seconds=3600)
 
 
 class DeleteAccountRequest(BaseModel):
@@ -164,7 +166,11 @@ def signup(
 
 
 @router.get("/verify-email")
-def verify_email(token: str, db: Session = Depends(get_db)):
+def verify_email(
+    token: str,
+    db: Session = Depends(get_db),
+    _rate_limit: None = Depends(verify_email_rate_limit),
+):
     payload = verify_email_token_signature(token, max_age_seconds=60 * 60 * 24)
     if payload is None or payload.get("purpose") != EmailTokenPurpose.VERIFY_EMAIL.value:
         raise HTTPException(400, "Link ist ungültig oder abgelaufen")
@@ -228,7 +234,17 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     if user is None:
         user = db.query(User).filter(User.email == email).first()
         if user is not None:
-            # bestehender E-Mail+Passwort-Account - automatisch verknüpfen
+            # bestehender E-Mail+Passwort-Account - automatisch verknüpfen.
+            # Sicherheitshinweis: War der Account noch NICHT verifiziert,
+            # könnte er von einem Angreifer mit der E-Mail-Adresse des
+            # Opfers vorregistriert worden sein (Account-Übernahme via
+            # gesetztem Passwort, das nie verifiziert wurde). Da Google
+            # jetzt als erste Partei den Besitz der E-Mail-Adresse
+            # nachweist, wird das gesetzte Passwort ungültig gemacht -
+            # der Account wird ab hier reiner Google-Login (analog zum
+            # Neu-Signup-Zweig unten).
+            if user.email_verified_at is None:
+                user.password_hash = None
             user.google_id = google_sub
         else:
             user = create_account(db, email=email, password=None, display_name=name)
@@ -273,7 +289,11 @@ def forgot_password(
 
 
 @router.post("/reset-password", status_code=204)
-def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+def reset_password(
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+    _rate_limit: None = Depends(reset_password_rate_limit),
+):
     token_payload = verify_email_token_signature(payload.token, max_age_seconds=60 * 60)
     if token_payload is None or token_payload.get("purpose") != EmailTokenPurpose.RESET_PASSWORD.value:
         raise HTTPException(400, "Link ist ungültig oder abgelaufen")
