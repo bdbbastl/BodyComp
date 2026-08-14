@@ -2,7 +2,9 @@
 Design-Spec Abschnitt "Authentifizierung"."""
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
+from authlib.integrations.starlette_client import OAuth
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -26,6 +28,15 @@ from app.services.auth import (
 from app.services.email import send_verification_email
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+oauth = OAuth()
+oauth.register(
+    name="google",
+    client_id=settings.google_client_id,
+    client_secret=settings.google_client_secret,
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={"scope": "openid email profile"},
+)
 
 signup_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
 login_rate_limit = RateLimiter(max_requests=10, window_seconds=3600)
@@ -175,3 +186,44 @@ def resend_verification(
         verify_url = f"{settings.frontend_base_url}/verify-email?token={raw_token}"
         send_verification_email(to=user.email, verify_url=verify_url)
     # immer 204, unabhängig davon ob der Account existiert (kein Enumeration-Leak)
+
+
+@router.get("/google/login")
+async def google_login(request: Request):
+    redirect_uri = settings.google_redirect_uri
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+
+@router.get("/google/callback")
+async def google_callback(request: Request, db: Session = Depends(get_db)):
+    token = await oauth.google.authorize_access_token(request)
+    userinfo = token["userinfo"]
+    google_sub = userinfo["sub"]
+    email = userinfo["email"]
+    name = userinfo.get("name") or email
+
+    user = db.query(User).filter(User.google_id == google_sub).first()
+    if user is None:
+        user = db.query(User).filter(User.email == email).first()
+        if user is not None:
+            # bestehender E-Mail+Passwort-Account - automatisch verknüpfen
+            user.google_id = google_sub
+        else:
+            user = create_account(db, email=email, password=None, display_name=name)
+            user.google_id = google_sub
+            user.privacy_accepted_at = datetime.now(timezone.utc)
+        user.email_verified_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(user)
+
+    session_token = create_session_token(user.id)
+    response = RedirectResponse(url=f"{settings.frontend_base_url}/")
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_token,
+        max_age=SESSION_MAX_AGE_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=True,
+    )
+    return response

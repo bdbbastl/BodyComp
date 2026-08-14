@@ -15,13 +15,13 @@ def create_account(
     db: Session,
     *,
     email: str,
-    password: str,
+    password: str | None,
     display_name: str,
     account_type: AccountType = AccountType.SINGLE,
 ) -> User:
     user = User(
         email=email,
-        password_hash=hash_password(password),
+        password_hash=hash_password(password) if password is not None else None,
         display_name=display_name,
         account_type=account_type,
     )
