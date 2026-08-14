@@ -1,7 +1,17 @@
-import { useState } from "react";
+// frontend/src/pages/Dashboard.tsx
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import PageHeader from "../components/PageHeader";
+import type { Client } from "../types";
+
+function ageFromBirthDate(birthDate: string | null): number | null {
+  if (!birthDate) return null;
+  return Math.floor(
+    (Date.now() - new Date(birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)
+  );
+}
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
@@ -11,6 +21,9 @@ export default function Dashboard() {
   const [birthDate, setBirthDate] = useState("");
   const [gender, setGender] = useState("");
   const [startDate, setStartDate] = useState("");
+
+  const [search, setSearch] = useState("");
+  const [genderFilter, setGenderFilter] = useState("");
 
   const clientsQuery = useQuery({ queryKey: ["clients"], queryFn: api.clients.list });
 
@@ -36,17 +49,32 @@ export default function Dashboard() {
 
   const clients = clientsQuery.data ?? [];
 
+  const availableGenders = useMemo(
+    () => Array.from(new Set(clients.map((c) => c.gender).filter((g): g is string => !!g))),
+    [clients]
+  );
+
+  const filteredClients = useMemo(() => {
+    return clients.filter((c) => {
+      const matchesSearch = c.name.toLowerCase().includes(search.trim().toLowerCase());
+      const matchesGender = !genderFilter || c.gender === genderFilter;
+      return matchesSearch && matchesGender;
+    });
+  }, [clients, search, genderFilter]);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-white">Meine Kunden</h1>
-        <button
-          onClick={() => setShowForm((s) => !s)}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
-        >
-          Neuen Kunden anlegen
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title="Meine Kunden"
+        actions={
+          <button
+            onClick={() => setShowForm((s) => !s)}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
+          >
+            Neuen Kunden anlegen
+          </button>
+        }
+      />
 
       {showForm && (
         <form
@@ -54,7 +82,7 @@ export default function Dashboard() {
             e.preventDefault();
             if (name.trim()) createMutation.mutate();
           }}
-          className="grid grid-cols-1 gap-3 rounded-xl border border-white/5 bg-surface p-4 sm:grid-cols-2"
+          className="mb-6 grid grid-cols-1 gap-3 rounded-xl border border-white/5 bg-surface p-4 sm:grid-cols-2"
         >
           <label className="flex flex-col gap-1 text-sm text-slate-400">
             Name
@@ -112,29 +140,76 @@ export default function Dashboard() {
         </form>
       )}
 
+      {clients.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-3">
+          <input
+            type="search"
+            placeholder="Kunde suchen…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
+          />
+          {availableGenders.length > 0 && (
+            <select
+              value={genderFilter}
+              onChange={(e) => setGenderFilter(e.target.value)}
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
+            >
+              <option value="">Alle Geschlechter</option>
+              {availableGenders.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
       {clientsQuery.isLoading && <p className="text-slate-500">Lade…</p>}
 
+      {!clientsQuery.isLoading && clients.length === 0 && (
+        <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-slate-500">
+          Noch keine Kunden — leg deinen ersten an.
+        </div>
+      )}
+
+      {!clientsQuery.isLoading && clients.length > 0 && filteredClients.length === 0 && (
+        <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-slate-500">
+          Keine Kunden gefunden.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {clients.map((c) => (
-          <Link
-            key={c.id}
-            to={`/clients/${c.id}/timeline`}
-            className="rounded-xl border border-white/5 bg-surface p-4 transition-colors hover:border-accent/40"
-          >
-            <p className="text-base font-semibold text-white">{c.name}</p>
-            <p className="mt-1 text-xs text-slate-500">
-              {[
-                c.birth_date
-                  ? `${Math.floor((Date.now() - new Date(c.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} Jahre`
-                  : null,
-                c.height_cm ? `${c.height_cm} cm` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "Keine Metriken hinterlegt"}
-            </p>
-          </Link>
+        {filteredClients.map((c) => (
+          <DashboardClientCard key={c.id} client={c} />
         ))}
       </div>
     </div>
+  );
+}
+
+function DashboardClientCard({ client: c }: { client: Client }) {
+  const age = ageFromBirthDate(c.birth_date);
+  const metaLine = [age ? `${age} Jahre` : null, c.height_cm ? `${c.height_cm} cm` : null]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <Link
+      to={`/clients/${c.id}/timeline`}
+      className="rounded-xl border border-white/5 bg-surface p-4 transition-colors hover:border-accent/40"
+    >
+      <p className="text-base font-semibold text-white">{c.name}</p>
+      <p className="mt-1 text-xs text-slate-500">{metaLine || "Keine Metriken hinterlegt"}</p>
+      <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+        <span>{c.photo_count} Fotos</span>
+        <span>
+          {c.last_activity
+            ? `Zuletzt: ${new Date(c.last_activity).toLocaleDateString("de-DE")}`
+            : "Keine Fotos"}
+        </span>
+      </div>
+    </Link>
   );
 }
