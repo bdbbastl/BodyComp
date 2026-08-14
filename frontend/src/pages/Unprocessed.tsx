@@ -5,6 +5,7 @@ import { api, mediaUrl } from "../api/client";
 import type { UnprocessedPhoto } from "../types";
 import { formatDateWithWeek } from "../utils/date";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
+import PageHeader from "../components/PageHeader";
 
 interface DateGroup {
   date: string; // YYYY-MM-DD
@@ -121,9 +122,10 @@ export default function Unprocessed() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-white">Import</h1>
-        <div className="flex gap-2">
+      <PageHeader
+        title="Import"
+        actions={
+          <div className="flex gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -165,8 +167,9 @@ export default function Unprocessed() {
               ? "Ordne zu…"
               : `Alle zugeordneten speichern (${readyToBulkAssign.length})`}
           </button>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {uploadMutation.isError && (
         <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">

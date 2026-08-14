@@ -7,6 +7,7 @@ import { formatDateWithWeek } from "../utils/date";
 import { transformStyle, usePanZoom } from "../hooks/usePanZoom";
 import { ZoomSlider } from "../components/ZoomSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
+import PageHeader from "../components/PageHeader";
 
 const DEFAULT_COLUMNS_MAX = 5;
 const DEFAULT_WEEKS_PER_PAGE = 8;
@@ -55,10 +56,20 @@ export default function Timeline() {
   });
 
   if (photosQuery.isLoading || dayLogsQuery.isLoading || posesQuery.isLoading || displaySettingsQuery.isLoading) {
-    return <p className="text-slate-500">Lade Timeline…</p>;
+    return (
+      <>
+        <PageHeader title="Timeline" />
+        <p className="text-slate-500">Lade Timeline…</p>
+      </>
+    );
   }
   if (photosQuery.isError || dayLogsQuery.isError || posesQuery.isError) {
-    return <p className="text-red-400">Timeline konnte nicht geladen werden.</p>;
+    return (
+      <>
+        <PageHeader title="Timeline" />
+        <p className="text-red-400">Timeline konnte nicht geladen werden.</p>
+      </>
+    );
   }
 
   const columnsMax = displaySettingsQuery.data?.timeline_columns_max ?? DEFAULT_COLUMNS_MAX;
@@ -97,22 +108,28 @@ export default function Timeline() {
 
   if (sortedGroups.length === 0) {
     return (
-      <div className="rounded-xl border border-white/5 bg-surface p-8 text-center text-slate-400">
-        Noch keine zugeordneten Fotos. Gehe zu{" "}
-        <span className="text-accent">Unprocessed</span>, um Fotos einer Pose zuzuordnen.
-      </div>
+      <>
+        <PageHeader title="Timeline" />
+        <div className="rounded-xl border border-white/5 bg-surface p-8 text-center text-slate-400">
+          Noch keine zugeordneten Fotos. Gehe zu{" "}
+          <span className="text-accent">Unprocessed</span>, um Fotos einer Pose zuzuordnen.
+        </div>
+      </>
     );
   }
 
   return (
-    <TimelineWithLightbox
-      clientId={clientIdNum}
-      sortedGroups={sortedGroups}
-      poses={poses}
-      poseNameById={poseNameById}
-      columnsMax={columnsMax}
-      weeksPerPage={weeksPerPage}
-    />
+    <>
+      <PageHeader title="Timeline" />
+      <TimelineWithLightbox
+        clientId={clientIdNum}
+        sortedGroups={sortedGroups}
+        poses={poses}
+        poseNameById={poseNameById}
+        columnsMax={columnsMax}
+        weeksPerPage={weeksPerPage}
+      />
+    </>
   );
 }
 
