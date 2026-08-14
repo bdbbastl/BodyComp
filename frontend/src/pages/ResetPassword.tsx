@@ -17,7 +17,15 @@ export default function ResetPassword() {
   if (!token) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <p className="text-slate-400">Ungültiger Link.</p>
+        <div className="w-full max-w-sm space-y-4 rounded-xl border border-white/5 bg-surface p-6 text-center">
+          <p className="text-slate-400">Ungültiger Link.</p>
+          <Link to="/forgot-password" className="block text-sm text-accent hover:underline">
+            Neuen Link anfordern
+          </Link>
+          <Link to="/login" className="block text-sm text-accent hover:underline">
+            Zurück zum Login
+          </Link>
+        </div>
       </div>
     );
   }

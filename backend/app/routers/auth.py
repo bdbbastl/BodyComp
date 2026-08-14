@@ -141,6 +141,12 @@ def signup(
 ):
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
+        # Bewusst NICHT generisch wie forgot-password/resend-verification:
+        # beim Signup ist "diese Mail ist schon vergeben" erwartete,
+        # marktübliche UX (Nutzer muss wissen, ob registrieren oder
+        # einloggen) - das Enumeration-Risiko wiegt hier geringer als bei
+        # Passwort-Reset, wo gezieltes Durchprobieren fremder Accounts das
+        # eigentliche Bedrohungsmodell ist.
         raise HTTPException(409, "E-Mail-Adresse ist bereits registriert")
 
     user = create_account(
