@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 
 export default function Login() {
@@ -16,6 +16,14 @@ export default function Login() {
       navigate(user.account_type === "coach" ? "/" : "/redirect-to-my-client");
     },
   });
+
+  const resendMutation = useMutation({
+    mutationFn: () => api.auth.resendVerification(email),
+  });
+
+  const isUnverifiedError =
+    loginMutation.isError &&
+    (loginMutation.error as any)?.response?.status === 403;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -49,8 +57,22 @@ export default function Login() {
             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
           />
         </label>
-        {loginMutation.isError && (
-          <p className="text-sm text-red-400">E-Mail oder Passwort falsch.</p>
+        {isUnverifiedError ? (
+          <div className="text-sm text-red-400">
+            <p>Bitte bestätige zuerst deine E-Mail-Adresse.</p>
+            <button
+              type="button"
+              onClick={() => resendMutation.mutate()}
+              disabled={resendMutation.isPending}
+              className="mt-1 text-accent hover:underline disabled:opacity-50"
+            >
+              {resendMutation.isSuccess ? "Mail erneut gesendet" : "Bestätigungsmail erneut senden"}
+            </button>
+          </div>
+        ) : (
+          loginMutation.isError && (
+            <p className="text-sm text-red-400">E-Mail oder Passwort falsch.</p>
+          )
         )}
         <button
           type="submit"
@@ -59,6 +81,20 @@ export default function Login() {
         >
           {loginMutation.isPending ? "Einloggen…" : "Einloggen"}
         </button>
+        <a
+          href="/api/auth/google/login"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-black/30 px-4 py-2 text-sm font-medium text-white hover:bg-black/50"
+        >
+          Mit Google anmelden
+        </a>
+        <div className="flex justify-between text-sm">
+          <Link to="/signup" className="text-accent hover:underline">
+            Registrieren
+          </Link>
+          <Link to="/forgot-password" className="text-accent hover:underline">
+            Passwort vergessen?
+          </Link>
+        </div>
       </form>
     </div>
   );

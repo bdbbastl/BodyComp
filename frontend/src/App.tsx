@@ -6,6 +6,8 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import SignupSuccess from "./pages/SignupSuccess";
 import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import Account from "./pages/Account";
 import Timeline from "./pages/Timeline";
@@ -21,6 +23,8 @@ export default function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/signup-success" element={<SignupSuccess />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route index element={<ClientRedirect />} />

@@ -35,6 +35,9 @@ export const api = {
     verifyEmail: (token: string) =>
       client.get("/auth/verify-email", { params: { token } }).then((r) => r.data),
     resendVerification: (email: string) => client.post("/auth/resend-verification", { email }),
+    forgotPassword: (email: string) => client.post("/auth/forgot-password", { email }),
+    resetPassword: (token: string, new_password: string) =>
+      client.post("/auth/reset-password", { token, new_password }),
   },
   clients: {
     list: () => client.get<Client[]>("/clients").then((r) => r.data),
