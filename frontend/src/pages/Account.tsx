@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { DisplaySettings } from "../api/client";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -224,6 +225,90 @@ function GeminiKeySettings() {
   );
 }
 
+function DangerZoneSection() {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [password, setPassword] = useState("");
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api.auth.deleteAccount(password || undefined),
+    onSuccess: () => {
+      queryClient.clear();
+      navigate("/login");
+    },
+  });
+
+  const exportMutation = useMutation({
+    mutationFn: api.auth.exportData,
+    onSuccess: (data) => {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "bodycomp-daten-export.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+  });
+
+  return (
+    <div className="rounded-xl border border-red-900/40 bg-surface p-4">
+      <h2 className="mb-1 text-lg font-semibold text-white">Konto-Verwaltung</h2>
+      <div className="mt-3 flex flex-col gap-3">
+        <button
+          onClick={() => exportMutation.mutate()}
+          disabled={exportMutation.isPending}
+          className="w-fit rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-black/30"
+        >
+          {exportMutation.isPending ? "Exportiere…" : "Meine Daten exportieren"}
+        </button>
+
+        {!showConfirm ? (
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="w-fit rounded-lg border border-red-900/50 px-4 py-2 text-sm text-red-400 hover:bg-red-950/30"
+          >
+            Konto löschen
+          </button>
+        ) : (
+          <div className="space-y-2 rounded-lg border border-red-900/50 p-3">
+            <p className="text-sm text-red-400">
+              Das löscht dein Konto und ALLE zugehörigen Daten (Kunden, Fotos, Verlauf)
+              unwiderruflich.
+            </p>
+            <input
+              type="password"
+              placeholder="Passwort zur Bestätigung"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? "Lösche…" : "Endgültig löschen"}
+              </button>
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300"
+              >
+                Abbrechen
+              </button>
+            </div>
+            {deleteMutation.isError && (
+              <p className="text-sm text-red-400">Löschen fehlgeschlagen - Passwort korrekt?</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Account() {
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
@@ -258,6 +343,7 @@ export default function Account() {
 
       <GeminiKeySettings />
       <DisplaySettingsSection />
+      <DangerZoneSection />
     </div>
   );
 }

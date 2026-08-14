@@ -38,6 +38,9 @@ export const api = {
     forgotPassword: (email: string) => client.post("/auth/forgot-password", { email }),
     resetPassword: (token: string, new_password: string) =>
       client.post("/auth/reset-password", { token, new_password }),
+    deleteAccount: (password?: string) =>
+      client.delete("/auth/me", { data: { password } }),
+    exportData: () => client.get("/auth/me/export").then((r) => r.data),
   },
   clients: {
     list: () => client.get<Client[]>("/clients").then((r) => r.data),
