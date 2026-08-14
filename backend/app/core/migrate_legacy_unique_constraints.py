@@ -39,7 +39,39 @@ wird `day_logs` deshalb ebenfalls neu aufgebaut, sobald der alte
 Index gefunden wird - Row-Anzahl bei `day_logs` ist typischerweise
 klein (POC/Single-User-Historie), der Table-Rebuild ist also günstig
 und konsistent mit der `poses`-Behandlung.
+
+Wichtig - Nicht-Atomarität von DDL auf SQLite via pysqlite:
+`engine.begin()` schützt normale DML-Statements (INSERT/UPDATE/DELETE)
+in einer echten Transaktion, aber SQLite via pysqlite committet
+CREATE/DROP/ALTER TABLE NICHT transaktional mit - jedes DDL-Statement
+wird sofort durable, sobald es ausgeführt wird (der von SQLAlchemys
+Doku beschriebene "transactional DDL"-Workaround
+(`isolation_level=None` + expliziter `BEGIN`-Event-Listener) ist im
+geteilten Engine-Setup in `app/core/database.py` bewusst NICHT
+eingerichtet, da das alle Verbindungen der App beträfe, nicht nur
+diesen Fix - zu invasiv für den Scope hier). Ein Crash zwischen
+`CREATE TABLE poses_new` und dem finalen RENAME lässt `poses_new`
+also dauerhaft stehen. Dagegen zwei Maßnahmen:
+
+1. Jede Rebuild-Funktion räumt am Anfang per `DROP TABLE IF EXISTS
+   <name>_new` einen eventuellen Rest eines abgebrochenen Vorlaufs weg
+   - das macht den Rebuild resumable: ein Crash mitten im Rebuild
+   führt beim nächsten Boot zu einem sauberen Neuversuch statt zu
+   einer Crash-Loop mit `OperationalError: table poses_new already
+   exists`.
+2. `fix_legacy_unique_constraints()` erstellt EINMALIG, bevor der
+   erste tatsächliche Rebuild beginnt, eine Datei-Kopie der DB
+   (`shutil.copy2`, Pfad via `backup_path_factory`) als zusätzliches
+   Sicherheitsnetz für den unwahrscheinlichen Fall, dass trotz Punkt 1
+   etwas schiefgeht. Das ist deutlich einfacher und besser abgegrenzt
+   als Punkt (2a) - echte transaktionale DDL für die komplette Engine
+   einzurichten hätte App-weite Nebenwirkungen und ist für diesen
+   punktuellen Schema-Fix nicht gerechtfertigt.
 """
+import shutil
+from pathlib import Path
+from typing import Callable
+
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine, Connection
 
@@ -73,7 +105,15 @@ def _day_logs_has_legacy_unique(conn: Connection) -> bool:
 
 
 def _rebuild_poses_table(conn: Connection) -> None:
-    conn.execute(text("PRAGMA foreign_keys=OFF"))
+    # Wichtig: `engine.begin()` macht DDL (CREATE/DROP/ALTER TABLE) auf
+    # SQLite via pysqlite NICHT transaktional (siehe Moduldocstring) -
+    # ein Crash zwischen `CREATE TABLE poses_new` und dem finalen
+    # RENAME lässt `poses_new` dauerhaft stehen. Ohne dieses `DROP
+    # TABLE IF EXISTS` würde der nächste Start dann mit
+    # `OperationalError: table poses_new already exists` in einer
+    # Crash-Loop enden. Mit dem DROP hier wird der Rebuild beim
+    # nächsten Boot stattdessen einfach sauber neu gestartet.
+    conn.execute(text("DROP TABLE IF EXISTS poses_new"))
     conn.execute(text(
         "CREATE TABLE poses_new ("
         "id INTEGER NOT NULL PRIMARY KEY, "
@@ -98,12 +138,13 @@ def _rebuild_poses_table(conn: Connection) -> None:
     conn.execute(text("DROP TABLE poses"))
     conn.execute(text("ALTER TABLE poses_new RENAME TO poses"))
     conn.execute(text("CREATE INDEX ix_poses_client_id ON poses (client_id)"))
-    conn.execute(text("PRAGMA foreign_keys=ON"))
 
 
 def _rebuild_day_logs_table(conn: Connection) -> None:
-    conn.execute(text("PRAGMA foreign_keys=OFF"))
     conn.execute(text("DROP INDEX IF EXISTS ix_day_logs_date"))
+    # Gleiche Begründung wie in _rebuild_poses_table: macht den Rebuild
+    # resumable nach einem Crash mitten im vorherigen Versuch.
+    conn.execute(text("DROP TABLE IF EXISTS day_logs_new"))
     conn.execute(text(
         "CREATE TABLE day_logs_new ("
         "id INTEGER NOT NULL PRIMARY KEY, "
@@ -127,22 +168,61 @@ def _rebuild_day_logs_table(conn: Connection) -> None:
     conn.execute(text("ALTER TABLE day_logs_new RENAME TO day_logs"))
     conn.execute(text("CREATE INDEX ix_day_logs_client_id ON day_logs (client_id)"))
     conn.execute(text("CREATE INDEX ix_day_logs_date ON day_logs (date)"))
-    conn.execute(text("PRAGMA foreign_keys=ON"))
 
 
-def fix_legacy_unique_constraints(engine: Engine) -> None:
+def _default_backup_path(db_path: Path) -> Path:
+    from datetime import datetime, timezone
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return db_path.with_name(f"{db_path.name}.pre-constraint-fix-{ts}")
+
+
+def _sqlite_file_path(engine: Engine) -> Path | None:
+    """Extrahiert den Dateipfad aus der Engine-URL, sofern es ein
+    echtes Datei-SQLite ist (nicht `:memory:` - dort ist ein
+    Datei-Backup weder möglich noch nötig, z.B. in Tests)."""
+    url = engine.url
+    if url.get_backend_name() != "sqlite" or not url.database or url.database == ":memory:":
+        return None
+    return Path(url.database)
+
+
+def fix_legacy_unique_constraints(
+    engine: Engine,
+    backup_path_factory: Callable[[Path], Path] = _default_backup_path,
+) -> None:
     """Entfernt legacy Single-Column-UNIQUE-Constraints auf
     `poses.name` und `day_logs.date`, die aus der Zeit vor der
     Mandantenfähigkeit stammen (siehe Modul-Docstring). Muss bei jedem
     Start laufen, bevor `migrate_to_multitenancy()` oder irgendein
     Code, der Poses/DayLogs pro Client anlegt, ausgeführt wird.
     Idempotent und sicher bei fehlenden Tabellen (frische DB vor
-    `create_all()` bzw. Tabelle existiert schlicht noch nicht)."""
+    `create_all()` bzw. Tabelle existiert schlicht noch nicht) sowie
+    resumable nach einem Crash mitten in einem vorherigen Rebuild
+    (siehe Modul-Docstring zur Nicht-Atomarität von SQLite-DDL).
+
+    Erstellt einmalig, bevor der erste tatsächliche Rebuild beginnt,
+    eine Datei-Kopie der DB als zusätzliches Sicherheitsnetz - nur
+    wenn überhaupt ein Legacy-Constraint gefunden wurde (kein
+    unnötiger Kopieraufwand auf bereits sauberen/frischen DBs)."""
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
 
+    db_file = _sqlite_file_path(engine)
+    backup_done = False
+
+    def _ensure_backup_once() -> None:
+        nonlocal backup_done
+        if backup_done or db_file is None or not db_file.exists():
+            return
+        backup_path = backup_path_factory(db_file)
+        shutil.copy2(db_file, backup_path)
+        backup_done = True
+
     with engine.begin() as conn:
         if "poses" in existing_tables and _poses_has_legacy_unique(conn):
+            _ensure_backup_once()
             _rebuild_poses_table(conn)
         if "day_logs" in existing_tables and _day_logs_has_legacy_unique(conn):
+            _ensure_backup_once()
             _rebuild_day_logs_table(conn)

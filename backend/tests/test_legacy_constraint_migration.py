@@ -140,3 +140,60 @@ def test_fix_is_safe_when_tables_do_not_exist(tmp_path):
     db_path = tmp_path / "empty.db"
     engine = create_engine(f"sqlite:///{db_path.as_posix()}")
     fix_legacy_unique_constraints(engine)  # darf nicht crashen
+
+
+def test_fix_resumes_cleanly_after_simulated_crash_mid_rebuild(tmp_path):
+    """Simuliert exakt das, was ein Prozess-Crash zwischen `CREATE
+    TABLE poses_new` und dem finalen RENAME hinterlassen würde: eine
+    bereits existierende `poses_new`-Tabelle. Ein erneuter Aufruf beim
+    nächsten Boot darf NICHT mit `OperationalError: table poses_new
+    already exists` crashen, sondern muss den Rebuild sauber neu
+    starten und abschließen."""
+    engine = _make_real_legacy_engine(tmp_path)
+    run_lightweight_migrations(engine)
+
+    # Manuell den Zustand nach einem abgebrochenen Rebuild-Versuch
+    # nachbauen: eine "verwaiste" poses_new-Tabelle liegt schon da.
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE poses_new (id INTEGER PRIMARY KEY, "
+            "client_id INTEGER, name VARCHAR(100), sort_order INTEGER, "
+            "created_at DATETIME)"
+        ))
+
+    fix_legacy_unique_constraints(engine)  # darf nicht crashen, muss neu starten
+
+    inspector = inspect(engine)
+    assert "poses_new" not in set(inspector.get_table_names())
+
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE poses SET client_id = 1 WHERE client_id IS NULL"))
+        conn.execute(text(
+            "INSERT INTO poses (name, sort_order, created_at, client_id) VALUES "
+            "('Front Double Biceps', 0, '2026-01-01 00:00:00', 2)"
+        ))
+
+    with engine.connect() as conn:
+        count = conn.execute(text("SELECT COUNT(*) FROM poses")).scalar()
+    assert count == 2
+
+
+def test_fix_creates_a_backup_file_once_before_rebuilding(tmp_path):
+    """Vor dem ersten tatsächlichen Rebuild soll eine Datei-Kopie der
+    DB angelegt werden (Sicherheitsnetz gegen Nicht-Atomarität von
+    SQLite-DDL) - aber nur einmal, nicht pro Tabelle."""
+    db_path = tmp_path / "real_legacy.db"
+    engine = _make_real_legacy_engine(tmp_path)
+    run_lightweight_migrations(engine)
+
+    backup_paths = []
+
+    def _fake_backup_path_factory(path):
+        backup_path = path.with_name(path.name + ".backup")
+        backup_paths.append(backup_path)
+        return backup_path
+
+    fix_legacy_unique_constraints(engine, backup_path_factory=_fake_backup_path_factory)
+
+    assert len(backup_paths) == 1  # nur einmal, obwohl poses UND day_logs rebuilt wurden
+    assert backup_paths[0].exists()
