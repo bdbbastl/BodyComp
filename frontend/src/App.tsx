@@ -15,6 +15,9 @@ import Unprocessed from "./pages/Unprocessed";
 import Compare from "./pages/Compare";
 import Statistics from "./pages/Statistics";
 import Settings from "./pages/Settings";
+import Datenschutz from "./pages/legal/Datenschutz";
+import Impressum from "./pages/legal/Impressum";
+import Agb from "./pages/legal/Agb";
 
 export default function App() {
   return (
@@ -25,6 +28,9 @@ export default function App() {
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/datenschutz" element={<Datenschutz />} />
+      <Route path="/impressum" element={<Impressum />} />
+      <Route path="/agb" element={<Agb />} />
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route index element={<ClientRedirect />} />
