@@ -59,12 +59,6 @@ class Settings(BaseSettings):
     # fürs lokale Dev-Setup gedacht.
     session_secret_key: str = "dev-only-insecure-secret-change-me"
 
-    # Startpasswort für den einmalig migrierten Coach-Account (siehe
-    # core/migrate_to_multitenancy.py). NICHT im Repo im Klartext - wird
-    # über backend/.env gesetzt (BODYCOMP_MIGRATION_SEED_PASSWORD), nicht
-    # committed (siehe .gitignore).
-    migration_seed_password: str = "changeme-set-in-dotenv"
-
 
 settings = Settings()
 
