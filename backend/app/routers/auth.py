@@ -1,10 +1,12 @@
 """Login/Logout via signiertes, httpOnly Session-Cookie - siehe
 Design-Spec Abschnitt "Authentifizierung"."""
+import shutil
 from datetime import datetime, timedelta, timezone
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -43,6 +45,10 @@ signup_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
 login_rate_limit = RateLimiter(max_requests=10, window_seconds=3600)
 resend_verification_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
 forgot_password_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str | None = None
 
 
 def get_current_user(
@@ -287,3 +293,60 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     user.sessions_invalidated_at = datetime.now(timezone.utc)
     token_row.used_at = datetime.now(timezone.utc)
     db.commit()
+
+
+@router.delete("/me", status_code=204)
+def delete_account(
+    payload: DeleteAccountRequest,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.password_hash is not None:
+        if not payload.password or not verify_password(payload.password, current_user.password_hash):
+            raise HTTPException(401, "Passwort falsch")
+
+    for client_row in current_user.clients:
+        for base_dir in (settings.photos_incoming_dir, settings.photos_processed_dir, settings.photos_normalized_dir):
+            client_dir = base_dir / str(client_row.id)
+            if client_dir.exists():
+                shutil.rmtree(client_dir, ignore_errors=True)
+
+    db.delete(current_user)  # cascaded: Client -> Pose/DayLog/Photo/AppSetting, EmailToken
+    db.commit()
+    response.delete_cookie(SESSION_COOKIE_NAME, secure=True)
+
+
+@router.get("/me/export")
+def export_my_data(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from app.models.day_log import DayLog
+    from app.models.photo import Photo
+
+    clients_data = []
+    for c in current_user.clients:
+        day_logs = db.query(DayLog).filter(DayLog.client_id == c.id).all()
+        photos = db.query(Photo).filter(Photo.client_id == c.id).all()
+        clients_data.append({
+            "id": c.id,
+            "name": c.name,
+            "height_cm": c.height_cm,
+            "birth_date": c.birth_date.isoformat() if c.birth_date else None,
+            "gender": c.gender,
+            "start_date": c.start_date.isoformat() if c.start_date else None,
+            "day_logs": [
+                {"date": dl.date.isoformat(), "weight_kg": dl.weight_kg, "notes": dl.notes}
+                for dl in day_logs
+            ],
+            "photos": [
+                {"filename": p.filename, "taken_at": p.taken_at.isoformat(), "original_path": p.original_path}
+                for p in photos
+            ],
+        })
+
+    return {
+        "email": current_user.email,
+        "display_name": current_user.display_name,
+        "account_type": current_user.account_type.value,
+        "created_at": current_user.created_at.isoformat(),
+        "clients": clients_data,
+    }
