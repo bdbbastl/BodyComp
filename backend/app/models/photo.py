@@ -34,8 +34,11 @@ class Photo(Base):
     __tablename__ = "photos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    client_id: Mapped[int] = mapped_column(
-        ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True
+    # nullable auf ORM-Ebene, siehe Kommentar in models/pose.py - gleicher
+    # Grund (Altdaten vor der Mandantenfähigkeit, befüllt durch
+    # core/migrate_to_multitenancy.py).
+    client_id: Mapped[int | None] = mapped_column(
+        ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True
     )
 
     # Dateiname wie im Quellordner gefunden (informativ, für Debugging).

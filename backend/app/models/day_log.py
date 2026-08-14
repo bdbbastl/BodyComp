@@ -19,8 +19,11 @@ class DayLog(Base):
     __table_args__ = (UniqueConstraint("client_id", "date", name="uq_daylog_client_date"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    client_id: Mapped[int] = mapped_column(
-        ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True
+    # nullable auf ORM-Ebene, siehe Kommentar in models/pose.py - gleicher
+    # Grund (Altdaten vor der Mandantenfähigkeit, befüllt durch
+    # core/migrate_to_multitenancy.py).
+    client_id: Mapped[int | None] = mapped_column(
+        ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True
     )
 
     date: Mapped[date_] = mapped_column(Date, nullable=False, index=True)
