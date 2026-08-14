@@ -47,7 +47,19 @@ app.add_middleware(
 # Middleware-Reihenfolge: Starlette führt Middlewares in umgekehrter
 # Registrierungsreihenfolge aus (zuletzt hinzugefügt = äußerste Schicht),
 # das spielt hier aber keine Rolle, da CORS und Session unabhängig sind.
-app.add_middleware(SessionMiddleware, secret_key=settings.session_secret_key)
+#
+# WICHTIG: eigener Cookie-Name (nicht der Default "session")! Die App
+# nutzt selbst schon ein Cookie namens "session" für den Login (siehe
+# services/auth.py SESSION_COOKIE_NAME) - mit dem Default hätten sich
+# beide Cookies gegenseitig überschrieben (gleicher Name, gleicher Pfad),
+# was bei bereits eingeloggten Nutzern den Google-Login-Flow kaputt
+# gemacht hätte (Klick auf "Mit Google anmelden" hat den bestehenden
+# Login-Cookie durch den OAuth-State-Cookie ersetzt).
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret_key,
+    session_cookie="oauth_state_session",
+)
 
 # Statische Auslieferung der Bilddateien (Originale + normalisierte
 # Versionen) direkt aus dem lokalen data_dir.

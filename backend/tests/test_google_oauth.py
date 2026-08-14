@@ -13,7 +13,41 @@ def test_google_login_redirects_to_google_without_crashing(client):
 
     assert response.status_code in (302, 307)
     assert "accounts.google.com" in response.headers["location"]
-    assert "session" in response.cookies
+    assert "oauth_state_session" in response.cookies
+
+
+def test_google_login_does_not_overwrite_existing_login_session_cookie(client, db_session):
+    """Regressionstest: SessionMiddleware nutzte früher denselben
+    Cookie-Namen ("session") wie der App-eigene Login-Cookie - ein Klick
+    auf "Mit Google anmelden" während man schon eingeloggt war, hat den
+    Login-Cookie stillschweigend durch den OAuth-State-Cookie ersetzt und
+    damit die bestehende Session zerstört."""
+    user = User(
+        email="basti@example.com",
+        password_hash=hash_password("Grindcore123!"),
+        display_name="Basti",
+        email_verified_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    login_resp = client.post(
+        "/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"}
+    )
+    assert login_resp.status_code == 200
+    login_session_cookie = client.cookies.get("session")
+    assert login_session_cookie is not None
+
+    client.get("/api/auth/google/login", follow_redirects=False)
+
+    # Der Login-Cookie ("session") muss unverändert bleiben - nicht vom
+    # OAuth-State-Cookie ("oauth_state_session") überschrieben worden sein.
+    assert client.cookies.get("session") == login_session_cookie
+    assert client.cookies.get("oauth_state_session") is not None
+
+    me_response = client.get("/api/auth/me")
+    assert me_response.status_code == 200
+    assert me_response.json()["email"] == "basti@example.com"
 
 
 def _fake_google_userinfo(sub="google-sub-123", email="google@example.com", name="Google User"):
