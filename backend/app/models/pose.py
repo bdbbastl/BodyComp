@@ -20,15 +20,8 @@ class Pose(Base):
     __table_args__ = (UniqueConstraint("client_id", "name", name="uq_pose_client_name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # nullable auf ORM-Ebene (statt nullable=False), obwohl fachlich jede
-    # Pose zu genau einem Client gehört: bestehende Datenbestände von vor
-    # der Mandantenfähigkeit haben hier NULL, bis das einmalige
-    # Migrationsscript (core/migrate_to_multitenancy.py) sie befüllt -
-    # siehe Kommentar dort und in core/migrations.py. Anwendungscode setzt
-    # client_id beim Anlegen neuer Poses immer explizit (siehe
-    # routers/poses.py).
-    client_id: Mapped[int | None] = mapped_column(
-        ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True
+    client_id: Mapped[int] = mapped_column(
+        ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
 

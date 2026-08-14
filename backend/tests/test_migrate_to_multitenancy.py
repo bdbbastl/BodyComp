@@ -1,86 +1,166 @@
-from datetime import date, datetime
+from datetime import datetime
 
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+
+from app.core.database import Base
 from app.core.migrate_to_multitenancy import migrate_to_multitenancy
+from app.core.migrations import run_lightweight_migrations
 from app.models.client import Client
-from app.models.day_log import DayLog
-from app.models.photo import Photo, ProcessingStatus
-from app.models.pose import Pose
 from app.models.user import User
 
 
-def _seed_pre_migration_data(db_session):
-    """Legt Pose/DayLog/Photo OHNE client_id an - simuliert den Stand vor
-    der Mandantenfähigkeit (die Spalte existiert dank Task 13 bereits,
-    ist hier aber bewusst NULL)."""
-    pose = Pose(name="Front Double Biceps", sort_order=0)
-    db_session.add(pose)
-    db_session.flush()
+def _make_legacy_engine(tmp_path):
+    """Baut eine Engine, die exakt so aussieht wie eine ECHTE Alt-DB von
+    vor der Mandantenfähigkeit: poses/day_logs/photos existieren OHNE
+    client_id-Spalte (die Tabellen entstehen hier per rohem CREATE TABLE,
+    nicht per ORM/`create_all`, damit die NOT-NULL-Constraint auf
+    `client_id` in den aktuellen Models - eine bewusste, geprüfte
+    Tenant-Isolations-Absicherung aus Task 7, siehe Code-Review zu Commit
+    9b5d76c - unangetastet bleibt). `run_lightweight_migrations` trägt die
+    Spalte anschließend genauso nach, wie sie es auch gegen eine echte
+    Alt-DB täte (ALTER TABLE ... ADD COLUMN client_id INTEGER, nullable,
+    ohne Constraint)."""
+    db_path = tmp_path / "legacy.db"
+    engine = create_engine(f"sqlite:///{db_path.as_posix()}")
 
-    day_log = DayLog(date=date(2026, 1, 1), weight_kg=80.0)
-    db_session.add(day_log)
-    db_session.flush()
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE TABLE poses ("
+                "id INTEGER PRIMARY KEY, name VARCHAR(100), sort_order INTEGER, "
+                "created_at DATETIME)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE TABLE day_logs ("
+                "id INTEGER PRIMARY KEY, date DATE, weight_kg FLOAT, "
+                "notes VARCHAR(500), created_at DATETIME, updated_at DATETIME)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE TABLE photos ("
+                "id INTEGER PRIMARY KEY, filename VARCHAR(255), "
+                "original_path VARCHAR(1000), normalized_path VARCHAR(1000), "
+                "preview_path VARCHAR(1000), thumbnail_path VARCHAR(1000), "
+                "taken_at DATETIME, status VARCHAR(30), pose_id INTEGER, "
+                "day_log_id INTEGER, landmarks_json TEXT, width INTEGER, "
+                "height INTEGER, created_at DATETIME, updated_at DATETIME)"
+            )
+        )
 
-    photo = Photo(
-        filename="test.jpg",
-        original_path="photos_processed/2026-01-01/test.jpg",
-        taken_at=datetime(2026, 1, 1, 12, 0, 0),
-        status=ProcessingStatus.PROCESSED,
-        pose_id=pose.id,
-        day_log_id=day_log.id,
-    )
-    db_session.add(photo)
-    db_session.commit()
-    return pose, day_log, photo
+    # users/clients existieren in einer Alt-DB noch gar nicht - die legt
+    # migrate_to_multitenancy() über create_account() (ORM) frisch an.
+    Base.metadata.create_all(bind=engine, tables=[User.__table__, Client.__table__])
 
-
-def test_migration_creates_account_and_client(db_session):
-    _seed_pre_migration_data(db_session)
-
-    migrate_to_multitenancy(
-        db_session,
-        email="basti@example.com",
-        password="Grindcore123!",
-        display_name="Basti",
-    )
-
-    user = db_session.query(User).filter(User.email == "basti@example.com").first()
-    assert user is not None
-    assert user.account_type.value == "coach"
-
-    client_row = db_session.query(Client).filter(Client.owner_id == user.id).first()
-    assert client_row is not None
-    assert client_row.name == "Mein Profil"
-
-
-def test_migration_backfills_client_id_on_existing_rows(db_session):
-    pose, day_log, photo = _seed_pre_migration_data(db_session)
-
-    migrate_to_multitenancy(
-        db_session,
-        email="basti@example.com",
-        password="Grindcore123!",
-        display_name="Basti",
-    )
-
-    client_row = db_session.query(Client).first()
-    db_session.refresh(pose)
-    db_session.refresh(day_log)
-    db_session.refresh(photo)
-    assert pose.client_id == client_row.id
-    assert day_log.client_id == client_row.id
-    assert photo.client_id == client_row.id
+    return engine
 
 
-def test_migration_is_a_noop_when_a_user_already_exists(db_session):
-    _seed_pre_migration_data(db_session)
-    migrate_to_multitenancy(
-        db_session, email="basti@example.com", password="Grindcore123!", display_name="Basti"
-    )
-    user_count_after_first_run = db_session.query(User).count()
+def _seed_pre_migration_data(engine):
+    """Legt Pose/DayLog/Photo per rohem SQL an (die ORM-Models erlauben
+    seit Task 7 bewusst kein NULL für client_id mehr) - simuliert den
+    Stand vor der Mandantenfähigkeit, wo die Spalte noch gar nicht
+    existierte."""
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO poses (id, name, sort_order, created_at) "
+                "VALUES (1, 'Front Double Biceps', 0, :created_at)"
+            ),
+            {"created_at": datetime(2026, 1, 1)},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO day_logs (id, date, weight_kg, created_at, updated_at) "
+                "VALUES (1, '2026-01-01', 80.0, :now, :now)"
+            ),
+            {"now": datetime(2026, 1, 1)},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO photos (id, filename, original_path, taken_at, status, "
+                "pose_id, day_log_id, created_at, updated_at) "
+                "VALUES (1, 'test.jpg', 'photos_processed/2026-01-01/test.jpg', "
+                ":taken_at, 'PROCESSED', 1, 1, :taken_at, :taken_at)"
+            ),
+            {"taken_at": datetime(2026, 1, 1, 12, 0, 0)},
+        )
 
-    migrate_to_multitenancy(
-        db_session, email="basti@example.com", password="Grindcore123!", display_name="Basti"
-    )
-    user_count_after_second_run = db_session.query(User).count()
 
-    assert user_count_after_first_run == user_count_after_second_run == 1
+def test_migration_creates_account_and_client(tmp_path):
+    engine = _make_legacy_engine(tmp_path)
+    _seed_pre_migration_data(engine)
+    run_lightweight_migrations(engine)
+
+    session = sessionmaker(bind=engine)()
+    try:
+        migrate_to_multitenancy(
+            session,
+            email="basti@example.com",
+            password="Grindcore123!",
+            display_name="Basti",
+        )
+
+        user = session.query(User).filter(User.email == "basti@example.com").first()
+        assert user is not None
+        assert user.account_type.value == "coach"
+
+        client_row = session.query(Client).filter(Client.owner_id == user.id).first()
+        assert client_row is not None
+        assert client_row.name == "Mein Profil"
+    finally:
+        session.close()
+
+
+def test_migration_backfills_client_id_on_existing_rows(tmp_path):
+    engine = _make_legacy_engine(tmp_path)
+    _seed_pre_migration_data(engine)
+    run_lightweight_migrations(engine)
+
+    session = sessionmaker(bind=engine)()
+    try:
+        migrate_to_multitenancy(
+            session,
+            email="basti@example.com",
+            password="Grindcore123!",
+            display_name="Basti",
+        )
+
+        client_row = session.query(Client).first()
+
+        with engine.connect() as conn:
+            pose_client_id = conn.execute(text("SELECT client_id FROM poses WHERE id = 1")).scalar()
+            daylog_client_id = conn.execute(
+                text("SELECT client_id FROM day_logs WHERE id = 1")
+            ).scalar()
+            photo_client_id = conn.execute(text("SELECT client_id FROM photos WHERE id = 1")).scalar()
+
+        assert pose_client_id == client_row.id
+        assert daylog_client_id == client_row.id
+        assert photo_client_id == client_row.id
+    finally:
+        session.close()
+
+
+def test_migration_is_a_noop_when_a_user_already_exists(tmp_path):
+    engine = _make_legacy_engine(tmp_path)
+    _seed_pre_migration_data(engine)
+    run_lightweight_migrations(engine)
+
+    session = sessionmaker(bind=engine)()
+    try:
+        migrate_to_multitenancy(
+            session, email="basti@example.com", password="Grindcore123!", display_name="Basti"
+        )
+        user_count_after_first_run = session.query(User).count()
+
+        migrate_to_multitenancy(
+            session, email="basti@example.com", password="Grindcore123!", display_name="Basti"
+        )
+        user_count_after_second_run = session.query(User).count()
+
+        assert user_count_after_first_run == user_count_after_second_run == 1
+    finally:
+        session.close()
