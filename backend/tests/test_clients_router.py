@@ -73,3 +73,42 @@ def test_creating_client_seeds_default_poses(client, db_session):
     poses = db_session.query(Pose).filter(Pose.client_id == created["id"]).order_by(Pose.sort_order).all()
     assert len(poses) == 7
     assert poses[0].name == "Front Double Biceps"
+
+
+def test_list_clients_includes_photo_count_and_last_activity(client, db_session):
+    from datetime import date, datetime
+
+    from app.models.photo import Photo, ProcessingStatus
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+
+    db_session.add(Photo(
+        client_id=created["id"],
+        filename="a.jpg",
+        original_path="photos_processed/1/2026-01-01/a.jpg",
+        taken_at=datetime(2026, 1, 1, 12, 0, 0),
+        status=ProcessingStatus.PROCESSED,
+    ))
+    db_session.add(Photo(
+        client_id=created["id"],
+        filename="b.jpg",
+        original_path="photos_processed/1/2026-02-01/b.jpg",
+        taken_at=datetime(2026, 2, 1, 12, 0, 0),
+        status=ProcessingStatus.PROCESSED,
+    ))
+    db_session.commit()
+
+    list_resp = client.get("/api/clients")
+    body = list_resp.json()
+    assert body[0]["photo_count"] == 2
+    assert body[0]["last_activity"] == "2026-02-01"
+
+
+def test_list_clients_last_activity_is_null_without_photos(client, db_session):
+    _login(client, db_session)
+    client.post("/api/clients", json={"name": "Max"})
+
+    body = client.get("/api/clients").json()
+    assert body[0]["photo_count"] == 0
+    assert body[0]["last_activity"] is None

@@ -36,16 +36,76 @@ def get_owned_client(
     return client_row
 
 
+def _to_client_out(client_row: Client, db: Session) -> ClientOut:
+    from sqlalchemy import func
+
+    from app.models.photo import Photo
+
+    photo_count = (
+        db.query(func.count(Photo.id)).filter(Photo.client_id == client_row.id).scalar() or 0
+    )
+    last_activity_dt = (
+        db.query(func.max(Photo.taken_at)).filter(Photo.client_id == client_row.id).scalar()
+    )
+    return ClientOut(
+        id=client_row.id,
+        name=client_row.name,
+        height_cm=client_row.height_cm,
+        birth_date=client_row.birth_date,
+        gender=client_row.gender,
+        start_date=client_row.start_date,
+        created_at=client_row.created_at,
+        photo_count=photo_count,
+        last_activity=last_activity_dt.date() if last_activity_dt else None,
+    )
+
+
 @router.get("", response_model=list[ClientOut])
 def list_clients(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    return (
+    from sqlalchemy import func
+
+    from app.models.photo import Photo
+
+    clients = (
         db.query(Client)
         .filter(Client.owner_id == current_user.id)
         .order_by(Client.created_at)
         .all()
     )
+
+    client_ids = [c.id for c in clients]
+    stats = dict(
+        db.query(Photo.client_id, func.count(Photo.id))
+        .filter(Photo.client_id.in_(client_ids))
+        .group_by(Photo.client_id)
+        .all()
+    )
+    last_activity = dict(
+        db.query(Photo.client_id, func.max(Photo.taken_at))
+        .filter(Photo.client_id.in_(client_ids))
+        .group_by(Photo.client_id)
+        .all()
+    )
+
+    result = []
+    for c in clients:
+        activity = last_activity.get(c.id)
+        result.append(
+            ClientOut(
+                id=c.id,
+                name=c.name,
+                height_cm=c.height_cm,
+                birth_date=c.birth_date,
+                gender=c.gender,
+                start_date=c.start_date,
+                created_at=c.created_at,
+                photo_count=stats.get(c.id, 0),
+                last_activity=activity.date() if activity else None,
+            )
+        )
+    return result
 
 
 @router.post("", response_model=ClientOut, status_code=201)
@@ -59,12 +119,12 @@ def create_client(
     db.commit()
     db.refresh(client_row)
     seed_default_poses_for_client(db, client_row.id)
-    return client_row
+    return _to_client_out(client_row, db)
 
 
 @router.get("/{client_id}", response_model=ClientOut)
-def get_client(client_row: Client = Depends(get_owned_client)):
-    return client_row
+def get_client(client_row: Client = Depends(get_owned_client), db: Session = Depends(get_db)):
+    return _to_client_out(client_row, db)
 
 
 @router.patch("/{client_id}", response_model=ClientOut)
@@ -77,4 +137,4 @@ def update_client(
         setattr(client_row, field, value)
     db.commit()
     db.refresh(client_row)
-    return client_row
+    return _to_client_out(client_row, db)

@@ -27,6 +27,8 @@ class ClientOut(BaseModel):
     gender: str | None
     start_date: date_ | None
     created_at: datetime
+    photo_count: int
+    last_activity: date_ | None
 
     class Config:
         from_attributes = True
