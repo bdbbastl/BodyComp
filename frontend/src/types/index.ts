@@ -6,6 +6,8 @@ export interface Client {
   gender: string | null;
   start_date: string | null;
   created_at: string;
+  photo_count: number;
+  last_activity: string | null; // ISO YYYY-MM-DD
 }
 
 export interface Pose {
