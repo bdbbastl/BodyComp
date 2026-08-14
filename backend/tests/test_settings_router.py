@@ -1,9 +1,16 @@
+from datetime import datetime, timezone
+
 from app.models.user import User
 from app.services.auth import hash_password
 
 
 def _login(client, db_session, email="a@b.com", password="pw12345"):
-    user = User(email=email, password_hash=hash_password(password), display_name="A")
+    user = User(
+        email=email,
+        password_hash=hash_password(password),
+        display_name="A",
+        email_verified_at=datetime.now(timezone.utc),
+    )
     db_session.add(user)
     db_session.commit()
     client.post("/api/auth/login", json={"email": email, "password": password})

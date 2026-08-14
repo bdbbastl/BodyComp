@@ -28,6 +28,20 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base, get_db
 from app.main import app
+from app.routers import auth as auth_router
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    # Die RateLimiter-Instanzen in app/routers/auth.py sind Modul-Level-
+    # Singletons (In-Memory-Zähler pro Prozess, siehe core/rate_limit.py) -
+    # ohne Reset zwischen Tests summieren sich Hits über die gesamte
+    # Testsession hinweg auf und lösen irgendwann fälschlich 429 statt der
+    # jeweils erwarteten Statuscodes aus.
+    auth_router.signup_rate_limit._hits.clear()
+    auth_router.login_rate_limit._hits.clear()
+    auth_router.resend_verification_rate_limit._hits.clear()
+    yield
 
 
 @pytest.fixture()

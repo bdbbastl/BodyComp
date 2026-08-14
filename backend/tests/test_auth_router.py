@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from app.models.user import User
 from app.services.auth import hash_password
 
@@ -7,6 +9,7 @@ def _make_user(db_session, email="basti@example.com", password="Grindcore123!"):
         email=email,
         password_hash=hash_password(password),
         display_name="Basti",
+        email_verified_at=datetime.now(timezone.utc),
     )
     db_session.add(user)
     db_session.commit()
