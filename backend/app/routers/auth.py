@@ -1,5 +1,6 @@
 """Login/Logout via signiertes, httpOnly Session-Cookie - siehe
 Design-Spec Abschnitt "Authentifizierung"."""
+import logging
 import shutil
 from datetime import datetime, timedelta, timezone
 
@@ -29,6 +30,8 @@ from app.services.auth import (
     verify_session_token,
 )
 from app.services.email import send_password_reset_email, send_verification_email
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -306,13 +309,20 @@ def delete_account(
         if not payload.password or not verify_password(payload.password, current_user.password_hash):
             raise HTTPException(401, "Passwort falsch")
 
+    def _log_rmtree_error(func, path, exc_info):
+        logger.warning("Konnte %s nicht löschen (Account-Löschung): %s", path, exc_info[1])
+
     for client_row in current_user.clients:
         for base_dir in (settings.photos_incoming_dir, settings.photos_processed_dir, settings.photos_normalized_dir):
             client_dir = base_dir / str(client_row.id)
             if client_dir.exists():
-                shutil.rmtree(client_dir, ignore_errors=True)
+                shutil.rmtree(client_dir, onerror=_log_rmtree_error)
 
-    db.delete(current_user)  # cascaded: Client -> Pose/DayLog/Photo/AppSetting, EmailToken
+    # Client/EmailToken werden über ORM-relationship(cascade="all, delete-orphan")
+    # entfernt; Pose/DayLog/Photo/AppSetting hängen darunter an DB-seitigen
+    # ondelete="CASCADE"-FKs, die "PRAGMA foreign_keys=ON" voraussetzen
+    # (siehe app/core/database.py).
+    db.delete(current_user)
     db.commit()
     response.delete_cookie(SESSION_COOKIE_NAME, secure=True)
 

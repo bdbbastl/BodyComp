@@ -1,6 +1,10 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
+from app.models.app_setting import AppSetting
 from app.models.client import Client
+from app.models.day_log import DayLog
+from app.models.photo import Photo
+from app.models.pose import Pose
 from app.models.user import User
 from app.services.auth import hash_password
 
@@ -39,6 +43,49 @@ def test_delete_account_removes_user_and_clients(client, db_session):
 
     me_response = client.get("/api/auth/me")
     assert me_response.status_code == 401
+
+
+def test_delete_account_cascades_to_pose_daylog_photo_appsetting(client, db_session):
+    """Regressionstest für die stille Waisen-Zeilen-Lücke: ohne
+    `PRAGMA foreign_keys=ON` überleben Pose/DayLog/Photo/AppSetting eine
+    Account-Löschung, weil ihre FKs nur DB-seitige ondelete="CASCADE"-
+    Constraints sind (keine ORM-relationship-cascade)."""
+    user = _login_as(client, db_session)
+    user_id = user.id
+    client_row = db_session.query(Client).filter(Client.owner_id == user_id).one()
+
+    pose = Pose(client_id=client_row.id, name="Front")
+    db_session.add(pose)
+    db_session.flush()
+
+    day_log = DayLog(client_id=client_row.id, date=date(2026, 8, 1), weight_kg=80.0)
+    db_session.add(day_log)
+    db_session.flush()
+
+    photo = Photo(
+        client_id=client_row.id,
+        filename="a.jpg",
+        original_path="photos_processed/x/a.jpg",
+        taken_at=datetime.now(timezone.utc),
+        pose_id=pose.id,
+        day_log_id=day_log.id,
+    )
+    db_session.add(photo)
+
+    db_session.add(AppSetting(owner_id=user_id, key="gemini_api_key", value="secret"))
+    db_session.commit()
+
+    pose_id, day_log_id, photo_id = pose.id, day_log.id, photo.id
+
+    response = client.request("DELETE", "/api/auth/me", json={"password": "Pass123456!"})
+    assert response.status_code == 204
+
+    assert db_session.query(User).filter(User.id == user_id).first() is None
+    assert db_session.query(Client).filter(Client.owner_id == user_id).count() == 0
+    assert db_session.query(Pose).filter(Pose.id == pose_id).first() is None
+    assert db_session.query(DayLog).filter(DayLog.id == day_log_id).first() is None
+    assert db_session.query(Photo).filter(Photo.id == photo_id).first() is None
+    assert db_session.query(AppSetting).filter(AppSetting.owner_id == user_id).count() == 0
 
 
 def test_delete_google_only_account_without_password(client, db_session):
