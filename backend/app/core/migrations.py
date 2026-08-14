@@ -25,6 +25,7 @@ _PENDING_COLUMNS: list[tuple[str, str, str]] = [
     ("photos", "client_id", "INTEGER"),
     ("poses", "client_id", "INTEGER"),
     ("day_logs", "client_id", "INTEGER"),
+    ("clients", "birth_date", "DATE"),
 ]
 
 

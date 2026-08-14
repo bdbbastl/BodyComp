@@ -15,12 +15,13 @@ def test_create_and_list_clients(client, db_session):
 
     create_resp = client.post(
         "/api/clients",
-        json={"name": "Max Mustermann", "height_cm": 180, "age": 28, "gender": "männlich", "start_date": "2026-01-01"},
+        json={"name": "Max Mustermann", "height_cm": 180, "birth_date": "1998-01-01", "gender": "männlich", "start_date": "2026-01-01"},
     )
     assert create_resp.status_code == 201
     created = create_resp.json()
     assert created["name"] == "Max Mustermann"
     assert created["height_cm"] == 180
+    assert created["birth_date"] == "1998-01-01"
 
     list_resp = client.get("/api/clients")
     assert list_resp.status_code == 200

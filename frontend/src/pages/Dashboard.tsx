@@ -8,7 +8,7 @@ export default function Dashboard() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [heightCm, setHeightCm] = useState("");
-  const [age, setAge] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [gender, setGender] = useState("");
   const [startDate, setStartDate] = useState("");
 
@@ -19,7 +19,7 @@ export default function Dashboard() {
       api.clients.create({
         name,
         height_cm: heightCm.trim() === "" ? null : Number(heightCm),
-        age: age.trim() === "" ? null : Number(age),
+        birth_date: birthDate.trim() === "" ? null : birthDate,
         gender: gender.trim() === "" ? null : gender,
         start_date: startDate.trim() === "" ? null : startDate,
       }),
@@ -28,7 +28,7 @@ export default function Dashboard() {
       setShowForm(false);
       setName("");
       setHeightCm("");
-      setAge("");
+      setBirthDate("");
       setGender("");
       setStartDate("");
     },
@@ -75,11 +75,11 @@ export default function Dashboard() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Alter
+            Geburtsdatum
             <input
-              type="number"
-              value={age}
-              onChange={(e) => setAge(e.target.value)}
+              type="date"
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
             />
           </label>
@@ -123,7 +123,12 @@ export default function Dashboard() {
           >
             <p className="text-base font-semibold text-white">{c.name}</p>
             <p className="mt-1 text-xs text-slate-500">
-              {[c.age ? `${c.age} Jahre` : null, c.height_cm ? `${c.height_cm} cm` : null]
+              {[
+                c.birth_date
+                  ? `${Math.floor((Date.now() - new Date(c.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} Jahre`
+                  : null,
+                c.height_cm ? `${c.height_cm} cm` : null,
+              ]
                 .filter(Boolean)
                 .join(" · ") || "Keine Metriken hinterlegt"}
             </p>

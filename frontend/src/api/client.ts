@@ -37,7 +37,7 @@ export const api = {
     create: (payload: {
       name: string;
       height_cm?: number | null;
-      age?: number | null;
+      birth_date?: string | null;
       gender?: string | null;
       start_date?: string | null;
     }) => client.post<Client>("/clients", payload).then((r) => r.data),

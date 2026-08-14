@@ -6,7 +6,7 @@ mindestens einen Client - siehe Design-Spec Abschnitt "Kontotyp".
 """
 from datetime import date as date_, datetime, timezone
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Date, DateTime, Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -21,7 +21,7 @@ class Client(Base):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     height_cm: Mapped[float | None] = mapped_column(Float, nullable=True)
-    age: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    birth_date: Mapped[date_ | None] = mapped_column(Date, nullable=True)
     gender: Mapped[str | None] = mapped_column(String(50), nullable=True)
     start_date: Mapped[date_ | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

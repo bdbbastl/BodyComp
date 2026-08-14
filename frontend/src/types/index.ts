@@ -2,7 +2,7 @@ export interface Client {
   id: number;
   name: string;
   height_cm: number | null;
-  age: number | null;
+  birth_date: string | null; // ISO YYYY-MM-DD
   gender: string | null;
   start_date: string | null;
   created_at: string;
