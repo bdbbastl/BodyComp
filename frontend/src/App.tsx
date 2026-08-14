@@ -3,6 +3,9 @@ import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import ClientRedirect from "./components/ClientRedirect";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import SignupSuccess from "./pages/SignupSuccess";
+import VerifyEmail from "./pages/VerifyEmail";
 import Dashboard from "./pages/Dashboard";
 import Account from "./pages/Account";
 import Timeline from "./pages/Timeline";
@@ -15,6 +18,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/signup-success" element={<SignupSuccess />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route index element={<ClientRedirect />} />

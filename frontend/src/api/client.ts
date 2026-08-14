@@ -30,6 +30,11 @@ export const api = {
     me: () => client.get<CurrentUser>("/auth/me").then((r) => r.data),
     switchToCoach: () =>
       client.post<CurrentUser>("/auth/switch-to-coach").then((r) => r.data),
+    signup: (payload: { email: string; password: string; display_name: string; privacy_accepted: boolean }) =>
+      client.post<CurrentUser>("/auth/signup", payload).then((r) => r.data),
+    verifyEmail: (token: string) =>
+      client.get("/auth/verify-email", { params: { token } }).then((r) => r.data),
+    resendVerification: (email: string) => client.post("/auth/resend-verification", { email }),
   },
   clients: {
     list: () => client.get<Client[]>("/clients").then((r) => r.data),
