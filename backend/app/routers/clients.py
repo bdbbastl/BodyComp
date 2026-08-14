@@ -36,17 +36,10 @@ def get_owned_client(
     return client_row
 
 
-def _to_client_out(client_row: Client, db: Session) -> ClientOut:
-    from sqlalchemy import func
-
-    from app.models.photo import Photo
-
-    photo_count = (
-        db.query(func.count(Photo.id)).filter(Photo.client_id == client_row.id).scalar() or 0
-    )
-    last_activity_dt = (
-        db.query(func.max(Photo.taken_at)).filter(Photo.client_id == client_row.id).scalar()
-    )
+def _client_row_to_out(client_row: Client, photo_count: int, last_activity_dt) -> ClientOut:
+    """Reine Mapping-Funktion, keine DB-Zugriffe - Aggregation liegt beim
+    Aufrufer (Einzelabfrage in `_to_client_out`, gebatcht in `list_clients`),
+    damit beide Pfade dieselbe Feld-Zuordnung nutzen und nicht auseinanderlaufen."""
     return ClientOut(
         id=client_row.id,
         name=client_row.name,
@@ -58,6 +51,20 @@ def _to_client_out(client_row: Client, db: Session) -> ClientOut:
         photo_count=photo_count,
         last_activity=last_activity_dt.date() if last_activity_dt else None,
     )
+
+
+def _to_client_out(client_row: Client, db: Session) -> ClientOut:
+    from sqlalchemy import func
+
+    from app.models.photo import Photo
+
+    photo_count = (
+        db.query(func.count(Photo.id)).filter(Photo.client_id == client_row.id).scalar() or 0
+    )
+    last_activity_dt = (
+        db.query(func.max(Photo.taken_at)).filter(Photo.client_id == client_row.id).scalar()
+    )
+    return _client_row_to_out(client_row, photo_count, last_activity_dt)
 
 
 @router.get("", response_model=list[ClientOut])
@@ -89,23 +96,9 @@ def list_clients(
         .all()
     )
 
-    result = []
-    for c in clients:
-        activity = last_activity.get(c.id)
-        result.append(
-            ClientOut(
-                id=c.id,
-                name=c.name,
-                height_cm=c.height_cm,
-                birth_date=c.birth_date,
-                gender=c.gender,
-                start_date=c.start_date,
-                created_at=c.created_at,
-                photo_count=stats.get(c.id, 0),
-                last_activity=activity.date() if activity else None,
-            )
-        )
-    return result
+    return [
+        _client_row_to_out(c, stats.get(c.id, 0), last_activity.get(c.id)) for c in clients
+    ]
 
 
 @router.post("", response_model=ClientOut, status_code=201)

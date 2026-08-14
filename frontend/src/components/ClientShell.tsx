@@ -1,6 +1,6 @@
 // frontend/src/components/ClientShell.tsx
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useParams } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 
@@ -19,6 +19,12 @@ const NAV_ITEMS = [
  * Design-Spec Abschnitt "ClientShell (vertikale Kunden-Navi)". */
 export default function ClientShell() {
   const { clientId } = useParams<{ clientId: string }>();
+  const location = useLocation();
+  const activeNavTo = NAV_ITEMS.find((item) =>
+    item.to === "timeline"
+      ? location.pathname.endsWith(`/clients/${clientId}/timeline`)
+      : location.pathname.includes(`/clients/${clientId}/${item.to}`)
+  )?.to;
   const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
     return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
   });
@@ -63,7 +69,14 @@ export default function ClientShell() {
                 key={item.to}
                 to={item.to}
                 end={item.to === "timeline"}
-                onClick={() => setMobileOpen(false)}
+                aria-disabled={item.to === activeNavTo}
+                onClick={(e) => {
+                  if (item.to === activeNavTo) {
+                    e.preventDefault();
+                    return;
+                  }
+                  setMobileOpen(false);
+                }}
                 className={navLinkClass}
               >
                 <span>{item.icon}</span>
@@ -92,6 +105,8 @@ export default function ClientShell() {
             key={item.to}
             to={item.to}
             end={item.to === "timeline"}
+            aria-disabled={item.to === activeNavTo}
+            onClick={(e) => item.to === activeNavTo && e.preventDefault()}
             className={navLinkClass}
             title={desktopCollapsed ? item.label : undefined}
           >

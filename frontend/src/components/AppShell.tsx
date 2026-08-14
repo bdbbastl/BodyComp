@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 
@@ -22,6 +22,18 @@ export default function AppShell() {
   });
 
   const onDashboard = location.pathname === "/dashboard";
+  const inClientRoute = location.pathname.startsWith("/clients/");
+
+  // Für single-Accounts: der eine Client, zu dem man zurückkehren kann,
+  // wenn man sich gerade NICHT in einer Client-Route befindet (z.B. auf
+  // /account) - sonst gibt es für single-Accounts von dort keinen Weg
+  // zurück, da sie kein Dashboard haben.
+  const clientsListQuery = useQuery({
+    queryKey: ["clients"],
+    queryFn: api.clients.list,
+    enabled: !inClientRoute && user?.account_type === "single",
+  });
+  const backToClient = clientsListQuery.data?.[0];
 
   return (
     <div className="min-h-screen bg-background text-slate-100">
@@ -43,6 +55,14 @@ export default function AppShell() {
                 }`}
               >
                 Dashboard
+              </NavLink>
+            )}
+            {user?.account_type === "single" && !inClientRoute && backToClient && (
+              <NavLink
+                to={`/clients/${backToClient.id}/timeline`}
+                className="text-xs text-slate-400 hover:text-white"
+              >
+                ← Zurück zu {backToClient.name}
               </NavLink>
             )}
           </div>
