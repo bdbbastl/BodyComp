@@ -126,47 +126,47 @@ export default function Unprocessed() {
         title="Import"
         actions={
           <div className="flex gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/jpeg,image/png,image/heic,.heic"
-            className="hidden"
-            onChange={(e) => {
-              const files = e.target.files ? Array.from(e.target.files) : [];
-              if (files.length > 0) uploadMutation.mutate(files);
-              e.target.value = ""; // erlaubt erneuten Upload derselben Datei(en)
-            }}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadMutation.isPending}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {uploadMutation.isPending ? "Lade hoch…" : "📤 Fotos hochladen"}
-          </button>
-          <button
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            className="rounded-lg border border-white/10 bg-black/30 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-50"
-            title="Scannt backend/data/photos_incoming erneut nach Dateien, die dort direkt auf der Festplatte abgelegt wurden"
-          >
-            {syncMutation.isPending ? "Synchronisiere…" : "Ordner synchronisieren"}
-          </button>
-          <button
-            onClick={handleBulkAssign}
-            disabled={readyToBulkAssign.length === 0 || bulkAssignMutation.isPending}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            title={
-              readyToBulkAssign.length === 0
-                ? "Keine Fotos mit gesetzter Pose"
-                : `${readyToBulkAssign.length} Foto(s) zuordnen`
-            }
-          >
-            {bulkAssignMutation.isPending
-              ? "Ordne zu…"
-              : `Alle zugeordneten speichern (${readyToBulkAssign.length})`}
-          </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/heic,.heic"
+              className="hidden"
+              onChange={(e) => {
+                const files = e.target.files ? Array.from(e.target.files) : [];
+                if (files.length > 0) uploadMutation.mutate(files);
+                e.target.value = ""; // erlaubt erneuten Upload derselben Datei(en)
+              }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadMutation.isPending}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {uploadMutation.isPending ? "Lade hoch…" : "📤 Fotos hochladen"}
+            </button>
+            <button
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+              className="rounded-lg border border-white/10 bg-black/30 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-50"
+              title="Scannt backend/data/photos_incoming erneut nach Dateien, die dort direkt auf der Festplatte abgelegt wurden"
+            >
+              {syncMutation.isPending ? "Synchronisiere…" : "Ordner synchronisieren"}
+            </button>
+            <button
+              onClick={handleBulkAssign}
+              disabled={readyToBulkAssign.length === 0 || bulkAssignMutation.isPending}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              title={
+                readyToBulkAssign.length === 0
+                  ? "Keine Fotos mit gesetzter Pose"
+                  : `${readyToBulkAssign.length} Foto(s) zuordnen`
+              }
+            >
+              {bulkAssignMutation.isPending
+                ? "Ordne zu…"
+                : `Alle zugeordneten speichern (${readyToBulkAssign.length})`}
+            </button>
           </div>
         }
       />
