@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
-import Layout from "./components/Layout";
+import AppShell from "./components/AppShell";
+import ClientShell from "./components/ClientShell";
 import RequireAuth from "./components/RequireAuth";
 import ClientRedirect from "./components/ClientRedirect";
 import Login from "./pages/Login";
@@ -32,15 +33,17 @@ export default function App() {
       <Route path="/impressum" element={<Impressum />} />
       <Route path="/agb" element={<Agb />} />
       <Route element={<RequireAuth />}>
-        <Route element={<Layout />}>
+        <Route element={<AppShell />}>
           <Route index element={<ClientRedirect />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="account" element={<Account />} />
-          <Route path="clients/:clientId/timeline" element={<Timeline />} />
-          <Route path="clients/:clientId/unprocessed" element={<Unprocessed />} />
-          <Route path="clients/:clientId/compare" element={<Compare />} />
-          <Route path="clients/:clientId/statistics" element={<Statistics />} />
-          <Route path="clients/:clientId/settings" element={<Settings />} />
+          <Route path="clients/:clientId" element={<ClientShell />}>
+            <Route path="timeline" element={<Timeline />} />
+            <Route path="unprocessed" element={<Unprocessed />} />
+            <Route path="compare" element={<Compare />} />
+            <Route path="statistics" element={<Statistics />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
         </Route>
       </Route>
     </Routes>
