@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
+import PageHeader from "../components/PageHeader";
 
 export default function Settings() {
   const { clientId } = useParams<{ clientId: string }>();
@@ -41,7 +42,7 @@ export default function Settings() {
 
   return (
     <div className="max-w-xl space-y-6">
-      <h1 className="text-xl font-semibold text-white">Posen-Konfiguration</h1>
+      <PageHeader title="Settings" />
 
       <div className="rounded-xl border border-white/5 bg-surface p-4">
         <ul className="divide-y divide-white/5">

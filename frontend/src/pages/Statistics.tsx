@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { formatDateShortWithWeek } from "../utils/date";
+import PageHeader from "../components/PageHeader";
 
 type RangeKey = "1m" | "3m" | "6m" | "1y" | "all";
 
@@ -45,34 +46,46 @@ export default function Statistics() {
   }, [dayLogsQuery.data, range]);
 
   if (dayLogsQuery.isLoading) {
-    return <p className="text-slate-500">Lade Statistik…</p>;
+    return (
+      <>
+        <PageHeader title="Statistik" />
+        <p className="text-slate-500">Lade Statistik…</p>
+      </>
+    );
   }
   if (dayLogsQuery.isError) {
-    return <p className="text-red-400">Statistik konnte nicht geladen werden.</p>;
+    return (
+      <>
+        <PageHeader title="Statistik" />
+        <p className="text-red-400">Statistik konnte nicht geladen werden.</p>
+      </>
+    );
   }
 
   const totalWeighed = (dayLogsQuery.data ?? []).filter((d) => d.weight_kg != null).length;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-white">Statistik</h1>
-        <div className="flex gap-1 rounded-full bg-surface p-1">
-          {RANGE_OPTIONS.map((opt) => (
-            <button
-              key={opt.key}
-              onClick={() => setRange(opt.key)}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                range === opt.key
-                  ? "bg-accent text-slate-900"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Statistik"
+        actions={
+          <div className="flex gap-1 rounded-full bg-surface p-1">
+            {RANGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setRange(opt.key)}
+                className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                  range === opt.key
+                    ? "bg-accent text-slate-900"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       {totalWeighed === 0 ? (
         <div className="rounded-xl border border-white/5 bg-surface p-8 text-center text-slate-400">

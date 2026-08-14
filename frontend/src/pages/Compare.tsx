@@ -11,6 +11,7 @@ import { RotationSlider } from "../components/RotationSlider";
 import { PositionSlider } from "../components/PositionSlider";
 import { SliderControl } from "../components/SliderControl";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
+import PageHeader from "../components/PageHeader";
 
 type Mode = "side-by-side" | "overlay" | "slider";
 // "all" = Sonderauswahl "Alle Posen" - zeigt alle Posen (in Settings-
@@ -212,7 +213,7 @@ export default function Compare() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-white">Compare</h1>
+      <PageHeader title="Compare" />
 
       <div className="flex flex-wrap items-end gap-4 rounded-xl border border-white/5 bg-surface p-4">
         <label className="flex flex-col gap-1 text-sm text-slate-400">
