@@ -26,6 +26,10 @@ _PENDING_COLUMNS: list[tuple[str, str, str]] = [
     ("poses", "client_id", "INTEGER"),
     ("day_logs", "client_id", "INTEGER"),
     ("clients", "birth_date", "DATE"),
+    ("users", "google_id", "VARCHAR(255)"),
+    ("users", "email_verified_at", "DATETIME"),
+    ("users", "privacy_accepted_at", "DATETIME"),
+    ("users", "sessions_invalidated_at", "DATETIME"),
 ]
 
 
@@ -41,3 +45,11 @@ def run_lightweight_migrations(engine: Engine) -> None:
             if column in existing_columns:
                 continue
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
+
+        if "users" in existing_tables:
+            existing_user_columns = {col["name"] for col in inspector.get_columns("users")}
+            if "email_verified_at" in existing_user_columns:
+                conn.execute(text(
+                    "UPDATE users SET email_verified_at = created_at "
+                    "WHERE email_verified_at IS NULL AND password_hash IS NOT NULL"
+                ))
