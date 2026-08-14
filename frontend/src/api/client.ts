@@ -13,6 +13,9 @@ export interface CurrentUser {
   email: string;
   display_name: string;
   account_type: AccountType;
+  // false bei Google-only-Accounts (kein eigenes Passwort gesetzt) -
+  // steuert z.B. ob bei der Konto-Löschung ein Passwortfeld angezeigt wird.
+  has_password: boolean;
 }
 
 const client = axios.create({ baseURL: "/api", withCredentials: true });

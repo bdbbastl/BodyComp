@@ -16,6 +16,16 @@ export default function Layout() {
     enabled: !!clientId,
   });
 
+  // Für single-Accounts: der eine Client, zu dem man zurückkehren kann,
+  // wenn man sich gerade NICHT in einer Client-Route befindet (z.B. auf
+  // /account) - sonst gibt es für single-Accounts von dort keinen Weg
+  // zurück, da sie kein Dashboard haben.
+  const clientsListQuery = useQuery({
+    queryKey: ["clients"],
+    queryFn: api.clients.list,
+    enabled: !clientId && user?.account_type === "single",
+  });
+
   const logoutMutation = useMutation({
     mutationFn: api.auth.logout,
     onSuccess: () => {
@@ -42,13 +52,26 @@ export default function Layout() {
             <span className="text-sm font-semibold tracking-wide text-white">
               BodyComp <span className="text-accent">Tracker</span>
             </span>
-            {user?.account_type === "coach" && clientQuery.data && (
+            {user?.account_type === "coach" && (
               <>
                 <span className="text-slate-600">·</span>
                 <NavLink to="/dashboard" className="text-xs text-slate-400 hover:text-white">
                   ← Dashboard
                 </NavLink>
-                <span className="text-sm text-slate-300">{clientQuery.data.name}</span>
+                {clientQuery.data && (
+                  <span className="text-sm text-slate-300">{clientQuery.data.name}</span>
+                )}
+              </>
+            )}
+            {user?.account_type === "single" && !clientId && clientsListQuery.data?.[0] && (
+              <>
+                <span className="text-slate-600">·</span>
+                <NavLink
+                  to={`/clients/${clientsListQuery.data[0].id}/timeline`}
+                  className="text-xs text-slate-400 hover:text-white"
+                >
+                  ← Zurück zu {clientsListQuery.data[0].name}
+                </NavLink>
               </>
             )}
           </div>

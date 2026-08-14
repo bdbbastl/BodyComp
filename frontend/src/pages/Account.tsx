@@ -230,6 +230,8 @@ function DangerZoneSection() {
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { data: user } = useCurrentUser();
+  const hasPassword = user?.has_password ?? true; // Default true, bis geladen: sicherer Default (Feld wird gezeigt, nicht versteckt)
 
   const deleteMutation = useMutation({
     mutationFn: () => api.auth.deleteAccount(password || undefined),
@@ -277,13 +279,15 @@ function DangerZoneSection() {
               Das löscht dein Konto und ALLE zugehörigen Daten (Kunden, Fotos, Verlauf)
               unwiderruflich.
             </p>
-            <input
-              type="password"
-              placeholder="Passwort zur Bestätigung"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
-            />
+            {hasPassword && (
+              <input
+                type="password"
+                placeholder="Passwort zur Bestätigung"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
+              />
+            )}
             <div className="flex gap-2">
               <button
                 onClick={() => deleteMutation.mutate()}
@@ -300,7 +304,9 @@ function DangerZoneSection() {
               </button>
             </div>
             {deleteMutation.isError && (
-              <p className="text-sm text-red-400">Löschen fehlgeschlagen - Passwort korrekt?</p>
+              <p className="text-sm text-red-400">
+                {hasPassword ? "Löschen fehlgeschlagen - Passwort korrekt?" : "Löschen fehlgeschlagen."}
+              </p>
             )}
           </div>
         )}
