@@ -75,7 +75,9 @@ def ai_analysis(
         raise HTTPException(404, "Für mindestens eines der Daten existiert kein Foto dieser Pose")
 
     pose = db.query(Pose).filter(Pose.id == pose_id, Pose.client_id == client_row.id).first()
-    pose_name = pose.name if pose else "Unbekannte Pose"
+    if not pose:
+        raise HTTPException(404, "Pose nicht gefunden")
+    pose_name = pose.name
 
     path_x = settings.data_dir / (photo_x.normalized_path or photo_x.preview_path or photo_x.original_path)
     path_y = settings.data_dir / (photo_y.normalized_path or photo_y.preview_path or photo_y.original_path)

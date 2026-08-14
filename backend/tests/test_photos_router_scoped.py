@@ -34,3 +34,34 @@ def test_sync_requires_client_ownership(client, db_session):
 
     response = client.post(f"/api/clients/{client_id_a}/photos/sync")
     assert response.status_code == 404
+
+
+def test_cannot_assign_photo_of_foreign_client(client, db_session):
+    client_id_a = _login_and_get_client(client, db_session, email="a@b.com", password="pw12345")
+    client.post("/api/auth/logout")
+    _login_and_get_client(client, db_session, email="c@d.com", password="pw67890")
+
+    response = client.post(
+        f"/api/clients/{client_id_a}/photos/999/assign", json={"pose_id": 999}
+    )
+    assert response.status_code == 404
+
+
+def test_cannot_change_pose_of_photo_of_foreign_client(client, db_session):
+    client_id_a = _login_and_get_client(client, db_session, email="a@b.com", password="pw12345")
+    client.post("/api/auth/logout")
+    _login_and_get_client(client, db_session, email="c@d.com", password="pw67890")
+
+    response = client.patch(
+        f"/api/clients/{client_id_a}/photos/999/pose", json={"pose_id": 999}
+    )
+    assert response.status_code == 404
+
+
+def test_cannot_delete_photo_of_foreign_client(client, db_session):
+    client_id_a = _login_and_get_client(client, db_session, email="a@b.com", password="pw12345")
+    client.post("/api/auth/logout")
+    _login_and_get_client(client, db_session, email="c@d.com", password="pw67890")
+
+    response = client.delete(f"/api/clients/{client_id_a}/photos/999")
+    assert response.status_code == 404

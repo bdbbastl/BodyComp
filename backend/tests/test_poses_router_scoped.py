@@ -40,3 +40,23 @@ def test_create_pose_scoped_to_client(client, db_session):
     assert response.status_code == 201
     poses = client.get(f"/api/clients/{client_id}/poses").json()
     assert any(p["name"] == "Custom Pose" for p in poses)
+
+
+def test_cannot_update_pose_of_foreign_client(client, db_session):
+    client_id_a = _login_and_get_client(client, db_session, email="a@b.com", password="pw12345")
+    client.post("/api/auth/logout")
+    _login_and_get_client(client, db_session, email="c@d.com", password="pw67890")
+
+    response = client.patch(
+        f"/api/clients/{client_id_a}/poses/999", json={"name": "Hacked"}
+    )
+    assert response.status_code == 404
+
+
+def test_cannot_delete_pose_of_foreign_client(client, db_session):
+    client_id_a = _login_and_get_client(client, db_session, email="a@b.com", password="pw12345")
+    client.post("/api/auth/logout")
+    _login_and_get_client(client, db_session, email="c@d.com", password="pw67890")
+
+    response = client.delete(f"/api/clients/{client_id_a}/poses/999")
+    assert response.status_code == 404
