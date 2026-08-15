@@ -58,6 +58,36 @@ def test_get_checkin_page_with_invalid_token_returns_404(client, db_session):
     assert response.status_code == 404
 
 
+def test_submit_checkin_sanitizes_path_traversal_filename(client, db_session):
+    """Ein Dateiname wie "../../evil.jpg" darf niemals außerhalb von
+    incoming_dir landen - siehe Sicherheits-Fix nach Code-Review von
+    Task 5 (dieser Endpunkt ist unauthentifiziert). Nur der reine
+    Dateiname ("evil.jpg") darf übrig bleiben, innerhalb von incoming_dir."""
+    from app.core.config import settings
+    from app.services.storage_paths import incoming_dir_for_client
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    malicious_name = "../../../../evil.jpg"
+    response = client.post(
+        f"/api/public/checkin/{token}/submit",
+        files={"files": (malicious_name, b"fake-image-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 201
+
+    # Nirgendwo außerhalb von data_dir darf eine Datei namens evil.jpg
+    # entstanden sein.
+    for candidate in settings.data_dir.parent.glob("evil.jpg"):
+        assert False, f"Path-Traversal: Datei außerhalb data_dir geschrieben: {candidate}"
+
+    # Der sanitierte Dateiname landet stattdessen sicher innerhalb von
+    # incoming_dir für diesen Client.
+    incoming_dir = incoming_dir_for_client(created["id"])
+    assert (incoming_dir / "evil.jpg").exists()
+
+
 def test_submit_checkin_with_weight_and_note_creates_pending_submission(client, db_session):
     _login(client, db_session)
     created = client.post("/api/clients", json={"name": "Max"}).json()

@@ -64,15 +64,19 @@ def upload_photos(
     for upload in files:
         if not upload.filename:
             continue
-        suffix = Path(upload.filename).suffix.lower()
+        # Nur den Dateinamen übernehmen, keine Pfad-Komponenten - der
+        # Client-gelieferte Dateiname könnte sonst z.B. "../../evil.jpg"
+        # sein und über incoming_dir hinausschreiben (Path-Traversal).
+        safe_name = Path(upload.filename).name
+        suffix = Path(safe_name).suffix.lower()
         if suffix not in settings.allowed_extensions:
             continue
-        dest = incoming_dir / upload.filename
+        dest = incoming_dir / safe_name
         # Namenskollision (z.B. gleicher Dateiname erneut hochgeladen):
         # Zähler anhängen statt zu überschreiben.
         counter = 1
         while dest.exists():
-            dest = incoming_dir / f"{Path(upload.filename).stem}_{counter}{suffix}"
+            dest = incoming_dir / f"{Path(safe_name).stem}_{counter}{suffix}"
             counter += 1
         with dest.open("wb") as f:
             shutil.copyfileobj(upload.file, f)
