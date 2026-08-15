@@ -36,7 +36,7 @@ def get_owned_client(
     return client_row
 
 
-def _client_row_to_out(client_row: Client, photo_count: int, last_activity_dt) -> ClientOut:
+def _client_row_to_out(client_row: Client, photo_count: int, last_activity_dt, pending_checkins_count: int = 0) -> ClientOut:
     """Reine Mapping-Funktion, keine DB-Zugriffe - Aggregation liegt beim
     Aufrufer (Einzelabfrage in `_to_client_out`, gebatcht in `list_clients`),
     damit beide Pfade dieselbe Feld-Zuordnung nutzen und nicht auseinanderlaufen."""
@@ -50,6 +50,11 @@ def _client_row_to_out(client_row: Client, photo_count: int, last_activity_dt) -
         created_at=client_row.created_at,
         photo_count=photo_count,
         last_activity=last_activity_dt.date() if last_activity_dt else None,
+        pending_checkins_count=pending_checkins_count,
+        checkin_token=client_row.checkin_token,
+        coach_private_note=client_row.coach_private_note,
+        email=client_row.email,
+        checkin_reminder_days=client_row.checkin_reminder_days,
     )
 
 

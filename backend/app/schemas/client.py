@@ -17,6 +17,9 @@ class ClientUpdate(BaseModel):
     birth_date: date_ | None = None
     gender: str | None = None
     start_date: date_ | None = None
+    coach_private_note: str | None = None
+    email: str | None = None
+    checkin_reminder_days: int | None = None
 
 
 class ClientOut(BaseModel):
@@ -29,6 +32,11 @@ class ClientOut(BaseModel):
     created_at: datetime
     photo_count: int
     last_activity: date_ | None
+    pending_checkins_count: int
+    checkin_token: str
+    coach_private_note: str | None
+    email: str | None
+    checkin_reminder_days: int | None
 
     class Config:
         from_attributes = True

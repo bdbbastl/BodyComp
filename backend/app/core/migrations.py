@@ -14,6 +14,8 @@ das einmalige Migrationsscript (app/core/migrate_to_multitenancy.py), das
 diese Tabellen bei Bedarf komplett neu aufbaut. Diese Datei hier trägt nur
 die rohe `client_id`-Spalte nach, ohne Constraint.
 """
+import secrets
+
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
@@ -30,6 +32,12 @@ _PENDING_COLUMNS: list[tuple[str, str, str]] = [
     ("users", "email_verified_at", "DATETIME"),
     ("users", "privacy_accepted_at", "DATETIME"),
     ("users", "sessions_invalidated_at", "DATETIME"),
+    ("clients", "checkin_token", "VARCHAR(64)"),
+    ("clients", "coach_private_note", "TEXT"),
+    ("clients", "email", "VARCHAR(255)"),
+    ("clients", "checkin_reminder_days", "INTEGER"),
+    ("clients", "last_reminder_sent_at", "DATETIME"),
+    ("photos", "checkin_submission_id", "INTEGER"),
 ]
 
 
@@ -53,3 +61,15 @@ def run_lightweight_migrations(engine: Engine) -> None:
                     "UPDATE users SET email_verified_at = created_at "
                     "WHERE email_verified_at IS NULL AND password_hash IS NOT NULL"
                 ))
+
+        if "clients" in existing_tables:
+            existing_client_columns = {col["name"] for col in inspector.get_columns("clients")}
+            if "checkin_token" in existing_client_columns:
+                rows_needing_token = conn.execute(
+                    text("SELECT id FROM clients WHERE checkin_token IS NULL")
+                ).fetchall()
+                for (client_id,) in rows_needing_token:
+                    conn.execute(
+                        text("UPDATE clients SET checkin_token = :token WHERE id = :id"),
+                        {"token": secrets.token_urlsafe(24), "id": client_id},
+                    )

@@ -4,9 +4,10 @@ verwaltbaren Personen unter einem Account). Jede Pose/jeder DayLog/jedes
 Photo hängt an genau einem Client. Jeder User (single oder coach) hat
 mindestens einen Client - siehe Design-Spec Abschnitt "Kontotyp".
 """
+import secrets
 from datetime import date as date_, datetime, timezone
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, String
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -27,6 +28,21 @@ class Client(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
+
+    # Magic-Link-Zugang für Klienten-Check-in-Einreichung (kein Login, kein
+    # Ablauf) - siehe Design-Spec Abschnitt "Magic-Link-Mechanismus". Der
+    # Coach kann den Token im Klientenprofil jederzeit neu generieren, was
+    # den alten Link sofort ungültig macht.
+    checkin_token: Mapped[str] = mapped_column(
+        String(64), default=lambda: secrets.token_urlsafe(24), nullable=False
+    )
+    # Rein intern, NIE im Klienten-Flow sichtbar - siehe Design-Spec.
+    coach_private_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Voraussetzung für Erinnerungsmails (siehe services/checkin_reminders.py).
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # None = keine automatische Erinnerung für diesen Klienten.
+    checkin_reminder_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     owner: Mapped["User"] = relationship(back_populates="clients")  # noqa: F821
 

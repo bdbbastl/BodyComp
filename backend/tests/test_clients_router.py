@@ -112,3 +112,26 @@ def test_list_clients_last_activity_is_null_without_photos(client, db_session):
     body = client.get("/api/clients").json()
     assert body[0]["photo_count"] == 0
     assert body[0]["last_activity"] is None
+
+
+def test_new_client_gets_a_checkin_token(client, db_session):
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    assert created["checkin_token"]
+    assert len(created["checkin_token"]) >= 20
+
+
+def test_client_update_can_set_coach_private_note_email_and_reminder_days(client, db_session):
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    updated = client.patch(
+        f"/api/clients/{created['id']}",
+        json={
+            "coach_private_note": "Knieprobleme, langsam steigern",
+            "email": "max@example.com",
+            "checkin_reminder_days": 3,
+        },
+    ).json()
+    assert updated["coach_private_note"] == "Knieprobleme, langsam steigern"
+    assert updated["email"] == "max@example.com"
+    assert updated["checkin_reminder_days"] == 3
