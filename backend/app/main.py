@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine  # noqa: F401 - SessionLocal wird von tests/conftest.py gepatcht
 from app.core.migrate_users_nullable_password import fix_users_password_hash_nullable
 from app.core.migrations import run_lightweight_migrations
+from app.core.scheduler import start_scheduler
 from app.models import app_setting  # noqa: F401 - Import registriert Table bei create_all
 from app.models import user  # noqa: F401 - Import registriert Table bei create_all
 from app.models import client  # noqa: F401 - Import registriert Table bei create_all
@@ -28,7 +29,9 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     run_lightweight_migrations(engine)
     fix_users_password_hash_nullable(engine)
+    scheduler = start_scheduler()
     yield
+    scheduler.shutdown()
 
 
 app = FastAPI(title="BodyComp Tracker", version="0.1.0", lifespan=lifespan)
