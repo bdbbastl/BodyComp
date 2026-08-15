@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { Client, DayLog, Photo, Pose, UnprocessedPhoto } from "../types";
+import type { CheckinSubmission, Client, DayLog, Photo, Pose, PublicCheckinPage, UnprocessedPhoto } from "../types";
 
 export interface DisplaySettings {
   timeline_columns_max: number;
@@ -55,8 +55,12 @@ export const api = {
       gender?: string | null;
       start_date?: string | null;
     }) => client.post<Client>("/clients", payload).then((r) => r.data),
-    update: (clientId: number, payload: Partial<Omit<Client, "id" | "created_at">>) =>
-      client.patch<Client>(`/clients/${clientId}`, payload).then((r) => r.data),
+    update: (
+      clientId: number,
+      payload: Partial<Omit<Client, "id" | "created_at" | "checkin_token" | "photo_count" | "last_activity" | "pending_checkins_count">>
+    ) => client.patch<Client>(`/clients/${clientId}`, payload).then((r) => r.data),
+    regenerateCheckinToken: (clientId: number) =>
+      client.post<Client>(`/clients/${clientId}/checkin-token/regenerate`).then((r) => r.data),
   },
   poses: {
     list: (clientId: number) => client.get<Pose[]>(`/clients/${clientId}/poses`).then((r) => r.data),
@@ -129,5 +133,32 @@ export const api = {
       client
         .get<{ analysis: string }>(`/clients/${clientId}/comparisons/ai-analysis-all`, { params })
         .then((r) => r.data),
+  },
+  checkins: {
+    list: (clientId: number) =>
+      client.get<CheckinSubmission[]>(`/clients/${clientId}/checkins`).then((r) => r.data),
+    update: (
+      clientId: number,
+      checkinId: number,
+      payload: { coach_feedback_text?: string; coach_feedback_video_url?: string; mark_reviewed?: boolean }
+    ) =>
+      client
+        .patch<CheckinSubmission>(`/clients/${clientId}/checkins/${checkinId}`, payload)
+        .then((r) => r.data),
+  },
+  publicCheckin: {
+    get: (token: string) =>
+      client.get<PublicCheckinPage>(`/public/checkin/${token}`).then((r) => r.data),
+    submit: (token: string, payload: { weight_kg?: number | null; client_note?: string; files: File[] }) => {
+      const form = new FormData();
+      if (payload.weight_kg != null) form.append("weight_kg", String(payload.weight_kg));
+      if (payload.client_note) form.append("client_note", payload.client_note);
+      for (const file of payload.files) form.append("files", file);
+      return client
+        .post<CheckinSubmission>(`/public/checkin/${token}/submit`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+        .then((r) => r.data);
+    },
   },
 };

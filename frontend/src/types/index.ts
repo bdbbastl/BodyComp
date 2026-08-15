@@ -8,6 +8,11 @@ export interface Client {
   created_at: string;
   photo_count: number;
   last_activity: string | null; // ISO YYYY-MM-DD
+  pending_checkins_count: number;
+  checkin_token: string;
+  coach_private_note: string | null;
+  email: string | null;
+  checkin_reminder_days: number | null;
 }
 
 export interface Pose {
@@ -60,4 +65,23 @@ export interface UnprocessedPhoto extends Photo {
   // keine Referenz-Session vorhanden ist oder das Foto keine passende
   // Position darin hat - dann bleibt die Auswahl leer für manuelle Wahl.
   suggested_pose_id: number | null;
+}
+
+export type CheckinStatus = "pending" | "reviewed";
+
+export interface CheckinSubmission {
+  id: number;
+  submitted_at: string; // ISO datetime
+  weight_kg: number | null;
+  client_note: string | null;
+  status: CheckinStatus;
+  coach_feedback_text: string | null;
+  coach_feedback_video_url: string | null;
+  reviewed_at: string | null;
+  photos: Photo[];
+}
+
+export interface PublicCheckinPage {
+  client_name: string;
+  submissions: Omit<CheckinSubmission, "reviewed_at">[];
 }
