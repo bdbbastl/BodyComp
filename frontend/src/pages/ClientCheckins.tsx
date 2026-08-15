@@ -1,0 +1,173 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
+import { api, mediaUrl } from "../api/client";
+import PageHeader from "../components/PageHeader";
+import type { CheckinSubmission } from "../types";
+
+function complianceRate(submissions: CheckinSubmission[]): string {
+  const fourWeeksAgo = Date.now() - 28 * 24 * 60 * 60 * 1000;
+  const recent = submissions.filter((s) => new Date(s.submitted_at).getTime() >= fourWeeksAgo);
+  return `${recent.length} Check-ins in den letzten 4 Wochen`;
+}
+
+export default function ClientCheckins() {
+  const { clientId } = useParams<{ clientId: string }>();
+  const clientIdNum = Number(clientId);
+  const queryClient = useQueryClient();
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<number, { text: string; videoUrl: string }>>({});
+
+  const checkinsQuery = useQuery({
+    queryKey: ["checkins", clientIdNum],
+    queryFn: () => api.checkins.list(clientIdNum),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: { coach_feedback_text?: string; coach_feedback_video_url?: string; mark_reviewed?: boolean };
+    }) => api.checkins.update(clientIdNum, id, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["checkins", clientIdNum] }),
+  });
+
+  const checkins = checkinsQuery.data ?? [];
+  const draftFor = (id: number, checkin: CheckinSubmission) =>
+    feedbackDrafts[id] ?? {
+      text: checkin.coach_feedback_text ?? "",
+      videoUrl: checkin.coach_feedback_video_url ?? "",
+    };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Check-ins" />
+
+      {checkins.length > 0 && (
+        <p className="text-sm text-slate-500">{complianceRate(checkins)}</p>
+      )}
+
+      {checkinsQuery.isLoading && <p className="text-slate-500">Lade…</p>}
+
+      {!checkinsQuery.isLoading && checkins.length === 0 && (
+        <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-slate-500">
+          Noch keine Check-ins eingereicht.
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {checkins.map((checkin) => {
+          const isOpen = expandedId === checkin.id;
+          const draft = draftFor(checkin.id, checkin);
+          return (
+            <div key={checkin.id} className="rounded-xl border border-white/5 bg-surface p-4">
+              <button
+                onClick={() => setExpandedId(isOpen ? null : checkin.id)}
+                className="flex w-full items-center justify-between text-left"
+              >
+                <span className="text-sm text-white">
+                  {new Date(checkin.submitted_at).toLocaleString("de-DE")}
+                  {checkin.weight_kg != null && (
+                    <span className="ml-2 text-slate-500">{checkin.weight_kg} kg</span>
+                  )}
+                </span>
+                <span
+                  className={`text-xs font-medium ${
+                    checkin.status === "pending" ? "text-amber-400" : "text-accent"
+                  }`}
+                >
+                  {checkin.status === "pending" ? "⏳ Offen" : "✅ Geprüft"}
+                </span>
+              </button>
+
+              {isOpen && (
+                <div className="mt-4 space-y-3 border-t border-white/5 pt-4">
+                  {checkin.client_note && (
+                    <p className="text-sm text-slate-300">„{checkin.client_note}“</p>
+                  )}
+                  {checkin.photos.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto">
+                      {checkin.photos.map((p) => (
+                        <img
+                          key={p.id}
+                          src={mediaUrl(p.thumb_path)}
+                          alt=""
+                          className="h-20 w-20 shrink-0 rounded-lg object-cover"
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <label className="flex flex-col gap-1 text-sm text-slate-400">
+                    Feedback
+                    <textarea
+                      value={draft.text}
+                      onChange={(e) =>
+                        setFeedbackDrafts((d) => ({
+                          ...d,
+                          [checkin.id]: { ...draft, text: e.target.value },
+                        }))
+                      }
+                      rows={2}
+                      className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm text-slate-400">
+                    Video-Link (Loom o.ä.)
+                    <input
+                      value={draft.videoUrl}
+                      onChange={(e) =>
+                        setFeedbackDrafts((d) => ({
+                          ...d,
+                          [checkin.id]: { ...draft, videoUrl: e.target.value },
+                        }))
+                      }
+                      placeholder="https://loom.com/share/…"
+                      className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+                    />
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        updateMutation.mutate({
+                          id: checkin.id,
+                          payload: {
+                            coach_feedback_text: draft.text,
+                            coach_feedback_video_url: draft.videoUrl,
+                          },
+                        })
+                      }
+                      disabled={updateMutation.isPending}
+                      className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/5 disabled:opacity-50"
+                    >
+                      Feedback speichern
+                    </button>
+                    {checkin.status === "pending" && (
+                      <button
+                        onClick={() =>
+                          updateMutation.mutate({
+                            id: checkin.id,
+                            payload: {
+                              coach_feedback_text: draft.text,
+                              coach_feedback_video_url: draft.videoUrl,
+                              mark_reviewed: true,
+                            },
+                          })
+                        }
+                        disabled={updateMutation.isPending}
+                        className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
+                      >
+                        Als geprüft markieren
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

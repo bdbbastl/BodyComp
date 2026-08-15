@@ -8,6 +8,7 @@ const SIDEBAR_COLLAPSED_KEY = "bodycomp:sidebarCollapsed";
 
 const NAV_ITEMS = [
   { to: "timeline", label: "Timeline", icon: "📅" },
+  { to: "checkins", label: "Check-ins", icon: "✅" },
   { to: "unprocessed", label: "Import", icon: "📥" },
   { to: "compare", label: "Compare", icon: "🔍" },
   { to: "statistics", label: "Statistik", icon: "📊" },
