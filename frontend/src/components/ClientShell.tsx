@@ -36,7 +36,12 @@ export default function ClientShell() {
   }, [desktopCollapsed]);
 
   const clientQuery = useQuery({
-    queryKey: ["clients", clientId],
+    // Numerisch, wie in Settings.tsx/ClientCheckins.tsx - sonst sind
+    // ["clients", "5"] (string) und ["clients", 5] (number) für React
+    // Query zwei getrennte Cache-Einträge, und ein invalidateQueries aus
+    // Settings.tsx würde diesen Query hier nie treffen (gefunden im
+    // Review von Task 15).
+    queryKey: ["clients", Number(clientId)],
     queryFn: () => api.clients.get(Number(clientId)),
     enabled: !!clientId,
   });
