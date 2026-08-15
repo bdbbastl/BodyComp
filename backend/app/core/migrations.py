@@ -41,6 +41,18 @@ _PENDING_COLUMNS: list[tuple[str, str, str]] = [
 ]
 
 
+def _columns_now(conn, table: str) -> set[str]:
+    """Spaltenliste über PRAGMA table_info auf DERSELBEN Connection/
+    Transaktion wie die ALTER-TABLE-Statements - wichtig, weil ein
+    `inspect(engine)`-Inspector intern eine EIGENE Connection nutzt und
+    dadurch die in dieser Transaktion gerade erst hinzugefügten, noch
+    nicht committeten Spalten nicht sieht. Damit hätte z.B. der
+    checkin_token-Backfill unten (fälschlich "Spalte existiert nicht")
+    beim ersten Lauf gegen eine echte, bestehende DB übersprungen -
+    gefunden live beim Deploy dieser Migration."""
+    return {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()}
+
+
 def run_lightweight_migrations(engine: Engine) -> None:
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
@@ -49,22 +61,19 @@ def run_lightweight_migrations(engine: Engine) -> None:
         for table, column, sql_type in _PENDING_COLUMNS:
             if table not in existing_tables:
                 continue  # Frisch angelegte DB - create_all() hat die Spalte schon.
-            existing_columns = {col["name"] for col in inspector.get_columns(table)}
-            if column in existing_columns:
+            if column in _columns_now(conn, table):
                 continue
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
 
         if "users" in existing_tables:
-            existing_user_columns = {col["name"] for col in inspector.get_columns("users")}
-            if "email_verified_at" in existing_user_columns:
+            if "email_verified_at" in _columns_now(conn, "users"):
                 conn.execute(text(
                     "UPDATE users SET email_verified_at = created_at "
                     "WHERE email_verified_at IS NULL AND password_hash IS NOT NULL"
                 ))
 
         if "clients" in existing_tables:
-            existing_client_columns = {col["name"] for col in inspector.get_columns("clients")}
-            if "checkin_token" in existing_client_columns:
+            if "checkin_token" in _columns_now(conn, "clients"):
                 rows_needing_token = conn.execute(
                     text("SELECT id FROM clients WHERE checkin_token IS NULL")
                 ).fetchall()

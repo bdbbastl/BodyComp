@@ -29,3 +29,34 @@ def test_client_id_column_added_to_pre_existing_tables(tmp_path):
     assert "client_id" in pose_columns
     assert "client_id" in daylog_columns
     assert "client_id" in photo_columns
+
+
+def test_checkin_token_backfilled_on_pre_existing_clients_table(tmp_path):
+    """Regression: die Migration muss neu hinzugefügte Spalten SOFORT
+    zurücklesen können, um sie im selben Lauf zu befüllen (Backfill) -
+    nicht erst beim nächsten Prozessstart. Ein `inspect(engine)`-Inspector
+    nutzt intern eine eigene Connection und sieht die per ALTER TABLE
+    gerade erst hinzugefügte, noch nicht committete Spalte NICHT - das
+    hat den checkin_token-Backfill live gegen eine echte Bestands-DB
+    beim ersten Migrationslauf stillschweigend übersprungen (gefunden
+    beim Deploy von feature/checkin-review-platform)."""
+    db_path = tmp_path / "old.db"
+    engine = create_engine(f"sqlite:///{db_path.as_posix()}")
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE clients (id INTEGER PRIMARY KEY, owner_id INTEGER, "
+            "name VARCHAR(100), created_at DATETIME)"
+        ))
+        conn.execute(text(
+            "INSERT INTO clients (id, owner_id, name, created_at) "
+            "VALUES (1, 1, 'Max', '2026-01-01')"
+        ))
+
+    run_lightweight_migrations(engine)
+
+    with engine.begin() as conn:
+        token = conn.execute(
+            text("SELECT checkin_token FROM clients WHERE id = 1")
+        ).scalar()
+    assert token is not None
+    assert len(token) >= 20
