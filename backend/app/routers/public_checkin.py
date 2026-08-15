@@ -32,6 +32,13 @@ router = APIRouter(prefix="/api/public/checkin", tags=["public-checkin"])
 # unauthentifizierten Endpunkts.
 checkin_submit_rate_limit = RateLimiter(max_requests=30, window_seconds=3600)
 
+# Grobe Obergrenzen gegen Disk-Fill-Missbrauch - dieser Endpunkt ist
+# unauthentifiziert, die 30/h-Rate-Limit-Grenze allein begrenzt die
+# Datenmenge pro Stunde noch nicht ausreichend (30 Requests x viele große
+# Dateien). Handy-Fotos einer Check-in-Session liegen weit darunter.
+MAX_FILES_PER_SUBMISSION = 10
+MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
+
 
 def get_client_by_checkin_token(token: str, db: Session = Depends(get_db)) -> Client:
     """Analog zu `get_owned_client` in routers/clients.py, aber für den
@@ -65,6 +72,15 @@ def submit_checkin(
     db: Session = Depends(get_db),
     _rate_limit: None = Depends(checkin_submit_rate_limit),
 ):
+    # Vor jeder DB-Schreibung validieren, damit eine abgelehnte Einreichung
+    # niemals einen halb gespeicherten Zustand hinterlässt (Submission/
+    # DayLog ohne die dazugehörigen Fotos).
+    if len(files) > MAX_FILES_PER_SUBMISSION:
+        raise HTTPException(400, f"Maximal {MAX_FILES_PER_SUBMISSION} Fotos pro Check-in")
+    for upload in files:
+        if upload.size is not None and upload.size > MAX_FILE_SIZE_BYTES:
+            raise HTTPException(400, "Datei zu groß (max. 25 MB pro Foto)")
+
     submission = CheckinSubmission(
         client_id=client_row.id, weight_kg=weight_kg, client_note=client_note
     )
@@ -100,6 +116,13 @@ def submit_checkin(
     if files:
         incoming_dir = incoming_dir_for_client(client_row.id)
         incoming_dir.mkdir(parents=True, exist_ok=True)
+        # Sammelt die tatsächlich in DIESEM Request geschriebenen Pfade -
+        # `sync_incoming_folder` scannt den GESAMTEN incoming_dir (auch
+        # Dateien, die der Coach manuell dorthin kopiert und noch nicht
+        # synchronisiert hat, siehe folder_sync.py). Ohne diese Liste
+        # würden solche fremden, älteren Dateien fälschlich dieser
+        # Einreichung zugeordnet (gefunden im finalen Review).
+        written_paths: set[str] = set()
         for upload in files:
             if not upload.filename:
                 continue
@@ -118,10 +141,12 @@ def submit_checkin(
                 counter += 1
             with dest.open("wb") as f:
                 shutil.copyfileobj(upload.file, f)
+            written_paths.add(dest.relative_to(settings.data_dir).as_posix())
 
         new_photos = sync_incoming_folder(db, client_row.id)
         for photo in new_photos:
-            photo.checkin_submission_id = submission.id
+            if photo.original_path in written_paths:
+                photo.checkin_submission_id = submission.id
         db.commit()
 
     db.refresh(submission)

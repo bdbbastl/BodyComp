@@ -129,6 +129,58 @@ def test_submit_checkin_with_invalid_token_returns_404(client, db_session):
     assert response.status_code == 404
 
 
+def test_submit_checkin_does_not_attribute_unrelated_incoming_photo(client, db_session):
+    """Regression: sync_incoming_folder scannt den GESAMTEN incoming_dir,
+    nicht nur die Dateien dieses Requests - eine Datei, die der Coach
+    manuell (oder ein vorheriger, noch nicht synchronisierter Prozess)
+    dort abgelegt hat, darf NICHT dieser Einreichung zugeordnet werden
+    (gefunden im finalen Holistic-Review)."""
+    from app.models.photo import Photo
+    from app.services.storage_paths import incoming_dir_for_client
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    # Simuliert eine bereits im incoming_dir liegende, noch nicht
+    # synchronisierte Datei, wie sie z.B. beim manuellen Server-seitigen
+    # Ordner-Workflow entstehen kann (siehe folder_sync.py-Docstring).
+    incoming_dir = incoming_dir_for_client(created["id"])
+    incoming_dir.mkdir(parents=True, exist_ok=True)
+    (incoming_dir / "coach_dropped_this.jpg").write_bytes(b"pre-existing-file")
+
+    response = client.post(
+        f"/api/public/checkin/{token}/submit",
+        data={"weight_kg": "80"},
+        files={"files": ("client_upload.jpg", b"client-photo-bytes", "image/jpeg")},
+    )
+    assert response.status_code == 201
+    body = response.json()
+
+    submitted_filenames = {p["filename"] for p in body["photos"]}
+    assert submitted_filenames == {"client_upload.jpg"}
+
+    # Die vorbestehende Datei wurde zwar synchronisiert (existiert jetzt
+    # als Photo-Row), aber NICHT dieser Submission zugeordnet.
+    pre_existing_photo = (
+        db_session.query(Photo).filter(Photo.filename == "coach_dropped_this.jpg").first()
+    )
+    assert pre_existing_photo is not None
+    assert pre_existing_photo.checkin_submission_id is None
+
+
+def test_submit_checkin_rejects_too_many_files(client, db_session):
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    files = [
+        ("files", (f"photo{i}.jpg", b"bytes", "image/jpeg")) for i in range(11)
+    ]
+    response = client.post(f"/api/public/checkin/{token}/submit", files=files)
+    assert response.status_code == 400
+
+
 def test_submit_checkin_sends_notification_email_to_coach(client, db_session, monkeypatch):
     sent = {}
 
