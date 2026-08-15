@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
@@ -10,6 +10,40 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const [newPoseName, setNewPoseName] = useState("");
   const [editing, setEditing] = useState<Record<number, string>>({});
+
+  const [copyFeedback, setCopyFeedback] = useState(false);
+  const [coachNote, setCoachNote] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [reminderDays, setReminderDays] = useState("");
+
+  const clientQuery = useQuery({
+    queryKey: ["clients", clientIdNum],
+    queryFn: () => api.clients.get(clientIdNum),
+  });
+
+  useEffect(() => {
+    if (!clientQuery.data) return;
+    setCoachNote(clientQuery.data.coach_private_note ?? "");
+    setClientEmail(clientQuery.data.email ?? "");
+    setReminderDays(
+      clientQuery.data.checkin_reminder_days != null ? String(clientQuery.data.checkin_reminder_days) : ""
+    );
+  }, [clientQuery.data]);
+
+  const updateClientMutation = useMutation({
+    mutationFn: () =>
+      api.clients.update(clientIdNum, {
+        coach_private_note: coachNote.trim() === "" ? null : coachNote,
+        email: clientEmail.trim() === "" ? null : clientEmail.trim(),
+        checkin_reminder_days: reminderDays.trim() === "" ? null : Number(reminderDays),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["clients", clientIdNum] }),
+  });
+
+  const regenerateTokenMutation = useMutation({
+    mutationFn: () => api.clients.regenerateCheckinToken(clientIdNum),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["clients", clientIdNum] }),
+  });
 
   const posesQuery = useQuery({
     queryKey: ["poses", clientIdNum],
@@ -39,10 +73,95 @@ export default function Settings() {
 
   const poses = posesQuery.data ?? [];
   const MAX_POSES = 20;
+  const checkinLink = clientQuery.data
+    ? `${window.location.origin}/checkin/${clientQuery.data.checkin_token}`
+    : "";
 
   return (
     <div className="max-w-xl space-y-6">
       <PageHeader title="Settings" />
+
+      <div className="space-y-4 rounded-xl border border-white/5 bg-surface p-4">
+        <div>
+          <p className="text-sm font-medium text-white">Check-in-Link für den Klienten</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Dieser Link ist dauerhaft gültig - der Klient kann ihn sich bookmarken und für jeden
+            Check-in wiederverwenden.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <input
+              readOnly
+              value={checkinLink}
+              className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-slate-300"
+            />
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(checkinLink);
+                setCopyFeedback(true);
+                setTimeout(() => setCopyFeedback(false), 2000);
+              }}
+              className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-white hover:bg-white/5"
+            >
+              {copyFeedback ? "Kopiert!" : "Kopieren"}
+            </button>
+          </div>
+          <button
+            onClick={() => {
+              if (confirm("Neuen Link generieren? Der alte Link funktioniert danach nicht mehr.")) {
+                regenerateTokenMutation.mutate();
+              }
+            }}
+            disabled={regenerateTokenMutation.isPending}
+            className="mt-2 text-xs text-slate-500 hover:text-white disabled:opacity-50"
+          >
+            Link neu generieren
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            updateClientMutation.mutate();
+          }}
+          className="space-y-3 border-t border-white/5 pt-4"
+        >
+          <label className="flex flex-col gap-1 text-sm text-slate-400">
+            E-Mail des Klienten (für Erinnerungen)
+            <input
+              type="email"
+              value={clientEmail}
+              onChange={(e) => setClientEmail(e.target.value)}
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-slate-400">
+            Erinnerung nach X Tagen ohne Check-in (leer = keine Erinnerung)
+            <input
+              type="number"
+              min={1}
+              value={reminderDays}
+              onChange={(e) => setReminderDays(e.target.value)}
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-slate-400">
+            Private Notiz (nur für dich sichtbar)
+            <textarea
+              value={coachNote}
+              onChange={(e) => setCoachNote(e.target.value)}
+              rows={3}
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={updateClientMutation.isPending}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
+          >
+            {updateClientMutation.isPending ? "Speichern…" : "Speichern"}
+          </button>
+        </form>
+      </div>
 
       <div className="rounded-xl border border-white/5 bg-surface p-4">
         <ul className="divide-y divide-white/5">
