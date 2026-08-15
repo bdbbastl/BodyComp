@@ -135,3 +135,18 @@ def test_client_update_can_set_coach_private_note_email_and_reminder_days(client
     assert updated["coach_private_note"] == "Knieprobleme, langsam steigern"
     assert updated["email"] == "max@example.com"
     assert updated["checkin_reminder_days"] == 3
+
+
+def test_regenerate_checkin_token_changes_token(client, db_session):
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    old_token = created["checkin_token"]
+
+    response = client.post(f"/api/clients/{created['id']}/checkin-token/regenerate")
+    assert response.status_code == 200
+    new_token = response.json()["checkin_token"]
+    assert new_token != old_token
+
+    # Alter Link ist danach ungültig.
+    old_link_check = client.get(f"/api/public/checkin/{old_token}")
+    assert old_link_check.status_code == 404

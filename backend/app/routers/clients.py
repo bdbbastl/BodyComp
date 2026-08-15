@@ -4,6 +4,8 @@ Accounts, plus die zentrale `get_owned_client`-Dependency, die JEDER
 client-scoped Router (photos/poses/day_logs/comparisons) importiert, um
 sicherzustellen, dass ein Account nie auf fremde Kunden zugreifen kann.
 """
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -133,6 +135,18 @@ def update_client(
 ):
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(client_row, field, value)
+    db.commit()
+    db.refresh(client_row)
+    return _to_client_out(client_row, db)
+
+
+@router.post("/{client_id}/checkin-token/regenerate", response_model=ClientOut)
+def regenerate_checkin_token(
+    client_row: Client = Depends(get_owned_client), db: Session = Depends(get_db)
+):
+    """Invalidiert den alten Magic-Link sofort (z.B. falls versehentlich
+    geteilt) - siehe Design-Spec Abschnitt "Magic-Link-Mechanismus"."""
+    client_row.checkin_token = secrets.token_urlsafe(24)
     db.commit()
     db.refresh(client_row)
     return _to_client_out(client_row, db)
