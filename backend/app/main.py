@@ -5,6 +5,7 @@ Für den POC: erzeugt Tabellen direkt via Base.metadata.create_all
 (kein Alembic-Migrationslauf nötig). Für die spätere Cloud-Version
 sollte das durch echte Alembic-Migrationen ersetzt werden.
 """
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -29,9 +30,18 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     run_lightweight_migrations(engine)
     fix_users_password_hash_nullable(engine)
-    scheduler = start_scheduler()
+    # Unter pytest würde jeder `client`-Fixture-Test (TestClient als
+    # Context-Manager, siehe tests/conftest.py) einen eigenen
+    # BackgroundScheduler-Thread starten/stoppen - bei >70 Tests summiert
+    # sich das spürbar auf die Laufzeit der Suite, ohne dass der Job in
+    # dieser kurzen Zeit je feuern würde (Cron ist auf 9 Uhr gesetzt).
+    # pytest setzt PYTEST_CURRENT_TEST automatisch für jeden laufenden
+    # Test, das ist der zuverlässigste Weg, "läuft unter pytest" zu
+    # erkennen, ohne extra Test-Konfiguration einzuführen.
+    scheduler = None if "PYTEST_CURRENT_TEST" in os.environ else start_scheduler()
     yield
-    scheduler.shutdown()
+    if scheduler is not None:
+        scheduler.shutdown()
 
 
 app = FastAPI(title="BodyComp Tracker", version="0.1.0", lifespan=lifespan)
