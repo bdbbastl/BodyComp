@@ -74,3 +74,19 @@ def send_checkin_submitted_email(*, to: str, client_name: str, checkins_url: str
         "subject": f"Neuer Check-in von {client_name} - BodyComp Tracker",
         "html": html,
     })
+
+
+def send_checkin_reminder_email(*, to: str, checkin_url: str) -> None:
+    html = _base_email_html(
+        "Zeit für deinen nächsten Check-in",
+        f"""
+        <p>Dein Coach wartet auf deinen nächsten Check-in - reich ihn hier ein:</p>
+        <p><a href="{checkin_url}">{checkin_url}</a></p>
+        """,
+    )
+    resend.Emails.send({
+        "from": settings.email_from_address,
+        "to": [to],
+        "subject": "Zeit für deinen Check-in - BodyComp Tracker",
+        "html": html,
+    })
