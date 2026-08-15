@@ -58,3 +58,19 @@ def send_password_reset_email(*, to: str, reset_url: str) -> None:
         "subject": "Passwort zurücksetzen - BodyComp Tracker",
         "html": html,
     })
+
+
+def send_checkin_submitted_email(*, to: str, client_name: str, checkins_url: str) -> None:
+    html = _base_email_html(
+        "Neuer Check-in eingereicht",
+        f"""
+        <p><strong>{client_name}</strong> hat gerade einen neuen Check-in eingereicht.</p>
+        <p><a href="{checkins_url}">Jetzt ansehen</a></p>
+        """,
+    )
+    resend.Emails.send({
+        "from": settings.email_from_address,
+        "to": [to],
+        "subject": f"Neuer Check-in von {client_name} - BodyComp Tracker",
+        "html": html,
+    })

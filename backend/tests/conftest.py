@@ -41,6 +41,8 @@ def _reset_rate_limits():
     auth_router.signup_rate_limit._hits.clear()
     auth_router.login_rate_limit._hits.clear()
     auth_router.resend_verification_rate_limit._hits.clear()
+    from app.routers import public_checkin as public_checkin_router
+    public_checkin_router.checkin_submit_rate_limit._hits.clear()
     yield
 
 

@@ -56,3 +56,65 @@ def test_get_checkin_page_includes_submission_history(client, db_session):
 def test_get_checkin_page_with_invalid_token_returns_404(client, db_session):
     response = client.get("/api/public/checkin/does-not-exist")
     assert response.status_code == 404
+
+
+def test_submit_checkin_with_weight_and_note_creates_pending_submission(client, db_session):
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    response = client.post(
+        f"/api/public/checkin/{token}/submit",
+        data={"weight_kg": "81.2", "client_note": "Diese Woche war hart"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "pending"
+    assert body["weight_kg"] == 81.2
+    assert body["client_note"] == "Diese Woche war hart"
+
+
+def test_submit_checkin_writes_weight_into_today_daylog(client, db_session):
+    from datetime import date
+
+    from app.models.day_log import DayLog
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    client.post(f"/api/public/checkin/{token}/submit", data={"weight_kg": "81.2"})
+
+    day_log = (
+        db_session.query(DayLog)
+        .filter(DayLog.client_id == created["id"], DayLog.date == date.today())
+        .first()
+    )
+    assert day_log is not None
+    assert day_log.weight_kg == 81.2
+
+
+def test_submit_checkin_with_invalid_token_returns_404(client, db_session):
+    response = client.post("/api/public/checkin/does-not-exist/submit", data={"weight_kg": "80"})
+    assert response.status_code == 404
+
+
+def test_submit_checkin_sends_notification_email_to_coach(client, db_session, monkeypatch):
+    sent = {}
+
+    def fake_send(*, to, client_name, checkins_url):
+        sent["to"] = to
+        sent["client_name"] = client_name
+
+    monkeypatch.setattr(
+        "app.routers.public_checkin.send_checkin_submitted_email", fake_send
+    )
+
+    _login(client, db_session, email="coach@example.com")
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    client.post(f"/api/public/checkin/{token}/submit", data={"weight_kg": "81.2"})
+
+    assert sent["to"] == "coach@example.com"
+    assert sent["client_name"] == "Max"
