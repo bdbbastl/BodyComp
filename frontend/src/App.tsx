@@ -19,6 +19,7 @@ import Settings from "./pages/Settings";
 import Datenschutz from "./pages/legal/Datenschutz";
 import Impressum from "./pages/legal/Impressum";
 import Agb from "./pages/legal/Agb";
+import CheckinSubmit from "./pages/CheckinSubmit";
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/checkin/:token" element={<CheckinSubmit />} />
       <Route path="/datenschutz" element={<Datenschutz />} />
       <Route path="/impressum" element={<Impressum />} />
       <Route path="/agb" element={<Agb />} />
