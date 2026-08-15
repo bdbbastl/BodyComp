@@ -150,3 +150,20 @@ def test_regenerate_checkin_token_changes_token(client, db_session):
     # Alter Link ist danach ungültig.
     old_link_check = client.get(f"/api/public/checkin/{old_token}")
     assert old_link_check.status_code == 404
+
+
+def test_list_clients_includes_pending_checkins_count(client, db_session):
+    from app.models.checkin_submission import CheckinStatus, CheckinSubmission
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+
+    db_session.add(CheckinSubmission(client_id=created["id"], status=CheckinStatus.PENDING))
+    db_session.add(CheckinSubmission(client_id=created["id"], status=CheckinStatus.PENDING))
+    db_session.add(CheckinSubmission(client_id=created["id"], status=CheckinStatus.REVIEWED))
+    db_session.commit()
+
+    response = client.get("/api/clients")
+    body = response.json()
+    match = next(c for c in body if c["id"] == created["id"])
+    assert match["pending_checkins_count"] == 2

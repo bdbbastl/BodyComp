@@ -63,6 +63,7 @@ def _client_row_to_out(client_row: Client, photo_count: int, last_activity_dt, p
 def _to_client_out(client_row: Client, db: Session) -> ClientOut:
     from sqlalchemy import func
 
+    from app.models.checkin_submission import CheckinStatus, CheckinSubmission
     from app.models.photo import Photo
 
     photo_count = (
@@ -71,7 +72,16 @@ def _to_client_out(client_row: Client, db: Session) -> ClientOut:
     last_activity_dt = (
         db.query(func.max(Photo.taken_at)).filter(Photo.client_id == client_row.id).scalar()
     )
-    return _client_row_to_out(client_row, photo_count, last_activity_dt)
+    pending_checkins_count = (
+        db.query(func.count(CheckinSubmission.id))
+        .filter(
+            CheckinSubmission.client_id == client_row.id,
+            CheckinSubmission.status == CheckinStatus.PENDING,
+        )
+        .scalar()
+        or 0
+    )
+    return _client_row_to_out(client_row, photo_count, last_activity_dt, pending_checkins_count)
 
 
 @router.get("", response_model=list[ClientOut])
@@ -80,6 +90,7 @@ def list_clients(
 ):
     from sqlalchemy import func
 
+    from app.models.checkin_submission import CheckinStatus, CheckinSubmission
     from app.models.photo import Photo
 
     clients = (
@@ -102,9 +113,21 @@ def list_clients(
         .group_by(Photo.client_id)
         .all()
     )
+    pending_checkins = dict(
+        db.query(CheckinSubmission.client_id, func.count(CheckinSubmission.id))
+        .filter(
+            CheckinSubmission.client_id.in_(client_ids),
+            CheckinSubmission.status == CheckinStatus.PENDING,
+        )
+        .group_by(CheckinSubmission.client_id)
+        .all()
+    )
 
     return [
-        _client_row_to_out(c, stats.get(c.id, 0), last_activity.get(c.id)) for c in clients
+        _client_row_to_out(
+            c, stats.get(c.id, 0), last_activity.get(c.id), pending_checkins.get(c.id, 0)
+        )
+        for c in clients
     ]
 
 
