@@ -84,6 +84,13 @@ class Photo(Base):
     )
     day_log: Mapped["DayLog"] = relationship(back_populates="photos")  # noqa: F821
 
+    checkin_submission_id: Mapped[int | None] = mapped_column(
+        ForeignKey("checkin_submissions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    checkin_submission: Mapped["CheckinSubmission"] = relationship(  # noqa: F821
+        back_populates="photos"
+    )
+
     # Von MediaPipe erkannte Landmark-Koordinaten (JSON-serialisiert),
     # gecacht damit eine erneute Normalisierung (z.B. nach Crop-Regel-
     # Änderung) nicht erneut die komplette Pose-Detection laufen muss.
