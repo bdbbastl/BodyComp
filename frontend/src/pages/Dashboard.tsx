@@ -200,7 +200,15 @@ function DashboardClientCard({ client: c }: { client: Client }) {
       to={`/clients/${c.id}/timeline`}
       className="rounded-xl border border-white/5 bg-surface p-4 transition-colors hover:border-accent/40"
     >
-      <p className="text-base font-semibold text-white">{c.name}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-base font-semibold text-white">{c.name}</p>
+        {c.pending_checkins_count > 0 && (
+          <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-400">
+            {c.pending_checkins_count} offene{c.pending_checkins_count === 1 ? "r" : ""} Check-in
+            {c.pending_checkins_count === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
       <p className="mt-1 text-xs text-slate-500">{metaLine || "Keine Metriken hinterlegt"}</p>
       <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
         <span>{c.photo_count} Fotos</span>
