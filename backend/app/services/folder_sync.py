@@ -7,8 +7,10 @@ POC: einfacher Scan-on-Demand (Endpoint POST /api/clients/{id}/photos/sync).
 Eine spätere Ausbaustufe könnte watchdog.Observer für Live-Filesystem-Events
 nutzen (Dependency ist bereits in requirements.txt vorbereitet).
 """
+import logging
 from pathlib import Path
 
+from PIL import Image, ImageOps
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -18,6 +20,35 @@ from app.services.heic import generate_preview, is_heic
 from app.services.storage_paths import incoming_dir_for_client
 from app.services.storage_sync import ensure_local, push
 from app.services.thumbnails import generate_thumbnail, thumbnail_path_for
+
+logger = logging.getLogger(__name__)
+
+MAX_ORIGINAL_EDGE = 2500
+ORIGINAL_JPEG_QUALITY = 85
+
+
+def _compress_original_in_place(path: Path) -> None:
+    """Verkleinert/rekomprimiert ein frisch eingegangenes Foto VOR der
+    weiteren Verarbeitung (EXIF-Auslesung passiert vorher, siehe
+    Aufrufer) - siehe Design-Spec Abschnitt "Kompression beim Upload".
+    Handy-Fotos (oft 8-15 MB) schrumpfen so typischerweise auf wenige
+    hundert KB. Bewusst NUR für normale JPEG/PNG-Originale - HEIC-Dateien
+    behalten ihr Rohformat (die JPEG-Vorschau wird an anderer Stelle
+    bereits als komprimierte Kopie erzeugt, siehe services/heic.py), und
+    ein Fehlschlag (kaputte Datei) blockiert den restlichen Sync nicht."""
+    try:
+        with Image.open(path) as img:
+            img = ImageOps.exif_transpose(img)  # Rotation dauerhaft einbrennen
+            img = img.convert("RGB")
+            width, height = img.size
+            scale = MAX_ORIGINAL_EDGE / max(width, height)
+            if scale < 1:
+                img = img.resize(
+                    (max(1, int(width * scale)), max(1, int(height * scale))), Image.LANCZOS
+                )
+            img.save(path, format="JPEG", quality=ORIGINAL_JPEG_QUALITY)
+    except Exception:
+        logger.warning("Konnte Foto nicht komprimieren, behalte Original: %s", path, exc_info=True)
 
 
 def _preview_path_for(original: Path) -> Path:
@@ -86,6 +117,9 @@ def sync_incoming_folder(db: Session, client_id: int) -> list[Photo]:
             continue
 
         taken_at = get_taken_at(file)
+
+        if not is_heic(file):
+            _compress_original_in_place(file)
 
         preview_rel_path: str | None = None
         if is_heic(file):
