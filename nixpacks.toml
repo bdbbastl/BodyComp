@@ -1,13 +1,18 @@
 # nixpacks.toml (Repo-Root)
 [phases.setup]
-# Über python312/nodejs_20 hinaus: pillow-heif (HEIC-Unterstützung) und
-# mediapipe/opencv (Posen-Normalisierung) brauchen zur Laufzeit native
-# Shared Libraries, die im schlanken Nixpacks-Basisimage standardmäßig
-# fehlen (gefunden beim ersten echten Railway-Deploy: "ImportError:
-# libstdc++.so.6: cannot open shared object file"). gcc-unwrapped liefert
-# libstdc++, der Rest sind die üblichen X11/OpenGL-Laufzeitbibliotheken,
-# die opencv-python beim Import braucht.
-nixPkgs = ["python312", "nodejs_20", "gcc-unwrapped", "glib", "libGL", "libGLU", "xorg.libSM", "xorg.libXext", "xorg.libXrender"]
+nixPkgs = ["python312", "nodejs_20"]
+# pillow-heif (HEIC-Unterstützung) und mediapipe/opencv (Posen-
+# Normalisierung) brauchen zur Laufzeit native Shared Libraries, die im
+# schlanken Nixpacks-Basisimage fehlen (gefunden beim ersten echten
+# Railway-Deploy: "ImportError: libstdc++.so.6: cannot open shared
+# object file"). Bewusst über aptPkgs statt nixPkgs gelöst: Nix-Pakete
+# landen in einem isolierten Store-Pfad, der nicht automatisch im
+# Laufzeit-Bibliothekspfad (LD_LIBRARY_PATH) auftaucht - ein erster
+# Versuch mit nixPkgs=["gcc-unwrapped", ...] hat GENAU DESHALB nichts
+# geändert. Debian-Pakete via aptPkgs klinken sich dagegen normal über
+# ldconfig ins System ein und funktionieren zuverlässig für genau diese
+# Klasse von Problem.
+aptPkgs = ["libstdc++6", "libgl1", "libglib2.0-0", "libsm6", "libxext6", "libxrender1", "libgomp1"]
 
 [phases.install]
 cmds = [
