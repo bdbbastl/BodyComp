@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     # dieselbe "StorageBackend"-Schnittstelle implementieren.
     data_dir: Path = Path(__file__).resolve().parents[2] / "data"
 
+    # "local" (Default, lokale Entwicklung) oder "r2" (Produktion) - siehe
+    # services/storage_sync.py.
+    storage_backend: str = "local"
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket: str = "bodycomp"
+
     @property
     def photos_incoming_dir(self) -> Path:
         """Nutzer wirft hier neue, noch unverarbeitete Fotos rein (Ordner-Sync)."""
