@@ -49,6 +49,17 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        import os
+
+        env_url = os.environ.get("DATABASE_URL")
+        if env_url:
+            # Railway liefert "postgres://...", SQLAlchemy 2.x + psycopg
+            # brauchen den Treiber explizit im Scheme ("postgresql+psycopg://").
+            if env_url.startswith("postgres://"):
+                env_url = env_url.replace("postgres://", "postgresql+psycopg://", 1)
+            elif env_url.startswith("postgresql://"):
+                env_url = env_url.replace("postgresql://", "postgresql+psycopg://", 1)
+            return env_url
         return f"sqlite:///{self.db_path.as_posix()}"
 
     # Erlaubte Dateiendungen beim Ordner-Sync
