@@ -32,6 +32,7 @@ from app.services.storage_paths import (
     normalized_dir_for_client_pose,
     processed_dir_for_client_date,
 )
+from app.services.storage_sync import delete_remote, ensure_local, push
 from app.services.thumbnails import generate_thumbnail, thumbnail_path_for
 
 router = APIRouter(prefix="/api/clients/{client_id}/photos", tags=["photos"])
@@ -80,6 +81,7 @@ def upload_photos(
             counter += 1
         with dest.open("wb") as f:
             shutil.copyfileobj(upload.file, f)
+        push(dest.relative_to(settings.data_dir).as_posix())
         saved_any = True
 
     if not saved_any:
@@ -137,6 +139,7 @@ def renormalize_all(client_row: Client = Depends(get_owned_client), db: Session 
     for photo in photos:
         # HEIC-Originale kann OpenCV nicht lesen - dann die JPEG-Vorschau
         # als Quelle für die Normalisierung verwenden (siehe services/heic.py).
+        ensure_local(photo.preview_path or photo.original_path)
         src = settings.data_dir / (photo.preview_path or photo.original_path)
         if not src.exists():
             continue
@@ -144,6 +147,7 @@ def renormalize_all(client_row: Client = Depends(get_owned_client), db: Session 
         result = normalize_photo(src, dest)
         if result.success and result.normalized_path:
             photo.normalized_path = result.normalized_path.relative_to(settings.data_dir).as_posix()
+            push(photo.normalized_path)
             photo.landmarks_json = result.landmarks_json
             photo.status = ProcessingStatus.PROCESSED
         else:
@@ -176,12 +180,14 @@ def backfill_thumbnails(
     photos = query.all()
     generated = 0
     for photo in photos:
+        ensure_local(photo.preview_path or photo.original_path)
         source = settings.data_dir / (photo.preview_path or photo.original_path)
         if not source.exists():
             continue
         dest = thumbnail_path_for(source)
         if generate_thumbnail(source, dest):
             photo.thumbnail_path = dest.relative_to(settings.data_dir).as_posix()
+            push(photo.thumbnail_path)
             generated += 1
     db.commit()
     return {"total_candidates": len(photos), "generated": generated}
@@ -212,6 +218,7 @@ def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None
         day_log.weight_kg = weight_kg
 
     # Datei physisch verschieben: photos_processed/<client_id>/<YYYY-MM-DD>/<filename>
+    ensure_local(photo.original_path)
     src = settings.data_dir / photo.original_path
     dest_dir = processed_dir_for_client_date(photo.client_id, day_date.isoformat())
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -219,30 +226,36 @@ def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None
     if src.exists():
         shutil.move(str(src), str(dest))
         photo.original_path = dest.relative_to(settings.data_dir).as_posix()
+        push(photo.original_path)
 
     # HEIC-Vorschau (falls vorhanden) zusammen mit dem Original verschieben,
     # damit preview_path danach noch auf eine existierende Datei zeigt.
     if photo.preview_path:
+        ensure_local(photo.preview_path)
         preview_src = settings.data_dir / photo.preview_path
         if preview_src.exists():
             preview_dest = dest_dir / preview_src.name
             shutil.move(str(preview_src), str(preview_dest))
             photo.preview_path = preview_dest.relative_to(settings.data_dir).as_posix()
+            push(photo.preview_path)
 
     # Thumbnail ebenso mitverschieben (analog zur HEIC-Vorschau); fehlt es
     # noch (z.B. Foto aus einer Zeit vor Einführung der Thumbnails), wird
     # es hier direkt am neuen Ort nachgeneriert statt verschoben.
     if photo.thumbnail_path:
+        ensure_local(photo.thumbnail_path)
         thumb_src = settings.data_dir / photo.thumbnail_path
         if thumb_src.exists():
             thumb_dest = dest_dir / thumb_src.name
             shutil.move(str(thumb_src), str(thumb_dest))
             photo.thumbnail_path = thumb_dest.relative_to(settings.data_dir).as_posix()
+            push(photo.thumbnail_path)
     if not photo.thumbnail_path:
         thumb_source = settings.data_dir / (photo.preview_path or photo.original_path)
         thumb_dest = dest_dir / thumbnail_path_for(thumb_source).name
         if generate_thumbnail(thumb_source, thumb_dest):
             photo.thumbnail_path = thumb_dest.relative_to(settings.data_dir).as_posix()
+            push(photo.thumbnail_path)
 
     photo.pose_id = pose.id
     photo.day_log_id = day_log.id
@@ -255,11 +268,13 @@ def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None
     # Fehler blockieren die Zuordnung nicht - Pose/DayLog bleiben gesetzt,
     # nur der Overlay-Vergleich ist für dieses Bild dann nicht verfügbar.
     # HEIC-Originale kann OpenCV nicht lesen -> Vorschau als Quelle nutzen.
+    ensure_local(photo.preview_path or photo.original_path)
     normalize_source = settings.data_dir / (photo.preview_path or photo.original_path)
     normalized_dest = normalized_dir_for_client_pose(photo.client_id, pose.id) / f"{photo.id}.jpg"
     result = normalize_photo(normalize_source, normalized_dest)
     if result.success and result.normalized_path:
         photo.normalized_path = result.normalized_path.relative_to(settings.data_dir).as_posix()
+        push(photo.normalized_path)
         photo.landmarks_json = result.landmarks_json
     else:
         photo.status = ProcessingStatus.NORMALIZATION_FAILED
@@ -325,9 +340,11 @@ def _delete_photo_files(photo: Photo) -> None:
     for rel_path in (photo.original_path, photo.preview_path, photo.normalized_path, photo.thumbnail_path):
         if not rel_path:
             continue
+        ensure_local(rel_path)
         file = settings.data_dir / rel_path
         if file.exists():
             file.unlink()
+        delete_remote(rel_path)
 
 
 @router.delete("/by-date/{date}", status_code=200)
@@ -405,16 +422,21 @@ def change_photo_pose(
     if photo.pose_id == pose.id:
         return photo
 
+    if photo.normalized_path:
+        ensure_local(photo.normalized_path)
     old_normalized = settings.data_dir / photo.normalized_path if photo.normalized_path else None
+    old_normalized_rel_path = photo.normalized_path
 
     photo.pose_id = pose.id
     photo.updated_at = datetime.utcnow()
 
+    ensure_local(photo.preview_path or photo.original_path)
     normalize_source = settings.data_dir / (photo.preview_path or photo.original_path)
     normalized_dest = normalized_dir_for_client_pose(client_row.id, pose.id) / f"{photo.id}.jpg"
     result = normalize_photo(normalize_source, normalized_dest)
     if result.success and result.normalized_path:
         photo.normalized_path = result.normalized_path.relative_to(settings.data_dir).as_posix()
+        push(photo.normalized_path)
         photo.landmarks_json = result.landmarks_json
         photo.status = ProcessingStatus.PROCESSED
     else:
@@ -426,5 +448,7 @@ def change_photo_pose(
 
     if old_normalized and old_normalized.exists():
         old_normalized.unlink()
+    if old_normalized_rel_path:
+        delete_remote(old_normalized_rel_path)
 
     return photo
