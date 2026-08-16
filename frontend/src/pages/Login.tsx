@@ -13,7 +13,10 @@ export default function Login() {
     mutationFn: () => api.auth.login(email, password),
     onSuccess: (user) => {
       queryClient.setQueryData(["auth", "me"], user);
-      navigate(user.account_type === "coach" ? "/" : "/redirect-to-my-client");
+      // "/" wird über ClientRedirect ausgewertet, das bereits beide
+      // Kontotypen korrekt behandelt (coach -> Dashboard, single -> das
+      // eine Client-Profil) - kein eigener Pfad pro Kontotyp nötig.
+      navigate("/");
     },
   });
 
