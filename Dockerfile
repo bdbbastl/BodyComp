@@ -25,7 +25,8 @@ FROM python:3.12-slim
 # Laufzeit-Bibliotheken für pillow-heif (HEIC) und mediapipe/opencv
 # (Posen-Normalisierung) - siehe Kommentar oben zur Historie.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libstdc++6 libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 libgomp1 \
+    libstdc++6 libgl1 libegl1 libgles2 libglib2.0-0 libsm6 libxext6 \
+    libxrender1 libgomp1 libx11-6 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
