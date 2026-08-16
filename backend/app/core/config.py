@@ -8,6 +8,7 @@ Umgebungsvariablen umgeschaltet werden müssen, ohne Code anzufassen.
 from pathlib import Path
 
 from dotenv import load_dotenv
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Lädt backend/.env in echte Prozess-Umgebungsvariablen (nicht nur ins
@@ -92,8 +93,19 @@ class Settings(BaseSettings):
     # das Resends Standard-Testadresse sein: onboarding@resend.dev
     email_from_address: str = "onboarding@resend.dev"
 
-    # Basis-URL des Frontends, für Links in E-Mails (Bestätigung, Reset).
+    # Basis-URL des Frontends, für Links in E-Mails (Bestätigung, Reset,
+    # Check-in-Erinnerung). Abschließende Slashes werden entfernt, damit
+    # ein versehentlich mit "/" endender Wert in der Hosting-Konfiguration
+    # (z.B. Railway-Umgebungsvariable) nicht zu doppelten Slashes in den
+    # verschickten Links führt ("https://.../verify-email" statt
+    # "https://...//verify-email") - Letzteres matcht keine Frontend-Route
+    # und zeigt eine leere Seite.
     frontend_base_url: str = "http://localhost:5173"
+
+    @field_validator("frontend_base_url")
+    @classmethod
+    def _strip_trailing_slash(cls, value: str) -> str:
+        return value.rstrip("/")
 
     # Leer = Sentry deaktiviert (lokale Entwicklung) - siehe main.py.
     sentry_dsn: str = ""
