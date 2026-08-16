@@ -1,6 +1,13 @@
 # nixpacks.toml (Repo-Root)
 [phases.setup]
-nixPkgs = ["python312", "nodejs_20"]
+# Über python312/nodejs_20 hinaus: pillow-heif (HEIC-Unterstützung) und
+# mediapipe/opencv (Posen-Normalisierung) brauchen zur Laufzeit native
+# Shared Libraries, die im schlanken Nixpacks-Basisimage standardmäßig
+# fehlen (gefunden beim ersten echten Railway-Deploy: "ImportError:
+# libstdc++.so.6: cannot open shared object file"). gcc-unwrapped liefert
+# libstdc++, der Rest sind die üblichen X11/OpenGL-Laufzeitbibliotheken,
+# die opencv-python beim Import braucht.
+nixPkgs = ["python312", "nodejs_20", "gcc-unwrapped", "glib", "libGL", "libGLU", "xorg.libSM", "xorg.libXext", "xorg.libXrender"]
 
 [phases.install]
 cmds = [
