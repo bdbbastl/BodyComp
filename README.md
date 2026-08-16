@@ -55,3 +55,42 @@ Läuft auf `http://localhost:5173`, proxyt `/api` und `/media` zum Backend.
   eingehängt werden, ohne Router/Services anzufassen.
 - `services/` enthält reine Fachlogik ohne Framework-Kopplung – leicht
   in Background-Jobs/Queues (Cloud) auslagerbar.
+
+## Produktions-Deployment (Stufe 3)
+
+### Einmaliges Setup
+
+1. **Railway-Projekt anlegen**, GitHub-Repo verbinden (Railway-GitHub-App
+   braucht Zugriff auf private Repos - unter GitHub → Settings →
+   Applications → Railway → Repository access prüfen/erweitern, falls
+   das Repo dafür public gestellt werden musste).
+2. **Postgres-Plugin** im Railway-Projekt hinzufügen - setzt `DATABASE_URL`
+   automatisch als Umgebungsvariable für den App-Service.
+3. **Tägliche Backups** für die Postgres-Instanz in den Railway-Plugin-
+   Einstellungen aktivieren.
+4. **Cloudflare R2 Bucket** anlegen (Name muss zu `R2_BUCKET` unten passen),
+   API-Token mit Read/Write-Berechtigung erzeugen.
+5. Folgende **Umgebungsvariablen** in Railway setzen (App-Service, nicht
+   das Postgres-Plugin):
+   - `BODYCOMP_SESSION_SECRET_KEY` (langer, zufälliger String)
+   - `BODYCOMP_GOOGLE_CLIENT_ID`, `BODYCOMP_GOOGLE_CLIENT_SECRET`,
+     `BODYCOMP_GOOGLE_REDIRECT_URI` (auf die Railway-Domain anpassen)
+   - `BODYCOMP_RESEND_API_KEY`, `BODYCOMP_EMAIL_FROM_ADDRESS`
+   - `BODYCOMP_FRONTEND_BASE_URL` (die Railway-App-URL selbst)
+   - `GEMINI_API_KEY`
+   - `BODYCOMP_STORAGE_BACKEND=r2`
+   - `BODYCOMP_R2_ACCOUNT_ID`, `BODYCOMP_R2_ACCESS_KEY_ID`,
+     `BODYCOMP_R2_SECRET_ACCESS_KEY`, `BODYCOMP_R2_BUCKET`
+   - `BODYCOMP_SENTRY_DSN` (Backend-Fehler-Tracking)
+   - `VITE_SENTRY_DSN` (Frontend-Fehler-Tracking, MUSS als Build-Zeit-
+     Variable gesetzt sein, nicht nur zur Laufzeit - Vite bettet sie beim
+     `npm run build` fest in den JS-Bundle ein)
+6. **Uptime-Monitoring** einrichten: bei einem Dienst wie UptimeRobot
+   (kostenlos) einen HTTP-Monitor auf `https://<deine-railway-domain>/api/health`
+   anlegen, Intervall z.B. 5 Minuten, E-Mail-Alarm bei Ausfall.
+
+### Laufender Betrieb
+
+Jeder Push auf `main` (z.B. per `git merge dev` gefolgt von `git push`)
+löst automatisch ein neues Deployment aus. Der Build bricht ab (kein
+Deploy passiert), wenn Backend-Tests oder der Frontend-Typecheck fehlschlagen.
