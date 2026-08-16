@@ -94,3 +94,38 @@ Läuft auf `http://localhost:5173`, proxyt `/api` und `/media` zum Backend.
 Jeder Push auf `main` (z.B. per `git merge dev` gefolgt von `git push`)
 löst automatisch ein neues Deployment aus. Der Build bricht ab (kein
 Deploy passiert), wenn Backend-Tests oder der Frontend-Typecheck fehlschlagen.
+
+## Stripe-Setup (Stufe 4)
+
+### Einmaliges Setup
+
+1. **Produkte + Preise in Stripe anlegen** (Dashboard → Product
+   catalog): je ein monatliches Abo für Starter/Pro/Business (Coach-
+   Staffeln nach Klientenzahl) und Single (Einzelperson) - die
+   jeweilige Price-ID (`price_...`) brauchst du für die Env-Vars unten.
+2. **Webhook einrichten** (Dashboard → Developers → Webhooks → "+ Add
+   endpoint"): Ziel-URL `https://DEINE-DOMAIN/api/billing/webhook`,
+   Events: `customer.subscription.created`,
+   `customer.subscription.updated`, `customer.subscription.deleted`.
+   Nach dem Anlegen zeigt Stripe ein "Signing secret" (`whsec_...`) -
+   das ist `BODYCOMP_STRIPE_WEBHOOK_SECRET` unten.
+3. Folgende zusätzliche **Umgebungsvariablen** in Railway setzen:
+   - `BODYCOMP_STRIPE_SECRET_KEY` (`sk_test_...` zum Testen,
+     `sk_live_...` für echten Betrieb)
+   - `BODYCOMP_STRIPE_PUBLISHABLE_KEY`
+   - `BODYCOMP_STRIPE_WEBHOOK_SECRET`
+   - `BODYCOMP_STRIPE_PRICE_STARTER`, `BODYCOMP_STRIPE_PRICE_PRO`,
+     `BODYCOMP_STRIPE_PRICE_BUSINESS`, `BODYCOMP_STRIPE_PRICE_SINGLE`
+     (jeweils die `price_...`-ID aus Schritt 1)
+4. **Customer Portal aktivieren** (Dashboard → Settings → Billing →
+   Customer portal) - ohne diese einmalige Aktivierung schlägt der
+   "Abo verwalten"-Link mit einem Stripe-Fehler fehl.
+
+### Test- vs. Live-Modus
+
+Stripe trennt Test- und Live-Daten komplett (eigene Produkte, eigene
+Keys, eigener Webhook) - der Umschalter dafür sitzt oben rechts im
+Stripe-Dashboard. Zum Entwickeln/Testen ausschließlich `sk_test_...`/
+`pk_test_...`-Keys und im Test-Modus angelegte Price-IDs verwenden -
+erst nach vollständigem Test-Durchlauf auf `sk_live_...`/`pk_live_...`
+umschalten.
