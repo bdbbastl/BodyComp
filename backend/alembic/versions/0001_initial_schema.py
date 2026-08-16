@@ -36,7 +36,7 @@ def upgrade() -> None:
         sa.Column("email_verified_at", sa.DateTime(), nullable=True),
         sa.Column("privacy_accepted_at", sa.DateTime(), nullable=True),
         sa.Column("sessions_invalidated_at", sa.DateTime(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
     )
     op.create_index("ix_users_email", "users", ["email"], unique=True)
     op.create_index("ix_users_google_id", "users", ["google_id"], unique=True)
@@ -56,7 +56,7 @@ def upgrade() -> None:
         sa.Column("birth_date", sa.Date(), nullable=True),
         sa.Column("gender", sa.String(50), nullable=True),
         sa.Column("start_date", sa.Date(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("checkin_token", sa.String(64), nullable=False),
         sa.Column("coach_private_note", sa.Text(), nullable=True),
         sa.Column("email", sa.String(255), nullable=True),
@@ -112,7 +112,7 @@ def upgrade() -> None:
         ),
         sa.Column("name", sa.String(100), nullable=False),
         sa.Column("sort_order", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.UniqueConstraint("client_id", "name", name="uq_pose_client_name"),
     )
     op.create_index("ix_poses_client_id", "poses", ["client_id"])
@@ -130,8 +130,8 @@ def upgrade() -> None:
         sa.Column("date", sa.Date(), nullable=False),
         sa.Column("weight_kg", sa.Float(), nullable=True),
         sa.Column("notes", sa.String(500), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=True),
-        sa.Column("updated_at", sa.DateTime(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.UniqueConstraint("client_id", "date", name="uq_daylog_client_date"),
     )
     op.create_index("ix_day_logs_client_id", "day_logs", ["client_id"])
@@ -147,7 +147,7 @@ def upgrade() -> None:
             sa.ForeignKey("clients.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("submitted_at", sa.DateTime(), nullable=True),
+        sa.Column("submitted_at", sa.DateTime(), nullable=False),
         sa.Column("weight_kg", sa.Float(), nullable=True),
         sa.Column("client_note", sa.String(500), nullable=True),
         sa.Column(
@@ -209,8 +209,8 @@ def upgrade() -> None:
         sa.Column("landmarks_json", sa.Text(), nullable=True),
         sa.Column("width", sa.Integer(), nullable=True),
         sa.Column("height", sa.Integer(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=True),
-        sa.Column("updated_at", sa.DateTime(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.UniqueConstraint("original_path"),
     )
     op.create_index("ix_photos_client_id", "photos", ["client_id"])
