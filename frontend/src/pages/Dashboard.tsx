@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
+import { UpgradeBanner } from "../components/UpgradeBanner";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 import type { Client } from "../types";
 
 function ageFromBirthDate(birthDate: string | null): number | null {
@@ -15,6 +17,7 @@ function ageFromBirthDate(birthDate: string | null): number | null {
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
+  const { data: user } = useCurrentUser();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [heightCm, setHeightCm] = useState("");
@@ -75,6 +78,12 @@ export default function Dashboard() {
           </button>
         }
       />
+
+      {user?.account_type === "coach" &&
+        !["trialing", "active"].includes(user.subscription_status ?? "") &&
+        clients.length >= 1 && (
+          <UpgradeBanner message="Du nutzt bereits einen Klienten kostenlos — für weitere brauchst du ein Abo." />
+        )}
 
       {showForm && (
         <form

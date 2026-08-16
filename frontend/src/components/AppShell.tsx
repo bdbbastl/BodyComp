@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { UpgradeBanner } from "./UpgradeBanner";
 
 /** Äußerer Rahmen, identisch auf JEDER eingeloggten Seite - siehe
  * Design-Spec Abschnitt "AppShell (oberer Header)". Enthält keine
@@ -84,6 +85,17 @@ export default function AppShell() {
           </div>
         </div>
       </header>
+      {user?.subscription_status === "trialing" && user.trial_ends_at && (() => {
+        const daysLeft = Math.max(
+          0,
+          Math.ceil((new Date(user.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        );
+        return (
+          <UpgradeBanner
+            message={`Noch ${daysLeft} ${daysLeft === 1 ? "Tag" : "Tage"} Testphase — schon jetzt deinen Plan sichern?`}
+          />
+        );
+      })()}
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <Outlet />
       </main>
