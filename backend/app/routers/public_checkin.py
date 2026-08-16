@@ -19,6 +19,7 @@ from app.models.client import Client
 from app.models.checkin_submission import CheckinSubmission
 from app.models.day_log import DayLog
 from app.schemas.checkin import CheckinSubmissionOut, PublicCheckinPageOut
+from app.services.billing import check_and_consume_free_checkin
 from app.services.email import send_checkin_submitted_email
 from app.services.folder_sync import sync_incoming_folder
 from app.services.storage_paths import incoming_dir_for_client
@@ -100,6 +101,11 @@ def submit_checkin(
             .first()
         )
         if day_log is None:
+            # Auch der Magic-Link-Check-in muss das kostenlose
+            # Kontingent von Single-Accounts zählen - sonst wäre dieser
+            # Endpunkt eine Umgehung der Paywall in day_logs.py/photos.py
+            # (gefunden im finalen Billing-Review).
+            check_and_consume_free_checkin(client_row.owner, db)
             day_log = DayLog(client_id=client_row.id, date=today)
             db.add(day_log)
         if weight_kg is not None:

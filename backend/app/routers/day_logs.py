@@ -38,7 +38,7 @@ def upsert_day_log(
         # Nur ein NEUER Tag zählt als Check-in fürs kostenlose Kontingent
         # (siehe Design-Spec) - reines Aktualisieren eines bestehenden
         # Tages ist beliebig oft kostenlos möglich.
-        check_and_consume_free_checkin(client_row.owner)
+        check_and_consume_free_checkin(client_row.owner, db)
         day_log = DayLog(client_id=client_row.id, date=payload.date)
         db.add(day_log)
     day_log.weight_kg = payload.weight_kg

@@ -94,10 +94,10 @@ def test_check_and_consume_free_checkin_increments_counter(db_session):
     user = _make_user(db_session, email="single@b.com", account_type=AccountType.SINGLE)
     assert user.free_checkins_used == 0
 
-    check_and_consume_free_checkin(user)
+    check_and_consume_free_checkin(user, db_session)
     assert user.free_checkins_used == 1
 
-    check_and_consume_free_checkin(user)
+    check_and_consume_free_checkin(user, db_session)
     assert user.free_checkins_used == 2
 
 
@@ -107,14 +107,14 @@ def test_check_and_consume_free_checkin_raises_402_when_exhausted(db_session):
         free_checkins_used=FREE_CHECKINS_LIMIT,
     )
     with pytest.raises(HTTPException) as exc_info:
-        check_and_consume_free_checkin(user)
+        check_and_consume_free_checkin(user, db_session)
     assert exc_info.value.status_code == 402
     assert user.free_checkins_used == FREE_CHECKINS_LIMIT  # nicht weiter hochgezählt
 
 
 def test_check_and_consume_free_checkin_noop_for_coach_accounts(db_session):
     coach = _make_user(db_session, email="coach@b.com", account_type=AccountType.COACH)
-    check_and_consume_free_checkin(coach)  # darf nicht werfen
+    check_and_consume_free_checkin(coach, db_session)  # darf nicht werfen
     assert coach.free_checkins_used == 0  # Coaches werden nicht über Check-ins limitiert
 
 
@@ -124,5 +124,5 @@ def test_check_and_consume_free_checkin_noop_with_active_subscription(db_session
         subscription_status="active", subscription_tier="single",
         free_checkins_used=FREE_CHECKINS_LIMIT,
     )
-    check_and_consume_free_checkin(user)  # darf nicht werfen, zahlendes Abo
+    check_and_consume_free_checkin(user, db_session)  # darf nicht werfen, zahlendes Abo
     assert user.free_checkins_used == FREE_CHECKINS_LIMIT  # kein weiteres Hochzählen nötig

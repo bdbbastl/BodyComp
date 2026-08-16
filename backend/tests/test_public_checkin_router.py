@@ -88,6 +88,30 @@ def test_submit_checkin_sanitizes_path_traversal_filename(client, db_session):
     assert (incoming_dir / "evil.jpg").exists()
 
 
+def test_submit_checkin_blocked_for_single_account_after_free_quota(client, db_session, monkeypatch):
+    """Regression: der Magic-Link-Check-in muss dasselbe kumulative
+    Freikontingent respektieren wie day_logs.py/photos.py - sonst wäre
+    er eine Umgehung der Paywall (gefunden im finalen Billing-Review).
+    Jede Einreichung braucht ein ANDERES Datum, da mehrere Einreichungen
+    am selben Tag denselben DayLog nur aktualisieren (kein neuer
+    Check-in fürs Kontingent, siehe Task 5)."""
+    import datetime as datetime_module
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Ich"}).json()
+    token = created["checkin_token"]
+
+    for day, expected_status in ((1, 201), (2, 201), (3, 402)):
+        class _FixedDate(datetime_module.date):
+            @classmethod
+            def today(cls):
+                return datetime_module.date(2026, 1, day)
+
+        monkeypatch.setattr("app.routers.public_checkin.date_", _FixedDate)
+        response = client.post(f"/api/public/checkin/{token}/submit", data={"weight_kg": "80"})
+        assert response.status_code == expected_status, f"Tag {day}: erwartet {expected_status}, bekam {response.status_code}"
+
+
 def test_submit_checkin_with_weight_and_note_creates_pending_submission(client, db_session):
     _login(client, db_session)
     created = client.post("/api/clients", json={"name": "Max"}).json()

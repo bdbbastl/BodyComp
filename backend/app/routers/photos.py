@@ -213,7 +213,7 @@ def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None
         .first()
     )
     if day_log is None:
-        check_and_consume_free_checkin(owner)
+        check_and_consume_free_checkin(owner, db)
         day_log = DayLog(client_id=photo.client_id, date=day_date)
         db.add(day_log)
         db.flush()

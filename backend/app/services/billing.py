@@ -9,6 +9,7 @@ Mocking testbar ist.
 from app.models.client import Client
 from app.models.user import AccountType, User
 from fastapi import HTTPException
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 # Fest im Code ausgenommener Betreiber-Account - siehe Design-Spec
@@ -64,7 +65,7 @@ def check_can_create_client(user: User, db: Session) -> None:
         )
 
 
-def check_and_consume_free_checkin(user: User) -> None:
+def check_and_consume_free_checkin(user: User, db: Session) -> None:
     """Für SINGLE-Accounts: prüft, ob noch kostenloses Kontingent
     vorhanden ist (oder ein aktives Abo/eine Ausnahme vorliegt), und
     zählt bei Bedarf den kumulativen Verbrauch hoch. Wirft
@@ -72,16 +73,28 @@ def check_and_consume_free_checkin(user: User) -> None:
     Coach-Accounts (die werden über die Klientenzahl limitiert, nicht
     über Check-ins) - Aufrufer ruft diese Funktion trotzdem unconditional
     auf, sie entscheidet selbst, ob sie überhaupt etwas tut.
-    Erhöht den Zähler NICHT mehr, sobald das Limit erreicht ist (der
-    Zähler bleibt exakt beim Limit stehen, kein Weiterzählen ins
-    Negative-Erlaubnis-Territorium)."""
+
+    Der Verbrauchs-Check + die Erhöhung laufen als EIN atomares
+    `UPDATE ... WHERE free_checkins_used < LIMIT` statt eines Python-
+    seitigen Lesen-dann-Schreiben - sonst könnten zwei zeitgleiche
+    Requests (z.B. Doppel-Klick, wackelige Mobilverbindung mit Retry)
+    beide denselben, noch nicht erhöhten Zählerstand lesen und beide
+    durchkommen, obwohl das Kontingent eigentlich nur einmal reicht
+    (gefunden im finalen Billing-Review)."""
     if user.account_type != AccountType.SINGLE:
         return
     if is_billing_exempt(user) or has_active_subscription(user):
         return
-    if user.free_checkins_used >= FREE_CHECKINS_LIMIT:
+
+    result = db.execute(
+        update(User)
+        .where(User.id == user.id, User.free_checkins_used < FREE_CHECKINS_LIMIT)
+        .values(free_checkins_used=User.free_checkins_used + 1)
+    )
+    if result.rowcount == 0:
         raise HTTPException(
             402,
             "Kostenloses Kontingent aufgebraucht - bitte Abo abschließen, um weitere Check-ins einzureichen.",
         )
-    user.free_checkins_used += 1
+    db.flush()
+    db.refresh(user)
