@@ -167,3 +167,13 @@ def test_list_clients_includes_pending_checkins_count(client, db_session):
     body = response.json()
     match = next(c for c in body if c["id"] == created["id"])
     assert match["pending_checkins_count"] == 2
+
+
+def test_create_client_blocked_when_over_billing_limit(client, db_session):
+    _login(client, db_session)
+    # UNSUBSCRIBED_CLIENT_LIMIT ist 1: der erste Client darf noch
+    # angelegt werden, der zweite (ohne aktives Abo) muss blockiert sein.
+    first = client.post("/api/clients", json={"name": "Erster Klient"})
+    assert first.status_code == 201
+    response = client.post("/api/clients", json={"name": "Zweiter Klient"})
+    assert response.status_code == 402

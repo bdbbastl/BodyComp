@@ -15,6 +15,7 @@ from app.models.client import Client
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.client import ClientCreate, ClientOut, ClientUpdate
+from app.services.billing import check_can_create_client
 
 router = APIRouter(prefix="/api/clients", tags=["clients"])
 
@@ -137,6 +138,7 @@ def create_client(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    check_can_create_client(current_user, db)
     client_row = Client(owner_id=current_user.id, **payload.model_dump())
     db.add(client_row)
     db.commit()
