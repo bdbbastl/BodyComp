@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app.models.user import AccountType
 from pydantic import BaseModel, EmailStr, Field, computed_field
 
@@ -17,6 +19,10 @@ class UserOut(BaseModel):
     # um z.B. bei der Konto-Löschung das Passwortfeld nur bei Accounts mit
     # Passwort anzuzeigen (Google-only-Accounts haben keins).
     password_hash: str | None = Field(default=None, exclude=True)
+    subscription_status: str | None
+    subscription_tier: str | None
+    trial_ends_at: datetime | None
+    free_checkins_used: int
 
     class Config:
         from_attributes = True

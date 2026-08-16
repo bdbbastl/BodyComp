@@ -84,3 +84,14 @@ def test_switch_to_coach_is_idempotent(client, db_session):
     second_response = client.post("/api/auth/switch-to-coach")
     assert second_response.status_code == 200
     assert second_response.json()["account_type"] == "coach"
+
+
+def test_me_includes_billing_fields(client, db_session):
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    response = client.get("/api/auth/me")
+    body = response.json()
+    assert "subscription_status" in body
+    assert "subscription_tier" in body
+    assert "free_checkins_used" in body
+    assert body["free_checkins_used"] == 0
