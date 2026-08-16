@@ -14,6 +14,16 @@ nixPkgs = ["python312", "nodejs_20"]
 # Klasse von Problem.
 aptPkgs = ["libstdc++6", "libgl1", "libglib2.0-0", "libsm6", "libxext6", "libxrender1", "libgomp1"]
 
+# apt installiert diese Bibliotheken zwar erfolgreich (siehe Build-Log),
+# aber python312 kommt aus nixPkgs - ein Nix-gebautes Python sucht
+# standardmäßig NICHT in normalen System-Pfaden wie /usr/lib/... nach
+# Shared Libraries, selbst wenn apt sie genau dorthin installiert hat.
+# LD_LIBRARY_PATH zwingt den dynamischen Linker, dort trotzdem
+# nachzuschauen - /usr/lib/x86_64-linux-gnu ist der standardmäßige
+# Debian-Multiarch-Pfad, in den aptPkgs auf Nixpacks-Images installiert.
+[variables]
+LD_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+
 [phases.install]
 cmds = [
   "cd backend && python -m venv .venv && .venv/bin/pip install -r requirements.txt",
