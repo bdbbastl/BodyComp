@@ -1,28 +1,30 @@
 # nixpacks.toml (Repo-Root)
 [phases.setup]
-nixPkgs = ["python312", "nodejs_20"]
 # pillow-heif (HEIC-Unterstützung) und mediapipe/opencv (Posen-
 # Normalisierung) brauchen zur Laufzeit native Shared Libraries, die im
 # schlanken Nixpacks-Basisimage fehlen (gefunden beim ersten echten
 # Railway-Deploy: "ImportError: libstdc++.so.6: cannot open shared
-# object file"). Bewusst über aptPkgs statt nixPkgs gelöst: Nix-Pakete
-# landen in einem isolierten Store-Pfad, der nicht automatisch im
-# Laufzeit-Bibliothekspfad (LD_LIBRARY_PATH) auftaucht - ein erster
-# Versuch mit nixPkgs=["gcc-unwrapped", ...] hat GENAU DESHALB nichts
-# geändert. Debian-Pakete via aptPkgs klinken sich dagegen normal über
-# ldconfig ins System ein und funktionieren zuverlässig für genau diese
-# Klasse von Problem.
-aptPkgs = ["libstdc++6", "libgl1", "libglib2.0-0", "libsm6", "libxext6", "libxrender1", "libgomp1"]
-
-# apt installiert diese Bibliotheken zwar erfolgreich (siehe Build-Log),
-# aber python312 kommt aus nixPkgs - ein Nix-gebautes Python sucht
-# standardmäßig NICHT in normalen System-Pfaden wie /usr/lib/... nach
-# Shared Libraries, selbst wenn apt sie genau dorthin installiert hat.
-# LD_LIBRARY_PATH zwingt den dynamischen Linker, dort trotzdem
-# nachzuschauen - /usr/lib/x86_64-linux-gnu ist der standardmäßige
-# Debian-Multiarch-Pfad, in den aptPkgs auf Nixpacks-Images installiert.
-[variables]
-LD_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+# object file").
+#
+# Zwei vorherige Versuche sind gescheitert und dokumentiert als Warnung
+# für künftige Änderungen an dieser Datei:
+# 1. nixPkgs=["gcc-unwrapped", ...] - hat nichts geändert, weil
+#    gcc-unwrappeds Haupt-Output (wo der Compiler-Binary liegt) nicht
+#    denselben "lib"-Output wie die Laufzeitbibliothek selbst ist -
+#    Nixpacks bindet nur die "lib"-Outputs von nixPkgs-Einträgen
+#    automatisch in LD_LIBRARY_PATH ein.
+# 2. aptPkgs=["libstdc++6", ...] + manuelles LD_LIBRARY_PATH auf
+#    /usr/lib/x86_64-linux-gnu - apt installierte zwar erfolgreich,
+#    aber das manuelle LD_LIBRARY_PATH hat das System-libc VOR das
+#    Nix-eigene libc geschoben (inkompatible glibc-Version), wodurch
+#    python selbst beim Start crashte ("symbol lookup error ...
+#    GLIBC_PRIVATE").
+#
+# Der korrekte, gezielte nixpkgs-Attributpfad für NUR die Laufzeit-
+# Bibliothek (nicht den ganzen Compiler) ist `stdenv.cc.cc.lib` - dessen
+# "lib"-Output bindet Nixpacks automatisch und korrekt in
+# LD_LIBRARY_PATH ein, ohne mit dem System-libc zu kollidieren.
+nixPkgs = ["python312", "nodejs_20", "stdenv.cc.cc.lib", "libGL", "libGLU", "glib", "xorg.libSM", "xorg.libXext", "xorg.libXrender"]
 
 [phases.install]
 cmds = [
