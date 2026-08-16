@@ -7,6 +7,7 @@ from app.models.client import Client
 from app.models.day_log import DayLog
 from app.routers.clients import get_owned_client
 from app.schemas.day_log import DayLogOut, DayLogUpsert
+from app.services.billing import check_and_consume_free_checkin
 
 router = APIRouter(prefix="/api/clients/{client_id}/day-logs", tags=["day-logs"])
 
@@ -34,6 +35,10 @@ def upsert_day_log(
         .first()
     )
     if day_log is None:
+        # Nur ein NEUER Tag zählt als Check-in fürs kostenlose Kontingent
+        # (siehe Design-Spec) - reines Aktualisieren eines bestehenden
+        # Tages ist beliebig oft kostenlos möglich.
+        check_and_consume_free_checkin(client_row.owner)
         day_log = DayLog(client_id=client_row.id, date=payload.date)
         db.add(day_log)
     day_log.weight_kg = payload.weight_kg

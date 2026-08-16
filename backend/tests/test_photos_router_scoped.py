@@ -72,3 +72,40 @@ def test_cannot_delete_photo_of_foreign_client(client, db_session):
 
     response = client.delete(f"/api/clients/{client_id_a}/photos/999")
     assert response.status_code == 404
+
+
+def test_assign_photo_blocked_for_single_account_after_free_quota(client, db_session):
+    from app.models.photo import Photo, ProcessingStatus
+    from app.models.pose import Pose
+
+    # Default account_type ist bereits SINGLE (siehe User-Modell).
+    client_id = _login_and_get_client(client, db_session, email="single-quota@b.com")
+
+    pose = Pose(client_id=client_id, name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+
+    photos = []
+    for day in (1, 2, 3):
+        photo = Photo(
+            client_id=client_id,
+            filename=f"p{day}.jpg",
+            original_path=f"photos_incoming/{client_id}/p{day}.jpg",
+            taken_at=datetime(2026, 1, day, 12, 0, 0),
+            status=ProcessingStatus.UNPROCESSED,
+        )
+        db_session.add(photo)
+        photos.append(photo)
+    db_session.commit()
+    for p in photos:
+        db_session.refresh(p)
+
+    # Erste 2 Fotos (je ein neuer Tag) sind kostenlos zuordenbar.
+    r1 = client.post(f"/api/clients/{client_id}/photos/{photos[0].id}/assign", json={"pose_id": pose.id})
+    r2 = client.post(f"/api/clients/{client_id}/photos/{photos[1].id}/assign", json={"pose_id": pose.id})
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+
+    # 3. neuer Tag -> blockiert.
+    r3 = client.post(f"/api/clients/{client_id}/photos/{photos[2].id}/assign", json={"pose_id": pose.id})
+    assert r3.status_code == 402

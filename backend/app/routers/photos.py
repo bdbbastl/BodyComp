@@ -16,6 +16,7 @@ from app.models.client import Client
 from app.models.day_log import DayLog
 from app.models.photo import Photo, ProcessingStatus
 from app.models.pose import Pose
+from app.models.user import User
 from app.routers.clients import get_owned_client
 from app.schemas.photo import (
     PhotoAssign,
@@ -24,6 +25,7 @@ from app.schemas.photo import (
     PhotoRepose,
     PhotoUnprocessedOut,
 )
+from app.services.billing import check_and_consume_free_checkin
 from app.services.folder_sync import sync_incoming_folder
 from app.services.pose_normalization import normalize_photo
 from app.services.pose_suggestion import compute_pose_suggestions
@@ -193,7 +195,7 @@ def backfill_thumbnails(
     return {"total_candidates": len(photos), "generated": generated}
 
 
-def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None) -> Photo:
+def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None, owner: User) -> Photo:
     """
     Ordnet ein Unprocessed-Bild einer Pose zu:
     1. DayLog für das EXIF-Datum holen/anlegen, optional Gewicht setzen.
@@ -211,6 +213,7 @@ def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None
         .first()
     )
     if day_log is None:
+        check_and_consume_free_checkin(owner)
         day_log = DayLog(client_id=photo.client_id, date=day_date)
         db.add(day_log)
         db.flush()
@@ -311,7 +314,7 @@ def assign_photos_bulk(
         )
         if not photo or not pose or photo.status != ProcessingStatus.UNPROCESSED:
             continue
-        results.append(_assign_photo(db, photo, pose, item.weight_kg))
+        results.append(_assign_photo(db, photo, pose, item.weight_kg, client_row.owner))
     return results
 
 
@@ -330,7 +333,7 @@ def assign_photo(
     if not pose:
         raise HTTPException(404, "Pose nicht gefunden")
 
-    return _assign_photo(db, photo, pose, payload.weight_kg)
+    return _assign_photo(db, photo, pose, payload.weight_kg, client_row.owner)
 
 
 def _delete_photo_files(photo: Photo) -> None:
