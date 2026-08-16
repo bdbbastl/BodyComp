@@ -110,6 +110,19 @@ class Settings(BaseSettings):
     # Leer = Sentry deaktiviert (lokale Entwicklung) - siehe main.py.
     sentry_dsn: str = ""
 
+    # Stripe (Stufe 4 - Billing). Leere Strings = Billing-Endpunkte
+    # funktionieren nicht (kein Crash beim Start), aber jeder Versuch,
+    # eine Checkout-Session zu erzeugen, schlägt kontrolliert fehl -
+    # lokale Entwicklung ohne Stripe-Keys bleibt dadurch möglich, solange
+    # man die Billing-Endpunkte nicht aufruft.
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_starter: str = ""
+    stripe_price_pro: str = ""
+    stripe_price_business: str = ""
+    stripe_price_single: str = ""
+
 
 settings = Settings()
 
