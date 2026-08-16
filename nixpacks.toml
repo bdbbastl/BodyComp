@@ -1,0 +1,22 @@
+# nixpacks.toml (Repo-Root)
+[phases.setup]
+nixPkgs = ["python312", "nodejs_20"]
+
+[phases.install]
+cmds = [
+  "cd backend && python -m venv .venv && .venv/bin/pip install -r requirements.txt",
+  "cd frontend && npm ci",
+]
+
+[phases.build]
+cmds = [
+  "cd frontend && npm run build",
+  # Tests als Deploy-Gate: schlägt einer der beiden Befehle fehl, bricht
+  # der Build ab und es wird nichts Kaputtes deployed (siehe Design-Spec
+  # Abschnitt "Testing als Deploy-Gate").
+  "cd frontend && npx tsc --noEmit",
+  "cd backend && .venv/bin/python -m pytest -q",
+]
+
+[start]
+cmd = "cd backend && .venv/bin/alembic upgrade head && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT"
