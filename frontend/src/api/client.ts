@@ -16,6 +16,10 @@ export interface CurrentUser {
   // false bei Google-only-Accounts (kein eigenes Passwort gesetzt) -
   // steuert z.B. ob bei der Konto-Löschung ein Passwortfeld angezeigt wird.
   has_password: boolean;
+  subscription_status: string | null;
+  subscription_tier: string | null;
+  trial_ends_at: string | null;
+  free_checkins_used: number;
 }
 
 const client = axios.create({ baseURL: "/api", withCredentials: true });
@@ -26,6 +30,11 @@ export function mediaUrl(relativePath: string): string {
 }
 
 export const api = {
+  billing: {
+    checkout: (tier: "starter" | "pro" | "business" | "single") =>
+      client.post<{ checkout_url: string }>("/billing/checkout", { tier }).then((r) => r.data),
+    portal: () => client.post<{ portal_url: string }>("/billing/portal").then((r) => r.data),
+  },
   auth: {
     login: (email: string, password: string) =>
       client.post<CurrentUser>("/auth/login", { email, password }).then((r) => r.data),
