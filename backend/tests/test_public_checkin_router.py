@@ -129,14 +129,20 @@ def test_submit_checkin_with_invalid_token_returns_404(client, db_session):
     assert response.status_code == 404
 
 
-def test_submit_checkin_does_not_attribute_unrelated_incoming_photo(client, db_session):
+def test_submit_checkin_does_not_attribute_unrelated_incoming_photo(client, db_session, monkeypatch, tmp_path):
     """Regression: sync_incoming_folder scannt den GESAMTEN incoming_dir,
     nicht nur die Dateien dieses Requests - eine Datei, die der Coach
     manuell (oder ein vorheriger, noch nicht synchronisierter Prozess)
     dort abgelegt hat, darf NICHT dieser Einreichung zugeordnet werden
     (gefunden im finalen Holistic-Review)."""
+    from app.core.config import settings
     from app.models.photo import Photo
     from app.services.storage_paths import incoming_dir_for_client
+
+    # Isoliert von backend/data/ - ohne das würden wiederholte Testläufe
+    # Dateinamen-Kollisionen mit Resten vorheriger Läufe provozieren
+    # (gefunden live: "client_upload_3.jpg" statt "client_upload.jpg").
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
 
     _login(client, db_session)
     created = client.post("/api/clients", json={"name": "Max"}).json()

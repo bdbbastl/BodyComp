@@ -28,8 +28,12 @@ from app.routers import auth, checkins, clients, comparisons, day_logs, photos, 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
-    run_lightweight_migrations(engine)
-    fix_users_password_hash_nullable(engine)
+    if engine.dialect.name == "sqlite":
+        # Nur für lokale SQLite-Entwicklung - Produktion (Postgres) nutzt
+        # stattdessen echte Alembic-Migrationen (siehe alembic/), die als
+        # Teil des Railway-Start-Kommandos laufen (siehe Task 11).
+        run_lightweight_migrations(engine)
+        fix_users_password_hash_nullable(engine)
     # Unter pytest würde jeder `client`-Fixture-Test (TestClient als
     # Context-Manager, siehe tests/conftest.py) einen eigenen
     # BackgroundScheduler-Thread starten/stoppen - bei >70 Tests summiert
