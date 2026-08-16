@@ -24,7 +24,7 @@ from app.models import app_setting  # noqa: F401 - Import registriert Table bei 
 from app.models import user  # noqa: F401 - Import registriert Table bei create_all
 from app.models import client  # noqa: F401 - Import registriert Table bei create_all
 from app.models import email_token  # noqa: F401 - Import registriert Table bei create_all
-from app.routers import auth, checkins, clients, comparisons, day_logs, photos, poses, public_checkin, settings as settings_router
+from app.routers import auth, billing, checkins, clients, comparisons, day_logs, photos, poses, public_checkin, settings as settings_router
 from app.services.storage_sync import ensure_local
 
 if settings.sentry_dsn:
@@ -107,6 +107,7 @@ app.include_router(comparisons.router)
 app.include_router(settings_router.router)
 app.include_router(public_checkin.router)
 app.include_router(checkins.router)
+app.include_router(billing.router)
 
 
 @app.get("/api/health")
