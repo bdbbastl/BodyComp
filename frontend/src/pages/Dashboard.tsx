@@ -128,6 +128,15 @@ export default function Dashboard() {
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
             />
           </label>
+          {(createMutation.error as any)?.response?.status === 402 && (
+            <p className="text-sm text-red-400 sm:col-span-2">
+              Klienten-Limit erreicht -{" "}
+              <Link to="/account" className="underline">
+                Abo abschließen/upgraden
+              </Link>
+              , um weitere Klienten anzulegen.
+            </p>
+          )}
           <div className="flex items-end">
             <button
               type="submit"

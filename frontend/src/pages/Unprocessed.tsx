@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import type { UnprocessedPhoto } from "../types";
 import { formatDateWithWeek } from "../utils/date";
@@ -174,6 +174,16 @@ export default function Unprocessed() {
       {uploadMutation.isError && (
         <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
           Upload fehlgeschlagen. Bitte erneut versuchen.
+        </p>
+      )}
+
+      {(bulkAssignMutation.error as any)?.response?.status === 402 && (
+        <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
+          Kostenloses Kontingent aufgebraucht -{" "}
+          <Link to="/account" className="underline">
+            Abo abschließen
+          </Link>
+          , um weitere Check-ins einzureichen.
         </p>
       )}
 
