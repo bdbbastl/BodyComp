@@ -1,0 +1,87 @@
+# backend/app/services/billing.py
+"""
+Reine, netzwerkfreie Billing-Limit-Logik - siehe Design-Spec
+Abschnitt "Limit-Durchsetzung". Alle Stripe-Netzwerk-Aufrufe (Checkout,
+Portal, Webhook) leben in routers/billing.py; hier steht nur die
+Entscheidungslogik "darf dieser Account das gerade tun", damit sie ohne
+Mocking testbar ist.
+"""
+from app.models.client import Client
+from app.models.user import AccountType, User
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+# Fest im Code ausgenommener Betreiber-Account - siehe Design-Spec
+# Abschnitt "Ausnahme: Betreiber-Account". Bewusst eine Code-Konstante,
+# kein DB-Flag - für diesen einen bekannten Sonderfall ausreichend.
+EXEMPT_EMAILS = {"basti.auer@outlook.com"}
+
+# None = unbegrenzt. Ein Account OHNE aktives Abo (Status weder
+# "trialing" noch "active") bekommt effektiv Limit 1 - das entspricht
+# genau dem automatisch bei Account-Erstellung angelegten Client, ohne
+# dass ein unbezahlter Coach-Account weitere Klienten anlegen kann.
+TIER_CLIENT_LIMITS: dict[str, int | None] = {
+    "starter": 5,
+    "pro": 20,
+    "business": None,
+}
+UNSUBSCRIBED_CLIENT_LIMIT = 1
+
+FREE_CHECKINS_LIMIT = 2
+
+
+def is_billing_exempt(user: User) -> bool:
+    return user.email in EXEMPT_EMAILS
+
+
+def has_active_subscription(user: User) -> bool:
+    return user.subscription_status in ("trialing", "active")
+
+
+def client_limit_for(user: User) -> int | None:
+    """None bedeutet unbegrenzt. Gilt nur für Coach-Accounts sinnvoll -
+    Single-Accounts werden stattdessen über check_and_consume_free_checkin
+    limitiert, nicht über die Klientenzahl (die ist bei ihnen immer 1)."""
+    if not has_active_subscription(user):
+        return UNSUBSCRIBED_CLIENT_LIMIT
+    return TIER_CLIENT_LIMITS.get(user.subscription_tier or "", UNSUBSCRIBED_CLIENT_LIMIT)
+
+
+def check_can_create_client(user: User, db: Session) -> None:
+    """Wirft HTTPException(402), wenn das Anlegen eines weiteren Clients
+    das aktuelle Limit überschreiten würde. No-Op (kein Fehler), wenn
+    erlaubt oder der Account von Billing ausgenommen ist."""
+    if is_billing_exempt(user):
+        return
+    limit = client_limit_for(user)
+    if limit is None:
+        return
+    current_count = db.query(Client).filter(Client.owner_id == user.id).count()
+    if current_count >= limit:
+        raise HTTPException(
+            402,
+            "Klienten-Limit erreicht - bitte Abo abschließen oder auf die nächste Staffel upgraden.",
+        )
+
+
+def check_and_consume_free_checkin(user: User) -> None:
+    """Für SINGLE-Accounts: prüft, ob noch kostenloses Kontingent
+    vorhanden ist (oder ein aktives Abo/eine Ausnahme vorliegt), und
+    zählt bei Bedarf den kumulativen Verbrauch hoch. Wirft
+    HTTPException(402), wenn das Kontingent erschöpft ist. No-Op für
+    Coach-Accounts (die werden über die Klientenzahl limitiert, nicht
+    über Check-ins) - Aufrufer ruft diese Funktion trotzdem unconditional
+    auf, sie entscheidet selbst, ob sie überhaupt etwas tut.
+    Erhöht den Zähler NICHT mehr, sobald das Limit erreicht ist (der
+    Zähler bleibt exakt beim Limit stehen, kein Weiterzählen ins
+    Negative-Erlaubnis-Territorium)."""
+    if user.account_type != AccountType.SINGLE:
+        return
+    if is_billing_exempt(user) or has_active_subscription(user):
+        return
+    if user.free_checkins_used >= FREE_CHECKINS_LIMIT:
+        raise HTTPException(
+            402,
+            "Kostenloses Kontingent aufgebraucht - bitte Abo abschließen, um weitere Check-ins einzureichen.",
+        )
+    user.free_checkins_used += 1
