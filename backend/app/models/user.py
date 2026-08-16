@@ -17,7 +17,7 @@ alle vorher ausgestellten Session-Cookies ungültig zu machen.
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum, String
+from sqlalchemy import DateTime, Enum, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -45,6 +45,24 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
+    # Stripe-Kundenreferenz - None, solange nie eine Checkout-Session
+    # gestartet wurde (z.B. neu registrierter Account, der noch nicht
+    # bezahlt/getriaked hat).
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Roh-Übernahme von Stripes eigenem Subscription-Status-Vokabular
+    # ("trialing"/"active"/"past_due"/"canceled"/...) - siehe
+    # services/billing.py has_active_subscription(). Bewusst als freier
+    # String statt Enum, damit ein von Stripe neu eingeführter Status
+    # nicht zu einem Schema-Update zwingt.
+    subscription_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # "starter"/"pro"/"business" (Coach) oder "single" (Single-Account) -
+    # siehe services/billing.py TIER_CLIENT_LIMITS.
+    subscription_tier: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Kumulativer Zähler für das kostenlose Single-Account-Kontingent -
+    # sinkt NIE, auch nicht beim Löschen eines Check-ins (siehe
+    # Design-Spec Abschnitt "Preismodell-Struktur").
+    free_checkins_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     clients: Mapped[list["Client"]] = relationship(  # noqa: F821
         back_populates="owner", cascade="all, delete-orphan"

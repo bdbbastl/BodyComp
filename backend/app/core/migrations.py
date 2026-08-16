@@ -38,6 +38,11 @@ _PENDING_COLUMNS: list[tuple[str, str, str]] = [
     ("clients", "checkin_reminder_days", "INTEGER"),
     ("clients", "last_reminder_sent_at", "DATETIME"),
     ("photos", "checkin_submission_id", "INTEGER"),
+    ("users", "stripe_customer_id", "VARCHAR(255)"),
+    ("users", "subscription_status", "VARCHAR(50)"),
+    ("users", "subscription_tier", "VARCHAR(50)"),
+    ("users", "trial_ends_at", "DATETIME"),
+    ("users", "free_checkins_used", "INTEGER"),
 ]
 
 
@@ -66,10 +71,17 @@ def run_lightweight_migrations(engine: Engine) -> None:
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
 
         if "users" in existing_tables:
-            if "email_verified_at" in _columns_now(conn, "users"):
+            users_columns_now = _columns_now(conn, "users")
+            if "email_verified_at" in users_columns_now and "password_hash" in users_columns_now:
                 conn.execute(text(
                     "UPDATE users SET email_verified_at = created_at "
                     "WHERE email_verified_at IS NULL AND password_hash IS NOT NULL"
+                ))
+
+        if "users" in existing_tables:
+            if "free_checkins_used" in _columns_now(conn, "users"):
+                conn.execute(text(
+                    "UPDATE users SET free_checkins_used = 0 WHERE free_checkins_used IS NULL"
                 ))
 
         if "clients" in existing_tables:

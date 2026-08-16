@@ -60,3 +60,29 @@ def test_checkin_token_backfilled_on_pre_existing_clients_table(tmp_path):
         ).scalar()
     assert token is not None
     assert len(token) >= 20
+
+
+def test_billing_fields_backfilled_on_pre_existing_users_table(tmp_path):
+    """Analog zum checkin_token-Backfill (siehe Test oben) - neue
+    Spalten müssen für Bestandsnutzer sinnvolle Defaults bekommen, nicht
+    NULL bleiben, wo das Anwendungscode als 'nie initialisiert' vs.
+    '0 verbraucht' verwechseln könnte."""
+    db_path = tmp_path / "old.db"
+    engine = create_engine(f"sqlite:///{db_path.as_posix()}")
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR(255), "
+            "display_name VARCHAR(100), account_type VARCHAR(20), created_at DATETIME)"
+        ))
+        conn.execute(text(
+            "INSERT INTO users (id, email, display_name, account_type, created_at) "
+            "VALUES (1, 'a@b.com', 'A', 'SINGLE', '2026-01-01')"
+        ))
+
+    run_lightweight_migrations(engine)
+
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT free_checkins_used FROM users WHERE id = 1")
+        ).first()
+    assert row[0] == 0
