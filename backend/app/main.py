@@ -8,9 +8,9 @@ sollte das durch echte Alembic-Migrationen ersetzt werden.
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import settings
@@ -23,6 +23,7 @@ from app.models import user  # noqa: F401 - Import registriert Table bei create_
 from app.models import client  # noqa: F401 - Import registriert Table bei create_all
 from app.models import email_token  # noqa: F401 - Import registriert Table bei create_all
 from app.routers import auth, checkins, clients, comparisons, day_logs, photos, poses, public_checkin, settings as settings_router
+from app.services.storage_sync import ensure_local
 
 
 @asynccontextmanager
@@ -79,8 +80,16 @@ app.add_middleware(
 )
 
 # Statische Auslieferung der Bilddateien (Originale + normalisierte
-# Versionen) direkt aus dem lokalen data_dir.
-app.mount("/media", StaticFiles(directory=settings.data_dir), name="media")
+# Versionen) direkt aus dem lokalen data_dir. Vor der Auslieferung wird
+# per ensure_local() sichergestellt, dass die Datei lokal vorhanden ist
+# (ggf. Sync aus dem Remote-Storage).
+@app.get("/media/{rel_path:path}")
+def serve_media(rel_path: str):
+    ensure_local(rel_path)
+    file_path = settings.data_dir / rel_path
+    if not file_path.is_file():
+        raise HTTPException(404, "Datei nicht gefunden")
+    return FileResponse(file_path)
 
 app.include_router(auth.router)
 app.include_router(clients.router)

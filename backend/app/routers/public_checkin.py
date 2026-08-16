@@ -22,6 +22,7 @@ from app.schemas.checkin import CheckinSubmissionOut, PublicCheckinPageOut
 from app.services.email import send_checkin_submitted_email
 from app.services.folder_sync import sync_incoming_folder
 from app.services.storage_paths import incoming_dir_for_client
+from app.services.storage_sync import push
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +143,7 @@ def submit_checkin(
             with dest.open("wb") as f:
                 shutil.copyfileobj(upload.file, f)
             written_paths.add(dest.relative_to(settings.data_dir).as_posix())
+            push(dest.relative_to(settings.data_dir).as_posix())
 
         new_photos = sync_incoming_folder(db, client_row.id)
         for photo in new_photos:
