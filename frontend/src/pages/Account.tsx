@@ -316,6 +316,146 @@ function DangerZoneSection() {
   );
 }
 
+const COACH_PLANS: {
+  key: "starter" | "pro" | "business";
+  label: string;
+  price: string;
+  featured?: boolean;
+  features: string[];
+}[] = [
+  {
+    key: "starter",
+    label: "Starter",
+    price: "19 €/Monat",
+    features: ["Bis 5 Klienten", "Unbegrenzte Fotos & Check-ins", "Magic-Link-Einreichung"],
+  },
+  {
+    key: "pro",
+    label: "Pro",
+    price: "49 €/Monat",
+    featured: true,
+    features: ["Bis 20 Klienten", "Alles aus Starter", "Priorisierter Support"],
+  },
+  {
+    key: "business",
+    label: "Business",
+    price: "99 €/Monat",
+    features: ["Unbegrenzte Klienten", "Alles aus Pro", "Für große Coaching-Teams"],
+  },
+];
+
+function BillingSection() {
+  const { data: user } = useCurrentUser();
+
+  const checkoutMutation = useMutation({
+    mutationFn: (tier: "starter" | "pro" | "business" | "single") => api.billing.checkout(tier),
+    onSuccess: (data) => {
+      window.location.href = data.checkout_url;
+    },
+  });
+
+  const portalMutation = useMutation({
+    mutationFn: api.billing.portal,
+    onSuccess: (data) => {
+      window.open(data.portal_url, "_blank");
+    },
+  });
+
+  if (!user) return null;
+
+  const hasSubscription = user.subscription_status === "trialing" || user.subscription_status === "active";
+  const tierLabel = COACH_PLANS.find((p) => p.key === user.subscription_tier)?.label ?? user.subscription_tier;
+
+  if (hasSubscription) {
+    return (
+      <div className="rounded-xl border border-accent/30 bg-gradient-to-br from-accent/10 to-transparent p-4">
+        <h2 className="mb-1 text-lg font-semibold text-white">Dein Abo</h2>
+        <p className="mb-4 text-sm text-slate-300">
+          <span className="font-medium text-accent">{tierLabel}</span> —{" "}
+          {user.subscription_status === "trialing" ? (
+            <span>
+              Testphase läuft
+              {user.trial_ends_at &&
+                ` bis ${new Date(user.trial_ends_at).toLocaleDateString("de-DE")}`}
+            </span>
+          ) : (
+            "aktiv"
+          )}
+        </p>
+        <button
+          onClick={() => portalMutation.mutate()}
+          disabled={portalMutation.isPending}
+          className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
+        >
+          Abo verwalten (upgraden, herunterstufen, kündigen)
+        </button>
+      </div>
+    );
+  }
+
+  if (user.account_type === "coach") {
+    return (
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Wähle deinen Plan</h2>
+          <p className="text-sm text-slate-400">14 Tage kostenlos testen, jederzeit kündbar.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {COACH_PLANS.map((plan) => (
+            <div
+              key={plan.key}
+              className={`relative rounded-xl border p-4 ${
+                plan.featured ? "border-accent bg-accent/5" : "border-white/5 bg-surface"
+              }`}
+            >
+              {plan.featured && (
+                <span className="absolute -top-2.5 left-4 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-900">
+                  Beliebt
+                </span>
+              )}
+              <p className="text-sm font-semibold text-white">{plan.label}</p>
+              <p className="mt-1 text-xl font-bold text-white">{plan.price}</p>
+              <ul className="mt-3 space-y-1 text-xs text-slate-400">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-start gap-1.5">
+                    <span className="text-accent">✓</span> {f}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => checkoutMutation.mutate(plan.key)}
+                disabled={checkoutMutation.isPending}
+                className="mt-4 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
+              >
+                Jetzt starten
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Single-Account, kein Abo.
+  const remaining = Math.max(0, 2 - user.free_checkins_used);
+  return (
+    <div className="rounded-xl border border-white/5 bg-surface p-4">
+      <h2 className="mb-1 text-lg font-semibold text-white">Dein Plan</h2>
+      <p className="mb-4 text-sm text-slate-400">
+        Noch <span className="font-medium text-white">{remaining}</span> von 2 kostenlosen
+        Check-ins übrig.
+      </p>
+      <button
+        onClick={() => checkoutMutation.mutate("single")}
+        disabled={checkoutMutation.isPending}
+        className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
+      >
+        Unbegrenzt weitermachen — 4,99 €/Monat
+      </button>
+    </div>
+  );
+}
+
 export default function Account() {
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
@@ -330,6 +470,8 @@ export default function Account() {
   return (
     <div className="max-w-xl space-y-6">
       <PageHeader title="Account" />
+
+      <BillingSection />
 
       {user?.account_type === "single" && (
         <div className="rounded-xl border border-white/5 bg-surface p-4">
