@@ -16,6 +16,7 @@ from app.models.photo import Photo, ProcessingStatus
 from app.services.exif import get_dimensions, get_taken_at
 from app.services.heic import generate_preview, is_heic
 from app.services.storage_paths import incoming_dir_for_client
+from app.services.storage_sync import ensure_local, push
 from app.services.thumbnails import generate_thumbnail, thumbnail_path_for
 
 
@@ -42,12 +43,14 @@ def _backfill_missing_previews(db: Session, client_id: int) -> None:
     )
     changed = False
     for photo in candidates:
+        ensure_local(photo.original_path)
         file = settings.data_dir / photo.original_path
         if not file.exists() or not is_heic(file):
             continue
         preview_dest = _preview_path_for(file)
         if generate_preview(file, preview_dest):
             photo.preview_path = preview_dest.relative_to(settings.data_dir).as_posix()
+            push(photo.preview_path)
             changed = True
             if photo.width is None or photo.height is None:
                 try:
@@ -89,6 +92,7 @@ def sync_incoming_folder(db: Session, client_id: int) -> list[Photo]:
             preview_dest = _preview_path_for(file)
             if generate_preview(file, preview_dest):
                 preview_rel_path = preview_dest.relative_to(settings.data_dir).as_posix()
+                push(preview_rel_path)
 
         dims_source = _preview_path_for(file) if preview_rel_path else file
         try:
@@ -102,6 +106,8 @@ def sync_incoming_folder(db: Session, client_id: int) -> list[Photo]:
             if generate_thumbnail(dims_source, thumb_dest)
             else None
         )
+        if thumb_rel_path is not None:
+            push(thumb_rel_path)
 
         photo = Photo(
             client_id=client_id,
@@ -114,6 +120,7 @@ def sync_incoming_folder(db: Session, client_id: int) -> list[Photo]:
             height=height,
         )
         db.add(photo)
+        push(rel_path)
         new_photos.append(photo)
 
     db.commit()
