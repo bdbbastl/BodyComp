@@ -112,3 +112,103 @@ def test_portal_returns_url_for_existing_customer(client, db_session, monkeypatc
     response = client.post("/api/billing/portal")
     assert response.status_code == 200
     assert response.json()["portal_url"] == "https://billing.stripe.com/fake-portal"
+
+
+def test_webhook_updates_subscription_status_on_update_event(client, db_session, monkeypatch):
+    from datetime import datetime, timezone
+
+    user = User(
+        email="webhook@b.com", password_hash=hash_password("pw12345"), display_name="W",
+        email_verified_at=datetime.now(timezone.utc), stripe_customer_id="cus_webhook_test",
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    fake_event = {
+        "type": "customer.subscription.updated",
+        "data": {
+            "object": {
+                "customer": "cus_webhook_test",
+                "status": "active",
+                "items": {"data": [{"price": {"id": "price_starter_fake"}}]},
+                "trial_end": None,
+            }
+        },
+    }
+    monkeypatch.setattr("app.routers.billing.TIER_PRICE_IDS", {"starter": "price_starter_fake"})
+    monkeypatch.setattr(
+        "app.routers.billing.stripe.Webhook.construct_event", lambda *a, **kw: fake_event
+    )
+
+    response = client.post(
+        "/api/billing/webhook", content=b"{}", headers={"stripe-signature": "fake"}
+    )
+    assert response.status_code == 204
+
+    db_session.refresh(user)
+    assert user.subscription_status == "active"
+    assert user.subscription_tier == "starter"
+
+
+def test_webhook_marks_canceled_on_deletion_event(client, db_session, monkeypatch):
+    from datetime import datetime, timezone
+
+    user = User(
+        email="webhook2@b.com", password_hash=hash_password("pw12345"), display_name="W2",
+        email_verified_at=datetime.now(timezone.utc), stripe_customer_id="cus_webhook_test2",
+        subscription_status="active",
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    fake_event = {
+        "type": "customer.subscription.deleted",
+        "data": {"object": {"customer": "cus_webhook_test2"}},
+    }
+    monkeypatch.setattr(
+        "app.routers.billing.stripe.Webhook.construct_event", lambda *a, **kw: fake_event
+    )
+
+    response = client.post(
+        "/api/billing/webhook", content=b"{}", headers={"stripe-signature": "fake"}
+    )
+    assert response.status_code == 204
+
+    db_session.refresh(user)
+    assert user.subscription_status == "canceled"
+
+
+def test_webhook_rejects_invalid_signature(client, db_session, monkeypatch):
+    import stripe as stripe_module
+
+    def _raise(*a, **kw):
+        raise stripe_module.error.SignatureVerificationError("bad sig", "sig_header")
+
+    monkeypatch.setattr("app.routers.billing.stripe.Webhook.construct_event", _raise)
+
+    response = client.post(
+        "/api/billing/webhook", content=b"{}", headers={"stripe-signature": "bad"}
+    )
+    assert response.status_code == 400
+
+
+def test_webhook_ignores_events_for_unknown_customer(client, db_session, monkeypatch):
+    fake_event = {
+        "type": "customer.subscription.updated",
+        "data": {
+            "object": {
+                "customer": "cus_does_not_exist",
+                "status": "active",
+                "items": {"data": [{"price": {"id": "price_starter_fake"}}]},
+                "trial_end": None,
+            }
+        },
+    }
+    monkeypatch.setattr(
+        "app.routers.billing.stripe.Webhook.construct_event", lambda *a, **kw: fake_event
+    )
+
+    response = client.post(
+        "/api/billing/webhook", content=b"{}", headers={"stripe-signature": "fake"}
+    )
+    assert response.status_code == 204  # kein Fehler, nur nichts zu tun

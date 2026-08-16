@@ -4,8 +4,10 @@ Abschnitt "Zahlungsanbieter & Verwaltung". Die eigentliche Limit-Logik
 (wer darf was) lebt in services/billing.py, hier geht es nur um die
 Kommunikation mit Stripe selbst.
 """
+from datetime import datetime, timezone
+
 import stripe
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -73,3 +75,40 @@ def create_portal_session(current_user: User = Depends(get_current_user)):
         return_url=f"{settings.frontend_base_url}/account",
     )
     return PortalResponse(portal_url=portal_session.url)
+
+
+def _tier_for_price_id(price_id: str) -> str | None:
+    for tier, pid in TIER_PRICE_IDS.items():
+        if pid == price_id:
+            return tier
+    return None
+
+
+@router.post("/webhook", status_code=204)
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, settings.stripe_webhook_secret)
+    except (ValueError, stripe.error.SignatureVerificationError):
+        raise HTTPException(400, "Ungültige Webhook-Signatur")
+
+    obj = event["data"]["object"]
+    event_type = event["type"]
+
+    if event_type in ("customer.subscription.created", "customer.subscription.updated"):
+        user = db.query(User).filter(User.stripe_customer_id == obj["customer"]).first()
+        if user is not None:
+            user.subscription_status = obj["status"]
+            price_id = obj["items"]["data"][0]["price"]["id"]
+            tier = _tier_for_price_id(price_id)
+            if tier is not None:
+                user.subscription_tier = tier
+            if obj.get("trial_end"):
+                user.trial_ends_at = datetime.fromtimestamp(obj["trial_end"], tz=timezone.utc)
+            db.commit()
+    elif event_type == "customer.subscription.deleted":
+        user = db.query(User).filter(User.stripe_customer_id == obj["customer"]).first()
+        if user is not None:
+            user.subscription_status = "canceled"
+            db.commit()
