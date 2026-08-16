@@ -1,0 +1,17 @@
+backend/.venv/
+backend/data/photos_incoming/
+backend/data/photos_processed/
+backend/data/photos_normalized/
+backend/data/*.db
+backend/data/*.db-journal
+backend/.env
+*.env
+!.env.example
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+.git/
+.worktrees/
+.claude/
+docs/
+railway-production.env
