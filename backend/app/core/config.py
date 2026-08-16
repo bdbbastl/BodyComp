@@ -95,6 +95,9 @@ class Settings(BaseSettings):
     # Basis-URL des Frontends, für Links in E-Mails (Bestätigung, Reset).
     frontend_base_url: str = "http://localhost:5173"
 
+    # Leer = Sentry deaktiviert (lokale Entwicklung) - siehe main.py.
+    sentry_dsn: str = ""
+
 
 settings = Settings()
 

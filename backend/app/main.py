@@ -27,6 +27,11 @@ from app.models import email_token  # noqa: F401 - Import registriert Table bei 
 from app.routers import auth, checkins, clients, comparisons, day_logs, photos, poses, public_checkin, settings as settings_router
 from app.services.storage_sync import ensure_local
 
+if settings.sentry_dsn:
+    import sentry_sdk
+
+    sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.1, send_default_pii=False)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
