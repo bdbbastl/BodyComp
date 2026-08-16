@@ -7,10 +7,12 @@ sollte das durch echte Alembic-Migrationen ersetzt werden.
 """
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import settings
@@ -105,3 +107,18 @@ app.include_router(checkins.router)
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+_frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+if _frontend_dist.is_dir():
+    app.mount("/assets", StaticFiles(directory=_frontend_dist / "assets"), name="frontend-assets")
+
+    @app.get("/{full_path:path}")
+    def serve_frontend(full_path: str):
+        """SPA-Fallback: jede nicht von einer API-/Media-Route abgedeckte
+        URL liefert index.html aus - React Router übernimmt das clientseitige
+        Routing (siehe frontend/src/App.tsx). Nur aktiv, wenn ein Frontend-
+        Build vorhanden ist (lokale Entwicklung nutzt weiterhin den
+        separaten Vite-Dev-Server auf :5173 und braucht diese Route nicht)."""
+        return FileResponse(_frontend_dist / "index.html")
