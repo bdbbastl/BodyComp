@@ -11,7 +11,7 @@ class SignupRequest(BaseModel):
     @classmethod
     def must_accept_privacy(cls, v: bool) -> bool:
         if not v:
-            raise ValueError("Datenschutzerklärung muss akzeptiert werden")
+            raise ValueError("Privacy policy must be accepted")
         return v
 
 
