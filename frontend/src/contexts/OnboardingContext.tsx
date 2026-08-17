@@ -1,6 +1,7 @@
 // frontend/src/contexts/OnboardingContext.tsx
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 
@@ -71,6 +72,8 @@ const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const { data: user } = useCurrentUser();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const clientsQuery = useQuery({ queryKey: ["clients"], queryFn: api.clients.list });
   const [phase, setPhase] = useState<"modal" | "tour" | null>(null);
   const [modalSlide, setModalSlide] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
@@ -98,7 +101,15 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const startTour = useCallback(() => {
     setPhase("tour");
     setStepIndex(0);
-  }, []);
+    if (user?.account_type === "coach") {
+      navigate("/dashboard");
+    } else {
+      const firstClient = clientsQuery.data?.[0];
+      if (firstClient) {
+        navigate(`/clients/${firstClient.id}/unprocessed`);
+      }
+    }
+  }, [navigate, user?.account_type, clientsQuery.data]);
 
   const nextStep = useCallback(() => {
     setStepIndex((i) => {
