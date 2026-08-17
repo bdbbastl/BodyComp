@@ -3,11 +3,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 export default function Settings() {
   const { clientId } = useParams<{ clientId: string }>();
   const clientIdNum = Number(clientId);
   const queryClient = useQueryClient();
+  const { data: user } = useCurrentUser();
+  // Bei Single-Accounts IST der "Klient" der User selbst - eine eigene
+  // Klienten-E-Mail (die eh identisch zur Account-Mail wäre) und eine
+  // "private Notiz über den Klienten" ergeben hier keinen Sinn (siehe
+  // UX-Feedback vom 2026-08-17). Reminder-Tage bleiben relevant - das ist
+  // schlicht "erinnere mich selbst". Erst als Coach mit mehreren echten
+  // Klienten werden diese Felder wieder gebraucht.
+  const isSingleAccount = user?.account_type === "single";
   const [newPoseName, setNewPoseName] = useState("");
   const [editing, setEditing] = useState<Record<number, string>>({});
 
@@ -33,8 +42,17 @@ export default function Settings() {
   const updateClientMutation = useMutation({
     mutationFn: () =>
       api.clients.update(clientIdNum, {
-        coach_private_note: coachNote.trim() === "" ? null : coachNote,
-        email: clientEmail.trim() === "" ? null : clientEmail.trim(),
+        // Bei Single-Accounts werden E-Mail/Notiz gar nicht angezeigt -
+        // dann auch nicht mitschicken, damit ein vorhandener Wert nicht
+        // versehentlich überschrieben wird (der Backend-Fallback in
+        // checkin_reminders.py nutzt für Single-Accounts ohnehin
+        // automatisch die Account-E-Mail, siehe services/checkin_reminders.py).
+        ...(isSingleAccount
+          ? {}
+          : {
+              coach_private_note: coachNote.trim() === "" ? null : coachNote,
+              email: clientEmail.trim() === "" ? null : clientEmail.trim(),
+            }),
         checkin_reminder_days: reminderDays.trim() === "" ? null : Number(reminderDays),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["clients", clientIdNum] }),
@@ -125,17 +143,21 @@ export default function Settings() {
           }}
           className="space-y-3 border-t border-white/5 pt-4"
         >
+          {!isSingleAccount && (
+            <label className="flex flex-col gap-1 text-sm text-slate-400">
+              E-Mail des Klienten (für Erinnerungen)
+              <input
+                type="email"
+                value={clientEmail}
+                onChange={(e) => setClientEmail(e.target.value)}
+                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+              />
+            </label>
+          )}
           <label className="flex flex-col gap-1 text-sm text-slate-400">
-            E-Mail des Klienten (für Erinnerungen)
-            <input
-              type="email"
-              value={clientEmail}
-              onChange={(e) => setClientEmail(e.target.value)}
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Erinnerung nach X Tagen ohne Check-in (leer = keine Erinnerung)
+            {isSingleAccount
+              ? "Erinnere mich nach X Tagen ohne Check-in (leer = keine Erinnerung)"
+              : "Erinnerung nach X Tagen ohne Check-in (leer = keine Erinnerung)"}
             <input
               type="number"
               min={1}
@@ -144,15 +166,22 @@ export default function Settings() {
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Private Notiz (nur für dich sichtbar)
-            <textarea
-              value={coachNote}
-              onChange={(e) => setCoachNote(e.target.value)}
-              rows={3}
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-            />
-          </label>
+          {isSingleAccount && (
+            <p className="text-xs text-slate-500">
+              Die Erinnerung geht an deine Account-E-Mail ({user?.email}).
+            </p>
+          )}
+          {!isSingleAccount && (
+            <label className="flex flex-col gap-1 text-sm text-slate-400">
+              Private Notiz (nur für dich sichtbar)
+              <textarea
+                value={coachNote}
+                onChange={(e) => setCoachNote(e.target.value)}
+                rows={3}
+                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+              />
+            </label>
+          )}
           <button
             type="submit"
             disabled={updateClientMutation.isPending}
