@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -41,9 +41,12 @@ export default function AppShell() {
       <header className="sticky top-0 z-30 border-b border-white/5 bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold tracking-wide text-white">
+            <Link
+              to={user?.account_type === "coach" ? "/dashboard" : "/"}
+              className="text-sm font-semibold tracking-wide text-white transition-colors hover:text-accent"
+            >
               BodyComp <span className="text-accent">Tracker</span>
-            </span>
+            </Link>
             {user?.account_type === "coach" && (
               <NavLink
                 to="/dashboard"

@@ -93,19 +93,15 @@ export default function ClientShell() {
         </div>
       )}
 
-      {/* Desktop: feste Sidebar, einklappbar */}
+      {/* Desktop: feste Sidebar, einklappbar - Container fasst die Punkte
+          visuell zusammen (siehe Design-Spec "UX-Politur" Abschnitt 1),
+          Toggle steht unten, abgesetzt durch einen Trennstrich, statt
+          isoliert oben zu "hängen". */}
       <nav
-        className={`hidden shrink-0 flex-col gap-1 sm:flex ${
-          desktopCollapsed ? "w-12" : "w-48"
+        className={`hidden shrink-0 flex-col gap-1 rounded-xl bg-surface/40 p-2 sm:flex ${
+          desktopCollapsed ? "w-14" : "w-48"
         } transition-all`}
       >
-        <button
-          onClick={() => setDesktopCollapsed((c) => !c)}
-          className="mb-2 self-end rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-white"
-          aria-label={desktopCollapsed ? "Navigation ausklappen" : "Navigation einklappen"}
-        >
-          {desktopCollapsed ? "»" : "«"}
-        </button>
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}
@@ -120,6 +116,15 @@ export default function ClientShell() {
             {!desktopCollapsed && item.label}
           </NavLink>
         ))}
+        <div className="mt-1 border-t border-white/10 pt-1">
+          <button
+            onClick={() => setDesktopCollapsed((c) => !c)}
+            className="flex w-full items-center justify-center rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-white"
+            aria-label={desktopCollapsed ? "Navigation ausklappen" : "Navigation einklappen"}
+          >
+            {desktopCollapsed ? "»" : "«"}
+          </button>
+        </div>
       </nav>
 
       <div className="min-w-0 flex-1">
