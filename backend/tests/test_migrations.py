@@ -86,3 +86,26 @@ def test_billing_fields_backfilled_on_pre_existing_users_table(tmp_path):
             text("SELECT free_checkins_used FROM users WHERE id = 1")
         ).first()
     assert row[0] == 0
+
+
+def test_onboarding_completed_at_column_added_to_pre_existing_users_table(tmp_path):
+    """Simuliert eine alte DB von vor dem Onboarding-Flow: legt users OHNE
+    onboarding_completed_at an, prüft dass die Migration die Spalte
+    nachträgt."""
+    db_path = tmp_path / "old.db"
+    engine = create_engine(f"sqlite:///{db_path.as_posix()}")
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR(255), "
+            "display_name VARCHAR(100), account_type VARCHAR(20), created_at DATETIME)"
+        ))
+        conn.execute(text(
+            "INSERT INTO users (id, email, display_name, account_type, created_at) "
+            "VALUES (1, 'a@b.com', 'A', 'SINGLE', '2026-01-01')"
+        ))
+
+    run_lightweight_migrations(engine)
+
+    inspector = inspect(engine)
+    users_columns = {c["name"] for c in inspector.get_columns("users")}
+    assert "onboarding_completed_at" in users_columns

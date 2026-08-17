@@ -43,6 +43,7 @@ _PENDING_COLUMNS: list[tuple[str, str, str]] = [
     ("users", "subscription_tier", "VARCHAR(50)"),
     ("users", "trial_ends_at", "DATETIME"),
     ("users", "free_checkins_used", "INTEGER"),
+    ("users", "onboarding_completed_at", "DATETIME"),
 ]
 
 

@@ -63,6 +63,11 @@ class User(Base):
     # sinkt NIE, auch nicht beim Löschen eines Check-ins (siehe
     # Design-Spec Abschnitt "Preismodell-Struktur").
     free_checkins_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Wann der Onboarding-Flow (Willkommens-Modal + Tooltip-Tour)
+    # abgeschlossen oder übersprungen wurde - None = noch nie gesehen,
+    # löst beim nächsten Login den automatischen Start aus (siehe
+    # Design-Spec "Onboarding-Flow" Abschnitt 2).
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     clients: Mapped[list["Client"]] = relationship(  # noqa: F821
         back_populates="owner", cascade="all, delete-orphan"
