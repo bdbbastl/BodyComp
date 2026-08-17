@@ -23,6 +23,7 @@ class UserOut(BaseModel):
     subscription_tier: str | None
     trial_ends_at: datetime | None
     free_checkins_used: int
+    onboarding_completed_at: datetime | None
 
     class Config:
         from_attributes = True

@@ -133,6 +133,21 @@ def switch_to_coach(
     return current_user
 
 
+@router.patch("/onboarding-complete", response_model=UserOut)
+def complete_onboarding(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Markiert den Onboarding-Flow als gesehen (fertig durchlaufen ODER
+    übersprungen - beides zählt gleich) - verhindert das automatische
+    erneute Auslösen beim nächsten Login. Ein manueller Replay über die
+    Account-Seite ruft diesen Endpunkt bewusst NICHT erneut auf, siehe
+    Design-Spec "Onboarding-Flow" Abschnitt 2."""
+    current_user.onboarding_completed_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
 @router.post("/signup", response_model=UserOut, status_code=201)
 def signup(
     payload: SignupRequest,

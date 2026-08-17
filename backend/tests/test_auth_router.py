@@ -95,3 +95,16 @@ def test_me_includes_billing_fields(client, db_session):
     assert "subscription_tier" in body
     assert "free_checkins_used" in body
     assert body["free_checkins_used"] == 0
+
+
+def test_complete_onboarding_sets_timestamp(client, db_session):
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    response = client.patch("/api/auth/onboarding-complete")
+    assert response.status_code == 200
+    assert response.json()["onboarding_completed_at"] is not None
+
+
+def test_complete_onboarding_requires_login(client, db_session):
+    response = client.patch("/api/auth/onboarding-complete")
+    assert response.status_code == 401
