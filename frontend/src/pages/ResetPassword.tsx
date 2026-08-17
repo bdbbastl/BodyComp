@@ -18,12 +18,12 @@ export default function ResetPassword() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="w-full max-w-sm space-y-4 rounded-xl border border-white/5 bg-surface p-6 text-center">
-          <p className="text-slate-400">Ungültiger Link.</p>
+          <p className="text-slate-400">Invalid link.</p>
           <Link to="/forgot-password" className="block text-sm text-accent hover:underline">
-            Neuen Link anfordern
+            Request new link
           </Link>
           <Link to="/login" className="block text-sm text-accent hover:underline">
-            Zurück zum Login
+            Back to login
           </Link>
         </div>
       </div>
@@ -39,9 +39,9 @@ export default function ResetPassword() {
         }}
         className="w-full max-w-sm space-y-4 rounded-xl border border-white/5 bg-surface p-6"
       >
-        <h1 className="text-xl font-semibold text-white">Neues Passwort setzen</h1>
+        <h1 className="text-xl font-semibold text-white">Set new password</h1>
         <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Neues Passwort (mind. 8 Zeichen)
+          New password (min. 8 characters)
           <input
             type="password"
             required
@@ -52,17 +52,17 @@ export default function ResetPassword() {
           />
         </label>
         {mutation.isError && (
-          <p className="text-sm text-red-400">Link ungültig oder abgelaufen.</p>
+          <p className="text-sm text-red-400">Link invalid or expired.</p>
         )}
         <button
           type="submit"
           disabled={mutation.isPending}
           className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
         >
-          {mutation.isPending ? "Speichern…" : "Passwort setzen"}
+          {mutation.isPending ? "Saving…" : "Set password"}
         </button>
         <Link to="/login" className="block text-center text-sm text-accent hover:underline">
-          Zurück zum Login
+          Back to login
         </Link>
       </form>
     </div>

@@ -10,11 +10,11 @@ export default function ForgotPassword() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-4 rounded-xl border border-white/5 bg-surface p-6">
-        <h1 className="text-xl font-semibold text-white">Passwort vergessen</h1>
+        <h1 className="text-xl font-semibold text-white">Forgot password</h1>
         {mutation.isSuccess ? (
           <p className="text-sm text-slate-400">
-            Falls ein Account mit dieser E-Mail existiert, wurde eine Mail mit einem Reset-Link
-            verschickt.
+            If an account exists with this email, we've sent a message with a reset
+            link.
           </p>
         ) : (
           <form
@@ -25,7 +25,7 @@ export default function ForgotPassword() {
             className="space-y-4"
           >
             <label className="flex flex-col gap-1 text-sm text-slate-400">
-              E-Mail
+              Email
               <input
                 type="email"
                 required
@@ -39,12 +39,12 @@ export default function ForgotPassword() {
               disabled={mutation.isPending}
               className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
             >
-              {mutation.isPending ? "Senden…" : "Link anfordern"}
+              {mutation.isPending ? "Sending…" : "Request link"}
             </button>
           </form>
         )}
         <Link to="/login" className="block text-center text-sm text-accent hover:underline">
-          Zurück zum Login
+          Back to login
         </Link>
       </div>
     </div>

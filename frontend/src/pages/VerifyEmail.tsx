@@ -21,23 +21,23 @@ export default function VerifyEmail() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-4 rounded-xl border border-white/5 bg-surface p-6 text-center">
-        {status === "pending" && <p className="text-slate-400">Bestätige…</p>}
+        {status === "pending" && <p className="text-slate-400">Confirming…</p>}
         {status === "success" && (
           <>
-            <h1 className="text-xl font-semibold text-white">E-Mail bestätigt!</h1>
+            <h1 className="text-xl font-semibold text-white">Email confirmed!</h1>
             <Link to="/login" className="text-accent hover:underline text-sm">
-              Jetzt einloggen
+              Log in now
             </Link>
           </>
         )}
         {status === "error" && (
           <>
-            <h1 className="text-xl font-semibold text-white">Link ungültig</h1>
+            <h1 className="text-xl font-semibold text-white">Invalid link</h1>
             <p className="text-sm text-slate-400">
-              Der Link ist abgelaufen oder wurde bereits verwendet.
+              The link has expired or was already used.
             </p>
             <Link to="/login" className="text-accent hover:underline text-sm">
-              Zurück zum Login
+              Back to login
             </Link>
           </>
         )}

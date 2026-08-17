@@ -38,7 +38,7 @@ export default function Signup() {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm text-slate-400">
-          E-Mail
+          Email
           <input
             type="email"
             required
@@ -48,7 +48,7 @@ export default function Signup() {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Passwort (mind. 8 Zeichen)
+          Password (min. 8 characters)
           <input
             type="password"
             required
@@ -67,15 +67,15 @@ export default function Signup() {
             className="mt-1"
           />
           <span>
-            Ich akzeptiere die{" "}
+            I accept the{" "}
             <Link to="/datenschutz" className="text-accent hover:underline" target="_blank">
-              Datenschutzerklärung
+              privacy policy
             </Link>
           </span>
         </label>
         {signupMutation.isError && (
           <p className="text-sm text-red-400">
-            Registrierung fehlgeschlagen - E-Mail evtl. bereits vergeben.
+            Sign-up failed - the email may already be in use.
           </p>
         )}
         <button
@@ -83,12 +83,12 @@ export default function Signup() {
           disabled={signupMutation.isPending}
           className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
         >
-          {signupMutation.isPending ? "Registrieren…" : "Registrieren"}
+          {signupMutation.isPending ? "Signing up…" : "Sign up"}
         </button>
         <p className="text-center text-sm text-slate-400">
-          Schon registriert?{" "}
+          Already have an account?{" "}
           <Link to="/login" className="text-accent hover:underline">
-            Einloggen
+            Log in
           </Link>
         </p>
       </form>

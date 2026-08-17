@@ -41,7 +41,7 @@ export default function Login() {
           BodyComp <span className="text-accent">Tracker</span>
         </h1>
         <label className="flex flex-col gap-1 text-sm text-slate-400">
-          E-Mail
+          Email
           <input
             type="email"
             required
@@ -51,7 +51,7 @@ export default function Login() {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Passwort
+          Password
           <input
             type="password"
             required
@@ -62,19 +62,19 @@ export default function Login() {
         </label>
         {isUnverifiedError ? (
           <div className="text-sm text-red-400">
-            <p>Bitte bestätige zuerst deine E-Mail-Adresse.</p>
+            <p>Please confirm your email address first.</p>
             <button
               type="button"
               onClick={() => resendMutation.mutate()}
               disabled={resendMutation.isPending}
               className="mt-1 text-accent hover:underline disabled:opacity-50"
             >
-              {resendMutation.isSuccess ? "Mail erneut gesendet" : "Bestätigungsmail erneut senden"}
+              {resendMutation.isSuccess ? "Email resent" : "Resend confirmation email"}
             </button>
           </div>
         ) : (
           loginMutation.isError && (
-            <p className="text-sm text-red-400">E-Mail oder Passwort falsch.</p>
+            <p className="text-sm text-red-400">Email or password incorrect.</p>
           )
         )}
         <button
@@ -82,20 +82,20 @@ export default function Login() {
           disabled={loginMutation.isPending}
           className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
         >
-          {loginMutation.isPending ? "Einloggen…" : "Einloggen"}
+          {loginMutation.isPending ? "Logging in…" : "Log in"}
         </button>
         <a
           href="/api/auth/google/login"
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-black/30 px-4 py-2 text-sm font-medium text-white hover:bg-black/50"
         >
-          Mit Google anmelden
+          Sign in with Google
         </a>
         <div className="flex justify-between text-sm">
           <Link to="/signup" className="text-accent hover:underline">
-            Registrieren
+            Sign up
           </Link>
           <Link to="/forgot-password" className="text-accent hover:underline">
-            Passwort vergessen?
+            Forgot password?
           </Link>
         </div>
       </form>
