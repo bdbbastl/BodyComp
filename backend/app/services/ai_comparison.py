@@ -184,29 +184,29 @@ def _generate_with_retries(client: genai.Client, contents: list) -> str:
             # beides macht ein Retry sinnlos, sofort durchreichen.
             if exc.code in (401, 403):
                 raise AiComparisonError(
-                    "Der hinterlegte Gemini-API-Key ist ungültig oder hat keine "
-                    "Berechtigung. Bitte in den Settings prüfen."
+                    "The configured Gemini API key is invalid or lacks permission. "
+                    "Please check it in Settings."
                 ) from exc
             if exc.code == 429:
                 raise AiComparisonError(
-                    "Gemini-Free-Tier-Limit erreicht (Rate Limit). Bitte kurz warten "
-                    "und erneut versuchen."
+                    "Gemini free-tier limit reached (rate limit). Please wait a "
+                    "moment and try again."
                 ) from exc
-            raise AiComparisonError(f"Gemini-API-Fehler ({exc.code}): {exc.message}") from exc
+            raise AiComparisonError(f"Gemini API error ({exc.code}): {exc.message}") from exc
         except genai_errors.ServerError as exc:
             last_server_error = exc
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_BACKOFF_SECONDS * attempt)
                 continue
         except Exception as exc:
-            raise AiComparisonError(f"Unerwarteter Fehler bei der Gemini-Anfrage: {exc}") from exc
+            raise AiComparisonError(f"Unexpected error during the Gemini request: {exc}") from exc
 
     if response is None:
         message = getattr(last_server_error, "message", str(last_server_error))
         raise AiComparisonError(
-            f"Gemini-Server-Fehler nach {MAX_RETRIES} Versuchen: {message} "
-            "Der Dienst ist aktuell überlastet - bitte in ein paar Minuten erneut "
-            "versuchen."
+            f"Gemini server error after {MAX_RETRIES} attempts: {message} "
+            "The service is currently overloaded - please try again in a few "
+            "minutes."
         )
 
     text = getattr(response, "text", None)
@@ -214,7 +214,7 @@ def _generate_with_retries(client: genai.Client, contents: list) -> str:
         # z.B. wenn Gemini die Anfrage aus Sicherheitsgründen blockiert hat
         feedback = getattr(response, "prompt_feedback", None)
         raise AiComparisonError(
-            f"Die KI-Antwort enthielt keinen auswertbaren Text (Feedback: {feedback})."
+            f"The AI response did not contain any evaluable text (feedback: {feedback})."
         )
     return text
 
@@ -223,9 +223,8 @@ def _require_client(db: Session, owner_id: int) -> genai.Client:
     api_key, _source = resolve_gemini_api_key(db, owner_id)
     if not api_key:
         raise AiComparisonError(
-            "Kein Gemini-API-Key konfiguriert. Kostenlosen Key unter "
-            "https://aistudio.google.com/apikey erstellen und in den Settings "
-            "der App hinterlegen."
+            "No Gemini API key configured. Create a free key at "
+            "https://aistudio.google.com/apikey and add it in the app's Settings."
         )
     return _build_client(api_key)
 
@@ -247,7 +246,7 @@ def compare_photos(
     Zeitdifferenz zwischen date_x/date_y fließen mit in den Prompt ein,
     damit die KI Veränderungen korrekt im zeitlichen Kontext einordnet."""
     if not path_x.exists() or not path_y.exists():
-        raise AiComparisonError("Eines der Bilder konnte auf der Platte nicht gefunden werden.")
+        raise AiComparisonError("One of the images could not be found on disk.")
 
     client = _require_client(db, owner_id)
 
@@ -255,7 +254,7 @@ def compare_photos(
         bytes_x = _encode_image(path_x)
         bytes_y = _encode_image(path_y)
     except Exception as exc:
-        raise AiComparisonError(f"Bild konnte nicht verarbeitet werden: {exc}") from exc
+        raise AiComparisonError(f"Image could not be processed: {exc}") from exc
 
     weight_x_str = f", {weight_x:.1f} kg" if weight_x is not None else ""
     weight_y_str = f", {weight_y:.1f} kg" if weight_y is not None else ""
@@ -294,7 +293,7 @@ def compare_photos_all(
     ganzen Körper (siehe JUDGE_PROMPT_ALL), keine Einzelbewertung pro Pose."""
     if not pairs:
         raise AiComparisonError(
-            "Für keine Pose existieren Fotos an beiden gewählten Terminen."
+            "No pose has photos on both selected dates."
         )
 
     client = _require_client(db, owner_id)
@@ -321,14 +320,14 @@ def compare_photos_all(
             bytes_x = _encode_image(path_x)
             bytes_y = _encode_image(path_y)
         except Exception as exc:
-            raise AiComparisonError(f"Bild konnte nicht verarbeitet werden: {exc}") from exc
+            raise AiComparisonError(f"Image could not be processed: {exc}") from exc
         contents.append(f"Pose \"{pose_name}\", Bild A (aufgenommen am {date_x.isoformat()}{weight_x_str}):")
         contents.append(types.Part.from_bytes(data=bytes_x, mime_type="image/jpeg"))
         contents.append(f"Pose \"{pose_name}\", Bild B (aufgenommen am {date_y.isoformat()}{weight_y_str}):")
         contents.append(types.Part.from_bytes(data=bytes_y, mime_type="image/jpeg"))
 
     if not contents:
-        raise AiComparisonError("Keines der Bilder konnte auf der Platte gefunden werden.")
+        raise AiComparisonError("None of the images could be found on disk.")
 
     contents.append(prompt)
     return _generate_with_retries(client, contents)

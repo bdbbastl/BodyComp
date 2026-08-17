@@ -36,7 +36,7 @@ class RateLimiter:
             del self._hits[ip]
 
         if len(hits) >= self.max_requests:
-            raise HTTPException(429, "Zu viele Versuche - bitte später erneut probieren.")
+            raise HTTPException(429, "Too many attempts - please try again later.")
 
         hits.append(now)
         self._hits[ip] = hits
