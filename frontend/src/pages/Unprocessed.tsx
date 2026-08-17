@@ -140,6 +140,7 @@ export default function Unprocessed() {
               }}
             />
             <button
+              data-tour="unprocessed-upload"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadMutation.isPending}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"

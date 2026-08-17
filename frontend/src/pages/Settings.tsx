@@ -100,7 +100,7 @@ export default function Settings() {
       <PageHeader title="Settings" />
 
       <div className="space-y-4 rounded-xl border border-white/5 bg-surface p-4">
-        <div>
+        <div data-tour="settings-checkin-link">
           <p className="text-sm font-medium text-white">Check-in-Link für den Klienten</p>
           <p className="mt-1 text-xs text-slate-500">
             Dieser Link ist dauerhaft gültig - der Klient kann ihn sich bookmarken und für jeden

@@ -74,6 +74,7 @@ export default function ClientShell() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                data-tour={`nav-${item.to}`}
                 end={item.to === "timeline"}
                 aria-disabled={item.to === activeNavTo}
                 onClick={(e) => {
@@ -106,6 +107,7 @@ export default function ClientShell() {
           <NavLink
             key={item.to}
             to={item.to}
+            data-tour={`nav-${item.to}`}
             end={item.to === "timeline"}
             aria-disabled={item.to === activeNavTo}
             onClick={(e) => item.to === activeNavTo && e.preventDefault()}

@@ -73,6 +73,7 @@ export default function Dashboard() {
         title="Meine Kunden"
         actions={
           <button
+            data-tour="dashboard-new-client"
             onClick={() => setShowForm((s) => !s)}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
           >
