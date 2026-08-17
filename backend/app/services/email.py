@@ -90,3 +90,54 @@ def send_checkin_reminder_email(*, to: str, checkin_url: str) -> None:
         "subject": "Time for your check-in - BodyComp Tracker",
         "html": html,
     })
+
+
+def send_welcome_email(*, to: str, display_name: str) -> None:
+    html = _base_email_html(
+        f"Welcome, {display_name}!",
+        """
+        <p>Your account is verified and ready to go.</p>
+        <p><a href="{app_url}">Open BodyComp Tracker</a></p>
+        """.replace("{app_url}", settings.frontend_base_url),
+    )
+    resend.Emails.send({
+        "from": settings.email_from_address,
+        "to": [to],
+        "subject": "Welcome to BodyComp Tracker",
+        "html": html,
+    })
+
+
+def send_trial_ending_email(*, to: str, days_left: int, plan_name: str) -> None:
+    day_word = "day" if days_left == 1 else "days"
+    html = _base_email_html(
+        "Your trial is ending soon",
+        f"""
+        <p>Your {plan_name} trial ends in {days_left} {day_word}. Add a payment method to
+        keep your subscription active without interruption.</p>
+        <p><a href="{settings.frontend_base_url}/account">Manage your subscription</a></p>
+        """,
+    )
+    resend.Emails.send({
+        "from": settings.email_from_address,
+        "to": [to],
+        "subject": "Your trial is ending soon - BodyComp Tracker",
+        "html": html,
+    })
+
+
+def send_quota_warning_email(*, to: str) -> None:
+    html = _base_email_html(
+        "1 free check-in left",
+        f"""
+        <p>You've used your first free check-in. You have <strong>1 free check-in left</strong>
+        before you'll need to subscribe to keep tracking.</p>
+        <p><a href="{settings.frontend_base_url}/account">See plans</a></p>
+        """,
+    )
+    resend.Emails.send({
+        "from": settings.email_from_address,
+        "to": [to],
+        "subject": "1 free check-in left - BodyComp Tracker",
+        "html": html,
+    })
