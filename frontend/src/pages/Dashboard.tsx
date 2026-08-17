@@ -255,7 +255,7 @@ function DashboardClientCard({ client: c }: { client: Client }) {
         <span>{c.photo_count} photos</span>
         <span>
           {c.last_activity
-            ? `Last: ${new Date(c.last_activity).toLocaleDateString("de-DE")}`
+            ? `Last: ${new Date(c.last_activity).toLocaleDateString("en-US")}`
             : "No photos"}
         </span>
       </div>

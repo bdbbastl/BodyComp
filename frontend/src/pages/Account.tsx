@@ -373,7 +373,7 @@ function BillingSection() {
             <span>
               Trial in progress
               {user.trial_ends_at &&
-                ` until ${new Date(user.trial_ends_at).toLocaleDateString("de-DE")}`}
+                ` until ${new Date(user.trial_ends_at).toLocaleDateString("en-US")}`}
             </span>
           ) : (
             "active"

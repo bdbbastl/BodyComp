@@ -88,7 +88,7 @@ export function SliderControl({
         <button
           type="button"
           onClick={() => bump(-step)}
-          aria-label={`${label} verringern`}
+          aria-label={`Decrease ${label}`}
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
         >
           <span className="text-base leading-none">−</span>
@@ -106,7 +106,7 @@ export function SliderControl({
         <button
           type="button"
           onClick={() => bump(step)}
-          aria-label={`${label} erhöhen`}
+          aria-label={`Increase ${label}`}
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
         >
           <span className="text-base leading-none">+</span>
