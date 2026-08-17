@@ -17,6 +17,10 @@ export default function AppShell() {
     if (user && user.onboarding_completed_at === null) {
       start();
     }
+    // Bewusst nur user?.id als Dependency (nicht das ganze user-Objekt) -
+    // sonst würde dieser Effect erneut feuern, sobald sich
+    // onboarding_completed_at nach Tour-Abschluss ändert, und die Tour
+    // ungewollt erneut auslösen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
   const navigate = useNavigate();

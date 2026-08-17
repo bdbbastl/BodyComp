@@ -1,17 +1,14 @@
 // frontend/src/components/OnboardingTooltip.tsx
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
 import { useOnboarding } from "../contexts/OnboardingContext";
 
 /** Zeigt einen abgedunkelten Hintergrund mit "Spotlight"-Loch um das
  * Ziel-Element (per box-shadow-Trick, keine Library) + eine Sprechblase
- * daneben - siehe Design-Spec "Onboarding-Flow" Abschnitt 3+5. Steps mit
- * `route` navigieren zuerst dorthin und pollen kurz, bis das Ziel-Element
- * im DOM auftaucht (z.B. nach dem Anlegen eines Klienten). */
+ * daneben - siehe Design-Spec "Onboarding-Flow" Abschnitt 3+5. Pollt kurz,
+ * bis das Ziel-Element im DOM auftaucht (z.B. nach dem Anlegen eines
+ * Klienten). */
 export function OnboardingTooltip() {
   const { phase, stepIndex, steps, nextStep, skip } = useOnboarding();
-  const navigate = useNavigate();
-  const { clientId } = useParams<{ clientId: string }>();
   const [rect, setRect] = useState<DOMRect | null>(null);
 
   const step = steps[stepIndex];
@@ -19,16 +16,6 @@ export function OnboardingTooltip() {
 
   useEffect(() => {
     if (phase !== "tour" || !step) return;
-
-    if (step.route) {
-      const targetClientId = clientId ? Number(clientId) : NaN;
-      // Nur navigieren, wenn nötig - vermeidet einen Redirect-Loop, falls
-      // der Step bereits auf der richtigen Route ist (z.B. Sidebar-Nav-
-      // Punkte, die von derselben Client-Route aus erreichbar sind).
-      if (!Number.isNaN(targetClientId)) {
-        navigate(step.route(targetClientId));
-      }
-    }
 
     let cancelled = false;
     let attempts = 0;
@@ -54,7 +41,7 @@ export function OnboardingTooltip() {
     return () => {
       cancelled = true;
     };
-  }, [phase, step, navigate, clientId]);
+  }, [phase, step]);
 
   if (phase !== "tour" || !step) return null;
 

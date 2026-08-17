@@ -7,9 +7,6 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 export interface TourStep {
   id: string;
   dataTour: string;
-  /** Falls gesetzt, navigiert die Tour dorthin, bevor sie nach dem
-   * Ziel-Element sucht (siehe Design-Spec "Onboarding-Flow" Abschnitt 4). */
-  route?: (clientId: number) => string;
   title: string;
   body: string;
 }
