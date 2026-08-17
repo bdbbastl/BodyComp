@@ -20,6 +20,7 @@ export interface CurrentUser {
   subscription_tier: string | null;
   trial_ends_at: string | null;
   free_checkins_used: number;
+  onboarding_completed_at: string | null;
 }
 
 const client = axios.create({ baseURL: "/api", withCredentials: true });
@@ -42,6 +43,8 @@ export const api = {
     me: () => client.get<CurrentUser>("/auth/me").then((r) => r.data),
     switchToCoach: () =>
       client.post<CurrentUser>("/auth/switch-to-coach").then((r) => r.data),
+    completeOnboarding: () =>
+      client.patch<CurrentUser>("/auth/onboarding-complete").then((r) => r.data),
     signup: (payload: { email: string; password: string; display_name: string; privacy_accepted: boolean }) =>
       client.post<CurrentUser>("/auth/signup", payload).then((r) => r.data),
     verifyEmail: (token: string) =>
