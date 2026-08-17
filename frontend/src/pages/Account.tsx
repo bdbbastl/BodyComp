@@ -54,12 +54,12 @@ function DisplaySettingsSection() {
 
   return (
     <Card
-      title="Anzeige-Einstellungen"
-      description="Steuert, wie die Timeline gerendert wird - v.a. bei vielen Fotos/Tagen relevant für die Performance."
+      title="Display settings"
+      description="Controls how the timeline is rendered - especially relevant for performance with lots of photos/days."
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Bilder nebeneinander (max. {COLUMNS_MAX_LIMIT})
+          Images side by side (max. {COLUMNS_MAX_LIMIT})
           <input
             type="number"
             min={1}
@@ -72,7 +72,7 @@ function DisplaySettingsSection() {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Wochen pro Seite (max. {WEEKS_PER_PAGE_LIMIT})
+          Weeks per page (max. {WEEKS_PER_PAGE_LIMIT})
           <input
             type="number"
             min={1}
@@ -96,7 +96,7 @@ function DisplaySettingsSection() {
           disabled={saveMutation.isPending}
           className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
         >
-          {saveMutation.isPending ? "Speichere…" : "Speichern"}
+          {saveMutation.isPending ? "Saving…" : "Save"}
         </button>
       )}
     </Card>
@@ -135,10 +135,10 @@ function GeminiKeySettings() {
   const status = statusQuery.data;
 
   return (
-    <Card title="KI-Einstellungen">
+    <Card title="AI Settings">
       <p className="mb-4 text-sm text-slate-400">
-        Für die KI-Judge-Analyse in Compare wird ein kostenloser Gemini-API-Key benötigt.
-        Kostenlos erstellen unter{" "}
+        The AI judge analysis in Compare needs a free Gemini API key.
+        Create one for free at{" "}
         <a
           href="https://aistudio.google.com/apikey"
           target="_blank"
@@ -154,21 +154,21 @@ function GeminiKeySettings() {
         <div className="flex flex-wrap items-center gap-2">
           {status.configured ? (
             <span className="rounded-full bg-white/5 px-3 py-1 text-sm text-slate-300">
-              Aktiv: ••••{status.last4}
+              Active: ••••{status.last4}
               <span className="ml-1 text-slate-500">
-                ({status.source === "settings" ? "eigener Key" : ".env-Fallback"})
+                ({status.source === "settings" ? "your own key" : ".env fallback"})
               </span>
             </span>
           ) : (
             <span className="rounded-full bg-white/5 px-3 py-1 text-sm text-slate-500">
-              Kein Key konfiguriert
+              No key configured
             </span>
           )}
           <button
             onClick={() => setEditing(true)}
             className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/10"
           >
-            {status.configured ? "Ändern" : "Key eintragen"}
+            {status.configured ? "Change" : "Add key"}
           </button>
           {status.configured && status.source === "settings" && (
             <button
@@ -176,7 +176,7 @@ function GeminiKeySettings() {
               disabled={clearMutation.isPending}
               className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50"
             >
-              Entfernen
+              Remove
             </button>
           )}
         </div>
@@ -195,7 +195,7 @@ function GeminiKeySettings() {
             autoFocus
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Gemini-API-Key"
+            placeholder="Gemini API key"
             className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white placeholder:text-slate-600 focus:border-accent focus:outline-none"
           />
           <button
@@ -203,7 +203,7 @@ function GeminiKeySettings() {
             disabled={!inputValue.trim() || saveMutation.isPending}
             className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-slate-900 hover:opacity-90 disabled:opacity-40"
           >
-            Speichern
+            Save
           </button>
           <button
             type="button"
@@ -213,12 +213,12 @@ function GeminiKeySettings() {
             }}
             className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-400 hover:bg-white/10"
           >
-            Abbrechen
+            Cancel
           </button>
         </form>
       )}
       {saveMutation.isError && (
-        <p className="mt-2 text-xs text-red-400">Key konnte nicht gespeichert werden.</p>
+        <p className="mt-2 text-xs text-red-400">Could not save the key.</p>
       )}
     </Card>
   );
@@ -247,21 +247,21 @@ function DangerZoneSection() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "bodycomp-daten-export.json";
+      a.download = "bodycomp-data-export.json";
       a.click();
       URL.revokeObjectURL(url);
     },
   });
 
   return (
-    <Card title="Konto-Verwaltung" danger>
+    <Card title="Account Management" danger>
       <div className="mt-3 flex flex-col gap-3">
         <button
           onClick={() => exportMutation.mutate()}
           disabled={exportMutation.isPending}
           className="w-fit rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-black/30"
         >
-          {exportMutation.isPending ? "Exportiere…" : "Meine Daten exportieren"}
+          {exportMutation.isPending ? "Exporting…" : "Export my data"}
         </button>
 
         {!showConfirm ? (
@@ -269,18 +269,18 @@ function DangerZoneSection() {
             onClick={() => setShowConfirm(true)}
             className="w-fit rounded-lg border border-red-900/50 px-4 py-2 text-sm text-red-400 hover:bg-red-950/30"
           >
-            Konto löschen
+            Delete account
           </button>
         ) : (
           <div className="space-y-2 rounded-lg border border-red-900/50 p-3">
             <p className="text-sm text-red-400">
-              Das löscht dein Konto und ALLE zugehörigen Daten (Kunden, Fotos, Verlauf)
-              unwiderruflich.
+              This will permanently delete your account and ALL associated data (clients, photos,
+              history).
             </p>
             {hasPassword && (
               <input
                 type="password"
-                placeholder="Passwort zur Bestätigung"
+                placeholder="Password to confirm"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
@@ -292,18 +292,18 @@ function DangerZoneSection() {
                 disabled={deleteMutation.isPending}
                 className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50"
               >
-                {deleteMutation.isPending ? "Lösche…" : "Endgültig löschen"}
+                {deleteMutation.isPending ? "Deleting…" : "Delete permanently"}
               </button>
               <button
                 onClick={() => setShowConfirm(false)}
                 className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300"
               >
-                Abbrechen
+                Cancel
               </button>
             </div>
             {deleteMutation.isError && (
               <p className="text-sm text-red-400">
-                {hasPassword ? "Löschen fehlgeschlagen - Passwort korrekt?" : "Löschen fehlgeschlagen."}
+                {hasPassword ? "Deletion failed - is your password correct?" : "Deletion failed."}
               </p>
             )}
           </div>
@@ -323,21 +323,21 @@ const COACH_PLANS: {
   {
     key: "starter",
     label: "Starter",
-    price: "19 €/Monat",
-    features: ["Bis 5 Klienten", "Unbegrenzte Fotos & Check-ins", "Magic-Link-Einreichung"],
+    price: "€19/month",
+    features: ["Up to 5 clients", "Unlimited photos & check-ins", "Magic-link submission"],
   },
   {
     key: "pro",
     label: "Pro",
-    price: "49 €/Monat",
+    price: "€49/month",
     featured: true,
-    features: ["Bis 20 Klienten", "Alles aus Starter", "Priorisierter Support"],
+    features: ["Up to 20 clients", "Everything in Starter", "Priority support"],
   },
   {
     key: "business",
     label: "Business",
-    price: "99 €/Monat",
-    features: ["Unbegrenzte Klienten", "Alles aus Pro", "Für große Coaching-Teams"],
+    price: "€99/month",
+    features: ["Unlimited clients", "Everything in Pro", "For large coaching teams"],
   },
 ];
 
@@ -366,17 +366,17 @@ function BillingSection() {
   if (hasSubscription) {
     return (
       <div className="rounded-xl border border-accent/30 bg-gradient-to-br from-accent/10 to-transparent p-4">
-        <h2 className="mb-1 text-lg font-semibold text-white">Dein Abo</h2>
+        <h2 className="mb-1 text-lg font-semibold text-white">Your Subscription</h2>
         <p className="mb-4 text-sm text-slate-300">
           <span className="font-medium text-accent">{tierLabel}</span> —{" "}
           {user.subscription_status === "trialing" ? (
             <span>
-              Testphase läuft
+              Trial in progress
               {user.trial_ends_at &&
-                ` bis ${new Date(user.trial_ends_at).toLocaleDateString("de-DE")}`}
+                ` until ${new Date(user.trial_ends_at).toLocaleDateString("de-DE")}`}
             </span>
           ) : (
-            "aktiv"
+            "active"
           )}
         </p>
         <button
@@ -384,7 +384,7 @@ function BillingSection() {
           disabled={portalMutation.isPending}
           className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
         >
-          Abo verwalten (upgraden, herunterstufen, kündigen)
+          Manage subscription (upgrade, downgrade, cancel)
         </button>
       </div>
     );
@@ -394,8 +394,8 @@ function BillingSection() {
     return (
       <div className="space-y-3">
         <div>
-          <h2 className="text-lg font-semibold text-white">Wähle deinen Plan</h2>
-          <p className="text-sm text-slate-400">14 Tage kostenlos testen, jederzeit kündbar.</p>
+          <h2 className="text-lg font-semibold text-white">Choose Your Plan</h2>
+          <p className="text-sm text-slate-400">14 days free trial, cancel anytime.</p>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {COACH_PLANS.map((plan) => (
@@ -407,7 +407,7 @@ function BillingSection() {
             >
               {plan.featured && (
                 <span className="absolute -top-2.5 left-4 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-900">
-                  Beliebt
+                  Popular
                 </span>
               )}
               <p className="text-sm font-semibold text-white">{plan.label}</p>
@@ -424,7 +424,7 @@ function BillingSection() {
                 disabled={checkoutMutation.isPending}
                 className="mt-4 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
               >
-                Jetzt starten
+                Get started
               </button>
             </div>
           ))}
@@ -437,17 +437,17 @@ function BillingSection() {
   const remaining = Math.max(0, 2 - user.free_checkins_used);
   return (
     <div className="rounded-xl border border-white/5 bg-surface p-4">
-      <h2 className="mb-1 text-lg font-semibold text-white">Dein Plan</h2>
+      <h2 className="mb-1 text-lg font-semibold text-white">Your Plan</h2>
       <p className="mb-4 text-sm text-slate-400">
-        Noch <span className="font-medium text-white">{remaining}</span> von 2 kostenlosen
-        Check-ins übrig.
+        <span className="font-medium text-white">{remaining}</span> of 2 free check-ins
+        remaining.
       </p>
       <button
         onClick={() => checkoutMutation.mutate("single")}
         disabled={checkoutMutation.isPending}
         className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
       >
-        Unbegrenzt weitermachen — 4,99 €/Monat
+        Continue unlimited — €4.99/month
       </button>
     </div>
   );
@@ -482,15 +482,15 @@ export default function Account() {
 
       {user?.account_type === "single" && (
         <Card
-          title="Kontotyp"
-          description="Du trackst aktuell nur dich selbst. Wenn du auch andere Kunden betreust, kannst du hier ein Dashboard mit mehreren Kundenprofilen freischalten."
+          title="Account type"
+          description="You're currently tracking only yourself. If you also coach other clients, you can unlock a dashboard with multiple client profiles here."
         >
           <button
             onClick={() => switchToCoachMutation.mutate()}
             disabled={switchToCoachMutation.isPending}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
           >
-            {switchToCoachMutation.isPending ? "Wird umgestellt…" : "Ich betreue auch andere Kunden"}
+            {switchToCoachMutation.isPending ? "Switching…" : "I also coach other clients"}
           </button>
         </Card>
       )}

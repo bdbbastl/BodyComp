@@ -78,14 +78,14 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader
-        title="Meine Kunden"
+        title="My Clients"
         actions={
           <button
             data-tour="dashboard-new-client"
             onClick={() => setShowForm((s) => !s)}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
           >
-            Neuen Kunden anlegen
+            Add New Client
           </button>
         }
       />
@@ -94,7 +94,7 @@ export default function Dashboard() {
         !["trialing", "active"].includes(user.subscription_status ?? "") &&
         clients.length >= 1 && (
           <div className="mb-4">
-            <UpgradeBanner message="Du nutzt bereits einen Klienten kostenlos — für weitere brauchst du ein Abo." />
+            <UpgradeBanner message="You're already using one client for free — you'll need a subscription for more." />
           </div>
         )}
 
@@ -116,7 +116,7 @@ export default function Dashboard() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Körpergröße (cm)
+            Height (cm)
             <input
               type="number"
               value={heightCm}
@@ -125,7 +125,7 @@ export default function Dashboard() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Geburtsdatum
+            Date of Birth
             <input
               type="date"
               value={birthDate}
@@ -134,7 +134,7 @@ export default function Dashboard() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Geschlecht
+            Gender
             <input
               value={gender}
               onChange={(e) => setGender(e.target.value)}
@@ -142,7 +142,7 @@ export default function Dashboard() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Startdatum
+            Start Date
             <input
               type="date"
               value={startDate}
@@ -152,11 +152,11 @@ export default function Dashboard() {
           </label>
           {(createMutation.error as any)?.response?.status === 402 && (
             <p className="text-sm text-red-400 sm:col-span-2">
-              Klienten-Limit erreicht -{" "}
+              Client limit reached -{" "}
               <Link to="/account" className="underline">
-                Abo abschließen/upgraden
+                subscribe/upgrade
               </Link>
-              , um weitere Klienten anzulegen.
+              {" "}to add more clients.
             </p>
           )}
           <div className="flex items-end">
@@ -165,7 +165,7 @@ export default function Dashboard() {
               disabled={!name.trim() || createMutation.isPending}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-40"
             >
-              {createMutation.isPending ? "Anlegen…" : "Anlegen"}
+              {createMutation.isPending ? "Adding…" : "Add"}
             </button>
           </div>
         </form>
@@ -175,7 +175,7 @@ export default function Dashboard() {
         <div className="mb-4 flex flex-wrap gap-3">
           <input
             type="search"
-            placeholder="Kunde suchen…"
+            placeholder="Search clients…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
@@ -186,7 +186,7 @@ export default function Dashboard() {
               onChange={(e) => setGenderFilter(e.target.value)}
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
             >
-              <option value="">Alle Geschlechter</option>
+              <option value="">All Genders</option>
               {availableGenders.map((g) => (
                 <option key={g} value={g}>
                   {g}
@@ -202,14 +202,14 @@ export default function Dashboard() {
       {!clientsQuery.isLoading && clients.length === 0 && (
         <EmptyState
           icon="🚀"
-          title="Noch kein Klient an Bord"
-          description="Leg deinen ersten Klienten an und starte den Check-in-Flow."
+          title="No clients on board yet"
+          description="Add your first client and start the check-in flow."
           action={
             <button
               onClick={() => setShowForm(true)}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
             >
-              Ersten Klienten anlegen
+              Add First Client
             </button>
           }
         />
@@ -217,7 +217,7 @@ export default function Dashboard() {
 
       {!clientsQuery.isLoading && clients.length > 0 && filteredClients.length === 0 && (
         <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-slate-500">
-          Keine Kunden gefunden.
+          No clients found.
         </div>
       )}
 
@@ -232,7 +232,7 @@ export default function Dashboard() {
 
 function DashboardClientCard({ client: c }: { client: Client }) {
   const age = ageFromBirthDate(c.birth_date);
-  const metaLine = [age ? `${age} Jahre` : null, c.height_cm ? `${c.height_cm} cm` : null]
+  const metaLine = [age ? `${age} years` : null, c.height_cm ? `${c.height_cm} cm` : null]
     .filter(Boolean)
     .join(" · ");
 
@@ -245,18 +245,18 @@ function DashboardClientCard({ client: c }: { client: Client }) {
         <p className="text-base font-semibold text-white">{c.name}</p>
         {c.pending_checkins_count > 0 && (
           <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-400">
-            {c.pending_checkins_count} offene{c.pending_checkins_count === 1 ? "r" : ""} Check-in
+            {c.pending_checkins_count} pending check-in
             {c.pending_checkins_count === 1 ? "" : "s"}
           </span>
         )}
       </div>
-      <p className="mt-1 text-xs text-slate-500">{metaLine || "Keine Metriken hinterlegt"}</p>
+      <p className="mt-1 text-xs text-slate-500">{metaLine || "No metrics on file"}</p>
       <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-        <span>{c.photo_count} Fotos</span>
+        <span>{c.photo_count} photos</span>
         <span>
           {c.last_activity
-            ? `Zuletzt: ${new Date(c.last_activity).toLocaleDateString("de-DE")}`
-            : "Keine Fotos"}
+            ? `Last: ${new Date(c.last_activity).toLocaleDateString("de-DE")}`
+            : "No photos"}
         </span>
       </div>
     </Link>

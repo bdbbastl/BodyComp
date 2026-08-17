@@ -101,10 +101,10 @@ export default function Settings() {
 
       <div className="space-y-4 rounded-xl border border-white/5 bg-surface p-4">
         <div data-tour="settings-checkin-link">
-          <p className="text-sm font-medium text-white">Check-in-Link für den Klienten</p>
+          <p className="text-sm font-medium text-white">Check-in link for the client</p>
           <p className="mt-1 text-xs text-slate-500">
-            Dieser Link ist dauerhaft gültig - der Klient kann ihn sich bookmarken und für jeden
-            Check-in wiederverwenden.
+            This link is permanently valid - the client can bookmark it and reuse it for every
+            check-in.
           </p>
           <div className="mt-2 flex gap-2">
             <input
@@ -120,19 +120,19 @@ export default function Settings() {
               }}
               className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-white hover:bg-white/5"
             >
-              {copyFeedback ? "Kopiert!" : "Kopieren"}
+              {copyFeedback ? "Copied!" : "Copy"}
             </button>
           </div>
           <button
             onClick={() => {
-              if (confirm("Neuen Link generieren? Der alte Link funktioniert danach nicht mehr.")) {
+              if (confirm("Generate a new link? The old link will stop working afterward.")) {
                 regenerateTokenMutation.mutate();
               }
             }}
             disabled={regenerateTokenMutation.isPending}
             className="mt-2 text-xs text-slate-500 hover:text-white disabled:opacity-50"
           >
-            Link neu generieren
+            Regenerate link
           </button>
         </div>
 
@@ -145,7 +145,7 @@ export default function Settings() {
         >
           {!isSingleAccount && (
             <label className="flex flex-col gap-1 text-sm text-slate-400">
-              E-Mail des Klienten (für Erinnerungen)
+              Client's email (for reminders)
               <input
                 type="email"
                 value={clientEmail}
@@ -156,8 +156,8 @@ export default function Settings() {
           )}
           <label className="flex flex-col gap-1 text-sm text-slate-400">
             {isSingleAccount
-              ? "Erinnere mich nach X Tagen ohne Check-in (leer = keine Erinnerung)"
-              : "Erinnerung nach X Tagen ohne Check-in (leer = keine Erinnerung)"}
+              ? "Remind me after X days without a check-in (blank = no reminder)"
+              : "Reminder after X days without a check-in (blank = no reminder)"}
             <input
               type="number"
               min={1}
@@ -168,12 +168,12 @@ export default function Settings() {
           </label>
           {isSingleAccount && (
             <p className="text-xs text-slate-500">
-              Die Erinnerung geht an deine Account-E-Mail ({user?.email}).
+              The reminder is sent to your account email ({user?.email}).
             </p>
           )}
           {!isSingleAccount && (
             <label className="flex flex-col gap-1 text-sm text-slate-400">
-              Private Notiz (nur für dich sichtbar)
+              Private note (visible only to you)
               <textarea
                 value={coachNote}
                 onChange={(e) => setCoachNote(e.target.value)}
@@ -187,16 +187,16 @@ export default function Settings() {
             disabled={updateClientMutation.isPending}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
           >
-            {updateClientMutation.isPending ? "Speichern…" : "Speichern"}
+            {updateClientMutation.isPending ? "Saving…" : "Save"}
           </button>
         </form>
       </div>
 
       <div className="rounded-xl border border-white/5 bg-surface p-4">
-        <h2 className="mb-1 text-lg font-semibold text-white">Posen</h2>
+        <h2 className="mb-1 text-lg font-semibold text-white">Poses</h2>
         <p className="mb-4 text-sm text-slate-400">
-          Die Positionen/Winkel, in denen Fotos aufgenommen werden (z.B. "Front", "Side", "Back") -
-          erscheinen in dieser Reihenfolge in allen Foto-Zuordnungs-Dropdowns.
+          The positions/angles photos are taken in (e.g. "Front", "Side", "Back") - they appear
+          in this order in every photo-assignment dropdown.
         </p>
         <ul className="divide-y divide-white/5">
           {poses.map((pose, index) => {
@@ -206,7 +206,7 @@ export default function Settings() {
               <li key={pose.id} className="flex items-center gap-2 py-2">
                 <span
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm font-semibold text-accent"
-                  title={`Position ${index + 1} - erscheint so in allen Pose-Dropdowns`}
+                  title={`Position ${index + 1} - appears this way in every pose dropdown`}
                 >
                   {index + 1}
                 </span>
@@ -223,18 +223,18 @@ export default function Settings() {
                     disabled={!editValue.trim()}
                     className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-slate-900 hover:opacity-90 disabled:opacity-40"
                   >
-                    Speichern
+                    Save
                   </button>
                 )}
                 <button
                   onClick={() => {
-                    if (confirm(`Pose "${pose.name}" wirklich löschen?`)) {
+                    if (confirm(`Really delete pose "${pose.name}"?`)) {
                       deleteMutation.mutate(pose.id);
                     }
                   }}
                   className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/10"
                 >
-                  Löschen
+                  Delete
                 </button>
               </li>
             );
@@ -251,7 +251,7 @@ export default function Settings() {
           <input
             value={newPoseName}
             onChange={(e) => setNewPoseName(e.target.value)}
-            placeholder="Neue Pose, z.B. Vacuum Pose"
+            placeholder="New pose, e.g. Vacuum Pose"
             disabled={poses.length >= MAX_POSES}
             className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-accent focus:outline-none disabled:opacity-40"
           />
@@ -260,11 +260,11 @@ export default function Settings() {
             disabled={!newPoseName.trim() || poses.length >= MAX_POSES}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Hinzufügen
+            Add
           </button>
         </form>
         {poses.length >= MAX_POSES && (
-          <p className="mt-2 text-xs text-slate-500">Maximale Anzahl von {MAX_POSES} Posen erreicht.</p>
+          <p className="mt-2 text-xs text-slate-500">Maximum of {MAX_POSES} poses reached.</p>
         )}
       </div>
     </div>
