@@ -8,11 +8,11 @@ import PageHeader from "../components/PageHeader";
 type RangeKey = "1m" | "3m" | "6m" | "1y" | "all";
 
 const RANGE_OPTIONS: { key: RangeKey; label: string; days: number | null }[] = [
-  { key: "1m", label: "1 Monat", days: 30 },
-  { key: "3m", label: "3 Monate", days: 90 },
-  { key: "6m", label: "6 Monate", days: 182 },
-  { key: "1y", label: "1 Jahr", days: 365 },
-  { key: "all", label: "Alle", days: null },
+  { key: "1m", label: "1 Month", days: 30 },
+  { key: "3m", label: "3 Months", days: 90 },
+  { key: "6m", label: "6 Months", days: 182 },
+  { key: "1y", label: "1 Year", days: 365 },
+  { key: "all", label: "All", days: null },
 ];
 
 const CHART_WIDTH = 900;
@@ -48,16 +48,16 @@ export default function Statistics() {
   if (dayLogsQuery.isLoading) {
     return (
       <>
-        <PageHeader title="Statistik" />
-        <p className="text-slate-500">Lade Statistik…</p>
+        <PageHeader title="Statistics" />
+        <p className="text-slate-500">Loading statistics…</p>
       </>
     );
   }
   if (dayLogsQuery.isError) {
     return (
       <>
-        <PageHeader title="Statistik" />
-        <p className="text-red-400">Statistik konnte nicht geladen werden.</p>
+        <PageHeader title="Statistics" />
+        <p className="text-red-400">Statistics could not be loaded.</p>
       </>
     );
   }
@@ -67,7 +67,7 @@ export default function Statistics() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Statistik"
+        title="Statistics"
         actions={
           <div className="flex gap-1 rounded-full bg-surface p-1">
             {RANGE_OPTIONS.map((opt) => (
@@ -89,12 +89,12 @@ export default function Statistics() {
 
       {totalWeighed === 0 ? (
         <div className="rounded-xl border border-white/5 bg-surface p-8 text-center text-slate-400">
-          Noch keine Gewichtsdaten erfasst. Trage ein Gewicht beim Zuordnen eines Fotos
-          (Unprocessed) oder nachträglich auf der Timeline-Seite ein.
+          No weight data recorded yet. Add a weight while assigning a photo
+          (Unprocessed) or later on the Timeline page.
         </div>
       ) : points.length === 0 ? (
         <div className="rounded-xl border border-white/5 bg-surface p-8 text-center text-slate-400">
-          Für den gewählten Zeitraum liegen keine Gewichtsdaten vor. Größeren Zeitraum wählen.
+          No weight data available for the selected time range. Choose a longer range.
         </div>
       ) : (
         <>
@@ -117,9 +117,9 @@ function SummaryStats({ points }: { points: { date: string; weight: number }[] }
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <StatTile label="Aktuell" value={`${last.weight.toFixed(1)} kg`} />
+      <StatTile label="Current" value={`${last.weight.toFixed(1)} kg`} />
       <StatTile
-        label="Veränderung"
+        label="Change"
         value={`${delta >= 0 ? "+" : ""}${delta.toFixed(1)} kg`}
         accent={delta === 0 ? undefined : delta > 0 ? "up" : "down"}
       />
@@ -184,7 +184,7 @@ function WeightChart({ points }: { points: { date: string; weight: number }[] })
         viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
         className="w-full min-w-[600px]"
         role="img"
-        aria-label="Gewichtsentwicklung über die Zeit"
+        aria-label="Weight trend over time"
       >
         {/* Horizontale Gitterlinien + Y-Achsenbeschriftung */}
         {tickValues.map((v, i) => (
@@ -234,7 +234,7 @@ function WeightChart({ points }: { points: { date: string; weight: number }[] })
                 textAnchor="middle"
                 className="fill-slate-500 text-[10px]"
               >
-                {new Date(p.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                {new Date(p.date).toLocaleDateString("en-US", { day: "2-digit", month: "2-digit" })}
               </text>
             )}
           </g>

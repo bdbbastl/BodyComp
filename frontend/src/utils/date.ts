@@ -10,22 +10,22 @@ export function getISOWeek(date: Date): number {
 
 export function formatDateWithWeek(iso: string): string {
   const date = new Date(iso);
-  const formatted = date.toLocaleDateString("de-DE", {
+  const formatted = date.toLocaleDateString("en-US", {
     weekday: "short",
     day: "2-digit",
     month: "long",
     year: "numeric",
   });
-  return `${formatted} · KW ${getISOWeek(date)}`;
+  return `${formatted} · Week ${getISOWeek(date)}`;
 }
 
 export function formatDateShortWithWeek(iso: string): string {
   const date = new Date(iso);
-  const formatted = date.toLocaleDateString("de-DE", {
+  const formatted = date.toLocaleDateString("en-US", {
     weekday: "short",
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
-  return `${formatted} · KW ${getISOWeek(date)}`;
+  return `${formatted} · Week ${getISOWeek(date)}`;
 }

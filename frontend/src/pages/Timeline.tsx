@@ -73,7 +73,7 @@ export default function Timeline() {
     return (
       <>
         <PageHeader title="Timeline" />
-        <p className="text-red-400">Timeline konnte nicht geladen werden.</p>
+        <p className="text-red-400">Timeline could not be loaded.</p>
       </>
     );
   }
@@ -118,14 +118,14 @@ export default function Timeline() {
         <PageHeader title="Timeline" />
         <EmptyState
           icon="📸"
-          title="Hier ist noch nichts zu sehen"
-          description="Sobald der erste Check-in oder Foto-Import da ist, taucht er hier auf."
+          title="There's nothing here yet"
+          description="Once the first check-in or photo import arrives, it'll show up here."
           action={
             <Link
               to={`/clients/${clientIdNum}/unprocessed`}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
             >
-              Zu Import
+              Go to Import
             </Link>
           }
         />
@@ -227,17 +227,17 @@ function TimelinePagination({
         disabled={page === 0}
         className="rounded-full bg-surface px-3 py-1.5 text-slate-300 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
       >
-        ‹ Neuer
+        ‹ Newer
       </button>
       <span className="text-slate-400">
-        Seite {page + 1} von {pageCount}
+        Page {page + 1} of {pageCount}
       </span>
       <button
         onClick={() => onPageChange(Math.min(pageCount - 1, page + 1))}
         disabled={page === pageCount - 1}
         className="rounded-full bg-surface px-3 py-1.5 text-slate-300 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
       >
-        Älter ›
+        Older ›
       </button>
     </div>
   );
@@ -280,8 +280,8 @@ function DayGroupSection({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCollapsed((c) => !c)}
-            aria-label={collapsed ? "Aufklappen" : "Einklappen"}
-            title={collapsed ? "Aufklappen" : "Einklappen"}
+            aria-label={collapsed ? "Expand" : "Collapse"}
+            title={collapsed ? "Expand" : "Collapse"}
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/5 text-xs text-slate-400 transition-transform hover:bg-white/10"
             style={{ transform: collapsed ? "rotate(-90deg)" : undefined }}
           >
@@ -293,28 +293,28 @@ function DayGroupSection({
           <WeightEditor clientId={clientId} date={group.date} weightKg={group.weight_kg} />
           {confirmingDelete ? (
             <span className="flex items-center gap-1 text-xs">
-              <span className="text-slate-400">Alle {group.photos.length} Fotos löschen?</span>
+              <span className="text-slate-400">Delete all {group.photos.length} photos?</span>
               <button
                 onClick={() => deleteDayMutation.mutate()}
                 disabled={deleteDayMutation.isPending}
                 className="rounded-full bg-red-500/80 px-2 py-1 font-medium text-white hover:bg-red-500 disabled:opacity-50"
               >
-                Ja, löschen
+                Yes, delete
               </button>
               <button
                 onClick={() => setConfirmingDelete(false)}
                 className="rounded-full border border-white/10 px-2 py-1 text-slate-400 hover:bg-white/10"
               >
-                Abbrechen
+                Cancel
               </button>
             </span>
           ) : (
             <button
               onClick={() => setConfirmingDelete(true)}
               className="rounded-full bg-white/5 px-3 py-1 text-sm text-red-400 transition-colors hover:bg-white/10"
-              title="Alle Fotos dieses Tages löschen"
+              title="Delete all photos from this day"
             >
-              Tag löschen
+              Delete day
             </button>
           )}
         </div>
@@ -371,34 +371,34 @@ function PhotoCard({
       <div className="relative">
         <img
           src={mediaUrl(photo.thumb_path)}
-          alt={photo.pose_id ? poseNameById.get(photo.pose_id) ?? "Foto" : "Foto"}
+          alt={photo.pose_id ? poseNameById.get(photo.pose_id) ?? "Photo" : "Photo"}
           className="aspect-[3/4] w-full cursor-zoom-in object-cover"
           loading="lazy"
           onClick={() => !confirmingDelete && onOpen(photo)}
         />
         {confirmingDelete ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/80 p-1 text-center">
-            <span className="text-xs text-slate-200">Foto löschen?</span>
+            <span className="text-xs text-slate-200">Delete photo?</span>
             <div className="flex gap-1">
               <button
                 onClick={() => deleteMutation.mutate()}
                 disabled={deleteMutation.isPending}
                 className="rounded-full bg-red-500/80 px-2 py-0.5 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
               >
-                Ja
+                Yes
               </button>
               <button
                 onClick={() => setConfirmingDelete(false)}
                 className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-slate-300 hover:bg-white/10"
               >
-                Nein
+                No
               </button>
             </div>
           </div>
         ) : (
           <button
             onClick={() => setConfirmingDelete(true)}
-            title="Foto löschen"
+            title="Delete photo"
             className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-sm text-red-400 hover:bg-black/80"
           >
             ✕
@@ -457,9 +457,9 @@ function WeightEditor({
       <button
         onClick={() => setEditing(true)}
         className="rounded-full bg-white/5 px-3 py-1 text-sm text-accent transition-colors hover:bg-white/10"
-        title="Gewicht bearbeiten"
+        title="Edit weight"
       >
-        {weightKg != null ? `${weightKg.toFixed(1)} kg` : "Gewicht eintragen"}
+        {weightKg != null ? `${weightKg.toFixed(1)} kg` : "Add weight"}
       </button>
     );
   }
@@ -525,7 +525,7 @@ function Lightbox({ photo, label, onClose }: { photo: Photo; label: string; onCl
     >
       <button
         onClick={onClose}
-        aria-label="Schließen"
+        aria-label="Close"
         className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-xl text-white hover:bg-white/20"
       >
         ✕
@@ -535,7 +535,7 @@ function Lightbox({ photo, label, onClose }: { photo: Photo; label: string; onCl
         className="relative max-h-[80vh] w-full max-w-xl overflow-hidden rounded-xl bg-black"
         style={{ aspectRatio: "3 / 4", cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "zoom-in" }}
         onDoubleClick={reset}
-        title="Mausrad zum Zoomen, bei Zoom Klick+Ziehen zum Verschieben, Doppelklick zum Zurücksetzen"
+        title="Scroll to zoom, click+drag to pan while zoomed, double-click to reset"
       >
         <img
           src={mediaUrl(photo.display_path)}

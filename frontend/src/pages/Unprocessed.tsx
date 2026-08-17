@@ -145,15 +145,15 @@ export default function Unprocessed() {
               disabled={uploadMutation.isPending}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {uploadMutation.isPending ? "Lade hoch…" : "📤 Fotos hochladen"}
+              {uploadMutation.isPending ? "Uploading…" : "📤 Upload photos"}
             </button>
             <button
               onClick={() => syncMutation.mutate()}
               disabled={syncMutation.isPending}
               className="rounded-lg border border-white/10 bg-black/30 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-50"
-              title="Scannt backend/data/photos_incoming erneut nach Dateien, die dort direkt auf der Festplatte abgelegt wurden"
+              title="Rescans backend/data/photos_incoming for files placed there directly on disk"
             >
-              {syncMutation.isPending ? "Synchronisiere…" : "Ordner synchronisieren"}
+              {syncMutation.isPending ? "Syncing…" : "Sync folder"}
             </button>
             <button
               onClick={handleBulkAssign}
@@ -161,13 +161,13 @@ export default function Unprocessed() {
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
               title={
                 readyToBulkAssign.length === 0
-                  ? "Keine Fotos mit gesetzter Pose"
-                  : `${readyToBulkAssign.length} Foto(s) zuordnen`
+                  ? "No photos with a pose set"
+                  : `Assign ${readyToBulkAssign.length} photo(s)`
               }
             >
               {bulkAssignMutation.isPending
-                ? "Ordne zu…"
-                : `Alle zugeordneten speichern (${readyToBulkAssign.length})`}
+                ? "Assigning…"
+                : `Save all assigned (${readyToBulkAssign.length})`}
             </button>
           </div>
         }
@@ -175,33 +175,33 @@ export default function Unprocessed() {
 
       {uploadMutation.isError && (
         <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
-          Upload fehlgeschlagen. Bitte erneut versuchen.
+          Upload failed. Please try again.
         </p>
       )}
 
       {(bulkAssignMutation.error as any)?.response?.status === 402 && (
         <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
-          Kostenloses Kontingent aufgebraucht -{" "}
+          Free allowance used up -{" "}
           <Link to="/account" className="underline">
-            Abo abschließen
+            Subscribe
           </Link>
-          , um weitere Check-ins einzureichen.
+          {" "}to submit more check-ins.
         </p>
       )}
 
-      {photosQuery.isLoading && <p className="text-slate-500">Lade…</p>}
+      {photosQuery.isLoading && <p className="text-slate-500">Loading…</p>}
 
       {!photosQuery.isLoading && photos.length === 0 && (
         <EmptyState
           icon="✨"
-          title="Alles einsortiert!"
-          description={'Keine unbearbeiteten Fotos mehr übrig. Klicke "Fotos hochladen" für neue Bilder.'}
+          title="All sorted!"
+          description={'No unprocessed photos left. Click "Upload photos" for new images.'}
           action={
             <button
               onClick={() => fileInputRef.current?.click()}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
             >
-              📤 Fotos hochladen
+              📤 Upload photos
             </button>
           }
         />
@@ -214,11 +214,11 @@ export default function Unprocessed() {
               <h2 className="text-base font-semibold text-white">
                 {formatDateWithWeek(group.date)}
                 <span className="ml-2 text-sm font-normal text-slate-500">
-                  ({group.photos.length} Foto{group.photos.length === 1 ? "" : "s"})
+                ({group.photos.length} photo{group.photos.length === 1 ? "" : "s"})
                 </span>
               </h2>
               <label className="flex items-center gap-2 text-sm text-slate-400">
-                Körpergewicht für diesen Tag
+                Body weight for this day
                 <input
                   type="number"
                   step="0.1"
@@ -255,13 +255,13 @@ export default function Unprocessed() {
                       />
                       <button
                         onClick={() => {
-                          if (confirm(`"${photo.filename}" wirklich löschen?`)) {
+                          if (confirm(`Really delete "${photo.filename}"?`)) {
                             deleteMutation.mutate(photo.id);
                           }
                         }}
                         disabled={isDeleting}
-                        title="Foto löschen"
-                        aria-label="Foto löschen"
+                        title="Delete photo"
+                        aria-label="Delete photo"
                         className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white/80 backdrop-blur transition-colors hover:bg-red-500/80 hover:text-white disabled:opacity-50"
                       >
                         {isDeleting ? "…" : "✕"}
@@ -270,7 +270,7 @@ export default function Unprocessed() {
                     <div className="space-y-2 p-3">
                       <p className="truncate text-xs text-slate-500">
                         {photo.filename} ·{" "}
-                        {new Date(photo.taken_at).toLocaleTimeString("de-DE")}
+                        {new Date(photo.taken_at).toLocaleTimeString("en-US")}
                       </p>
                       <div className="flex items-center gap-2">
                         <select
@@ -283,7 +283,7 @@ export default function Unprocessed() {
                           }
                           className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
                         >
-                          <option value="">Pose wählen…</option>
+                          <option value="">Choose pose…</option>
                           {poses.map((p, index) => (
                             <option key={p.id} value={p.id}>
                               {numberedPoseOptionLabel(index, p.name)}
@@ -292,10 +292,10 @@ export default function Unprocessed() {
                         </select>
                         {isSuggested && (
                           <span
-                            title="Vorschlag basierend auf letzter Session"
+                            title="Suggestion based on last session"
                             className="shrink-0 rounded-full bg-accent/20 px-2 py-1 text-xs text-accent"
                           >
-                            Vorschlag
+                            Suggested
                           </span>
                         )}
                       </div>
@@ -310,7 +310,7 @@ export default function Unprocessed() {
                         }
                         className="w-full rounded-lg border border-white/10 bg-black/30 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        {isAssigning ? "Ordne zu…" : "Einzeln zuordnen"}
+                        {isAssigning ? "Assigning…" : "Assign individually"}
                       </button>
                     </div>
                   </div>

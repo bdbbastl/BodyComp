@@ -227,8 +227,8 @@ export default function Compare() {
             }
             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
           >
-            <option value="">Pose wählen…</option>
-            <option value={ALL_POSES}>Alle Posen</option>
+            <option value="">Choose pose…</option>
+            <option value={ALL_POSES}>All poses</option>
             {poses.map((p, index) => (
               <option key={p.id} value={p.id}>
                 {numberedPoseOptionLabel(index, p.name)}
@@ -237,7 +237,7 @@ export default function Compare() {
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Datum X
+          Date X
           <select
             value={dateX}
             onChange={(e) => setDateX(e.target.value)}
@@ -245,7 +245,7 @@ export default function Compare() {
             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none disabled:opacity-40"
           >
             <option value="">
-              {poseSelection === "" ? "Erst Pose wählen…" : "Datum wählen…"}
+              {poseSelection === "" ? "Choose pose first…" : "Choose date…"}
             </option>
             {availableDates.map((d) => (
               <option key={d} value={d}>
@@ -255,7 +255,7 @@ export default function Compare() {
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Datum Y
+          Date Y
           <select
             value={dateY}
             onChange={(e) => setDateY(e.target.value)}
@@ -263,7 +263,7 @@ export default function Compare() {
             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none disabled:opacity-40"
           >
             <option value="">
-              {poseSelection === "" ? "Erst Pose wählen…" : "Datum wählen…"}
+              {poseSelection === "" ? "Choose pose first…" : "Choose date…"}
             </option>
             {availableDates.map((d) => (
               <option key={d} value={d}>
@@ -282,7 +282,7 @@ export default function Compare() {
                   mode === m ? "bg-accent text-slate-900" : "text-slate-400 hover:text-white"
                 }`}
               >
-                {m === "side-by-side" ? "Side-by-Side" : m === "overlay" ? "Overlay" : "Schieberegler"}
+                {m === "side-by-side" ? "Side-by-Side" : m === "overlay" ? "Overlay" : "Slider"}
               </button>
             ))}
           </div>
@@ -294,7 +294,7 @@ export default function Compare() {
             onChange={(e) => setNormalize(e.target.checked)}
             className="h-4 w-4 accent-accent"
           />
-          KI-Normalisierung (Ausrichtung &amp; Skalierung)
+          AI normalization (alignment &amp; scaling)
         </label>
         <label className="flex items-center gap-2 pb-2 text-sm text-slate-300">
           <input
@@ -303,30 +303,30 @@ export default function Compare() {
             onChange={(e) => setShowGrid(e.target.checked)}
             className="h-4 w-4 accent-accent"
           />
-          Ausrichtungsgitter
+          Alignment grid
         </label>
       </div>
 
       {!isAllPoses && comparisonQuery.isError && (
         <p className="text-red-400">
-          Für mindestens eines der Daten existiert kein Foto dieser Pose.
+          At least one of the dates has no photo for this pose.
         </p>
       )}
 
       {poseSelection !== "" && availableDates.length === 0 && !posePhotosQuery.isLoading && !allPhotosQuery.isLoading && (
         <p className="text-slate-500">
-          {isAllPoses ? "Noch keine zugeordneten Fotos vorhanden." : "Für diese Pose sind noch keine Fotos zugeordnet."}
+          {isAllPoses ? "No assigned photos yet." : "No photos assigned to this pose yet."}
         </p>
       )}
 
       {isAllPoses && dateX !== "" && dateY !== "" && allPosePairs.length === 0 && (
-        <p className="text-slate-500">Für keine Pose existieren Fotos an beiden gewählten Terminen.</p>
+        <p className="text-slate-500">No pose has photos on both selected dates.</p>
       )}
 
       {!isAllPoses && missingNormalized && (
         <p className="rounded-lg bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400">
-          Für mindestens eines der Bilder ist keine normalisierte Version vorhanden
-          (Normalisierung fehlgeschlagen oder ausstehend) — es wird das Originalbild angezeigt.
+          At least one of the images has no normalized version available
+          (normalization failed or is pending) — the original image is shown instead.
         </p>
       )}
 
@@ -342,16 +342,16 @@ export default function Compare() {
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {activeAiMutation.isPending
-              ? "Judge analysiert…"
+              ? "Judge analyzing…"
               : isAllPoses
-                ? `🥊 KI-Gesamtanalyse (${allPosePairs.length} Posen)`
-                : "🥊 KI-Analyse (Judge-Bewertung)"}
+                ? `🥊 AI overall analysis (${allPosePairs.length} poses)`
+                : "🥊 AI analysis (judge rating)"}
           </button>
           {activeAiMutation.isPending && (
             <p className="flex items-center gap-2 text-xs text-slate-400">
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-              KI arbeitet noch… {elapsedSeconds}s
-              {elapsedSeconds > 20 && " (bei Serverüberlastung versucht Gemini automatisch erneut)"}
+              AI is still working… {elapsedSeconds}s
+              {elapsedSeconds > 20 && " (Gemini retries automatically under server load)"}
             </p>
           )}
         </div>
@@ -360,7 +360,7 @@ export default function Compare() {
       {activeAiMutation.isError && (
         <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {(activeAiMutation.error as { response?: { data?: { detail?: string } } })?.response
-            ?.data?.detail ?? "KI-Analyse fehlgeschlagen."}
+            ?.data?.detail ?? "AI analysis failed."}
         </p>
       )}
 
@@ -395,8 +395,8 @@ export default function Compare() {
         <div className="space-y-4">
           {!normalize && (
             <p className="rounded-lg bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400">
-              Ohne KI-Normalisierung stimmen Kameraabstand/-neigung zwischen den Fotos meist
-              nicht überein — für ein aussagekräftiges Overlay die Checkbox oben aktivieren.
+              Without AI normalization, camera distance/tilt usually won't match between the
+              photos — enable the checkbox above for a meaningful overlay.
             </p>
           )}
           <OverlayPane
@@ -416,7 +416,7 @@ export default function Compare() {
           <div className="mx-auto max-w-md rounded-xl border border-white/5 bg-surface p-4">
             <SliderControl
               icon="◐"
-              label={`Deckkraft ${formatDate(dateY)}`}
+              label={`Opacity ${formatDate(dateY)}`}
               value={opacity}
               min={0}
               max={100}
@@ -443,9 +443,8 @@ export default function Compare() {
         <div className="space-y-4">
           {!normalize && (
             <p className="rounded-lg bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400">
-              Ohne KI-Normalisierung stimmen Kameraabstand/-neigung zwischen den Fotos meist
-              nicht überein — für einen sauberen Schieberegler-Vergleich die Checkbox oben
-              aktivieren.
+              Without AI normalization, camera distance/tilt usually won't match between the
+              photos — enable the checkbox above for a clean slider comparison.
             </p>
           )}
           <SliderComparePane
@@ -599,16 +598,16 @@ function PoseNavBar({
   const currentPose = currentIndex >= 0 ? poses[currentIndex] : undefined;
   const label =
     currentPoseId === ALL_POSES
-      ? "Alle Posen"
+      ? "All poses"
       : currentPose
         ? numberedPoseOptionLabel(currentIndex, currentPose.name)
-        : "Pose wählen…";
+        : "Choose pose…";
   return (
     <div className="flex items-center justify-center gap-4">
       <button
         onClick={() => onNavigate(-1)}
         disabled={disabled}
-        aria-label="Vorherige Pose"
+        aria-label="Previous pose"
         className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-slate-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
       >
         ‹
@@ -617,7 +616,7 @@ function PoseNavBar({
       <button
         onClick={() => onNavigate(1)}
         disabled={disabled}
-        aria-label="Nächste Pose"
+        aria-label="Next pose"
         className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-slate-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
       >
         ›
@@ -632,7 +631,7 @@ function BrightnessSlider({ value, onChange }: { value: number; onChange: (value
   return (
     <SliderControl
       icon="☀"
-      label="Belichtung"
+      label="Exposure"
       value={value}
       min={BRIGHTNESS_MIN}
       max={BRIGHTNESS_MAX}
@@ -753,7 +752,7 @@ function ZoomPane({
         className="relative aspect-[3/4] w-full overflow-hidden bg-black/40"
         style={{ cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "zoom-in" }}
         onDoubleClick={reset}
-        title="Mausrad zum Zoomen, bei Zoom Klick+Ziehen zum Verschieben, Doppelklick zum Zurücksetzen"
+        title="Scroll to zoom, click+drag to pan while zoomed, double-click to reset"
       >
         <div className="h-full w-full" style={transformStyle(translate, scale)}>
           <img
@@ -824,7 +823,7 @@ function OverlayPane({
         className="relative mx-auto aspect-[3/4] max-w-md overflow-hidden rounded-xl border border-white/5 bg-black/40"
         style={{ cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "zoom-in" }}
         onDoubleClick={reset}
-        title="Mausrad zum Zoomen, bei Zoom Klick+Ziehen zum Verschieben, Doppelklick zum Zurücksetzen"
+        title="Scroll to zoom, click+drag to pan while zoomed, double-click to reset"
       >
         <div className="absolute inset-0" style={transformStyle(translate, scale)}>
           <img
@@ -856,8 +855,8 @@ function OverlayPane({
       <div className="mx-auto max-w-md space-y-4 rounded-xl border border-white/5 bg-surface p-4">
         <ZoomSlider scale={scale} onChange={setScaleFromSlider} />
         <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-          <RotationSlider label={`Neigung ${altX}`} degrees={rotationX} onChange={setRotationX} />
-          <RotationSlider label={`Neigung ${altY}`} degrees={rotationY} onChange={setRotationY} />
+          <RotationSlider label={`Tilt ${altX}`} degrees={rotationX} onChange={setRotationX} />
+          <RotationSlider label={`Tilt ${altY}`} degrees={rotationY} onChange={setRotationY} />
         </div>
       </div>
     </div>
@@ -938,7 +937,7 @@ function SliderComparePane({
         className="relative mx-auto aspect-[3/4] max-w-md overflow-hidden rounded-xl border border-white/5 bg-black/40 select-none"
         style={{ cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "default" }}
         onDoubleClick={reset}
-        title="Mausrad zum Zoomen, bei Zoom Klick+Ziehen zum Verschieben, Trennlinie ziehen zum Vergleichen"
+        title="Scroll to zoom, click+drag to pan while zoomed, drag the divider to compare"
       >
         {/* Bild Y als volle Basis-Ebene */}
         <div className="absolute inset-0" style={transformStyle(translate, scale)}>
@@ -1001,7 +1000,7 @@ function SliderComparePane({
         </span>
       </div>
       <div className="mx-auto max-w-2xl space-y-5 rounded-xl border border-white/5 bg-surface p-4">
-        <ZoomSlider label="Zoom (gemeinsam)" scale={scale} onChange={setScaleFromSlider} />
+        <ZoomSlider label="Zoom (shared)" scale={scale} onChange={setScaleFromSlider} />
         <div className="grid grid-cols-1 gap-x-8 gap-y-5 border-t border-white/5 pt-5 sm:grid-cols-2">
           <div className="space-y-4">
             <p className="text-sm font-medium text-slate-300">{altX}</p>
