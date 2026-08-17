@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import type { Photo, Pose } from "../types";
 import { formatDateWithWeek } from "../utils/date";
+import { parseWeightInput } from "../utils/weight";
 import { transformStyle, usePanZoom } from "../hooks/usePanZoom";
 import { ZoomSlider } from "../components/ZoomSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
@@ -444,8 +445,13 @@ function WeightEditor({
   }, [weightKg]);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.dayLogs.upsert(clientId, { date, weight_kg: value.trim() === "" ? null : Number(value) }),
+    mutationFn: () => {
+      const parsed = parseWeightInput(value);
+      return api.dayLogs.upsert(clientId, {
+        date,
+        weight_kg: parsed === null || Number.isNaN(parsed) ? null : parsed,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["day-logs", clientId] });
       setEditing(false);
@@ -473,8 +479,8 @@ function WeightEditor({
       className="flex items-center gap-1"
     >
       <input
-        type="number"
-        step="0.1"
+        type="text"
+        inputMode="decimal"
         autoFocus
         value={value}
         onChange={(e) => setValue(e.target.value)}

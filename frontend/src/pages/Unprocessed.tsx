@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import type { UnprocessedPhoto } from "../types";
 import { formatDateWithWeek } from "../utils/date";
+import { parseWeightInput } from "../utils/weight";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
@@ -61,11 +62,13 @@ export default function Unprocessed() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const assignMutation = useMutation({
-    mutationFn: ({ id, poseId, weight }: { id: number; poseId: number; weight: string }) =>
-      api.photos.assign(clientIdNum, id, {
+    mutationFn: ({ id, poseId, weight }: { id: number; poseId: number; weight: string }) => {
+      const parsed = parseWeightInput(weight);
+      return api.photos.assign(clientIdNum, id, {
         pose_id: poseId,
-        weight_kg: weight.trim() === "" ? null : Number(weight),
-      }),
+        weight_kg: parsed === null || Number.isNaN(parsed) ? null : parsed,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] });
       queryClient.invalidateQueries({ queryKey: ["day-logs", clientIdNum] });
@@ -104,7 +107,8 @@ export default function Unprocessed() {
 
   function weightForDate(date: string): number | null {
     const raw = weightByDate[date] ?? "";
-    return raw.trim() === "" ? null : Number(raw);
+    const parsed = parseWeightInput(raw);
+    return parsed === null || Number.isNaN(parsed) ? null : parsed;
   }
 
   function handleBulkAssign() {
@@ -207,8 +211,8 @@ export default function Unprocessed() {
               <label className="flex items-center gap-2 text-sm text-slate-400">
                 Body weight for this day
                 <input
-                  type="number"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
                   placeholder="kg, optional"
                   value={weightByDate[group.date] ?? ""}
                   onChange={(e) =>

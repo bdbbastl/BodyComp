@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
+import { parseWeightInput } from "../utils/weight";
 
 /**
  * Öffentliche, passwortlose Seite für Klienten - siehe Design-Spec
@@ -23,12 +24,14 @@ export default function CheckinSubmit() {
   });
 
   const submitMutation = useMutation({
-    mutationFn: () =>
-      api.publicCheckin.submit(token!, {
-        weight_kg: weightKg.trim() === "" ? null : Number(weightKg),
+    mutationFn: () => {
+      const parsed = parseWeightInput(weightKg);
+      return api.publicCheckin.submit(token!, {
+        weight_kg: parsed === null || Number.isNaN(parsed) ? null : parsed,
         client_note: note.trim() === "" ? undefined : note.trim(),
         files,
-      }),
+      });
+    },
     onSuccess: () => {
       setWeightKg("");
       setNote("");
@@ -73,8 +76,8 @@ export default function CheckinSubmit() {
           <label className="flex flex-col gap-1 text-sm text-slate-400">
             Weight (kg)
             <input
-              type="number"
-              step="0.1"
+              type="text"
+              inputMode="decimal"
               value={weightKg}
               onChange={(e) => setWeightKg(e.target.value)}
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
