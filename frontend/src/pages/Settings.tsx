@@ -42,17 +42,8 @@ export default function Settings() {
   const updateClientMutation = useMutation({
     mutationFn: () =>
       api.clients.update(clientIdNum, {
-        // Bei Single-Accounts werden E-Mail/Notiz gar nicht angezeigt -
-        // dann auch nicht mitschicken, damit ein vorhandener Wert nicht
-        // versehentlich überschrieben wird (der Backend-Fallback in
-        // checkin_reminders.py nutzt für Single-Accounts ohnehin
-        // automatisch die Account-E-Mail, siehe services/checkin_reminders.py).
-        ...(isSingleAccount
-          ? {}
-          : {
-              coach_private_note: coachNote.trim() === "" ? null : coachNote,
-              email: clientEmail.trim() === "" ? null : clientEmail.trim(),
-            }),
+        coach_private_note: coachNote.trim() === "" ? null : coachNote,
+        email: clientEmail.trim() === "" ? null : clientEmail.trim(),
         checkin_reminder_days: reminderDays.trim() === "" ? null : Number(reminderDays),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["clients", clientIdNum] }),
@@ -99,51 +90,51 @@ export default function Settings() {
     <div className="max-w-xl space-y-6">
       <PageHeader title="Settings" />
 
-      <div className="space-y-4 rounded-xl border border-white/5 bg-surface p-4">
-        <div data-tour="settings-checkin-link">
-          <p className="text-sm font-medium text-white">Check-in link for the client</p>
-          <p className="mt-1 text-xs text-slate-500">
-            This link is permanently valid - the client can bookmark it and reuse it for every
-            check-in.
-          </p>
-          <div className="mt-2 flex gap-2">
-            <input
-              readOnly
-              value={checkinLink}
-              className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-slate-300"
-            />
+      {!isSingleAccount && (
+        <div className="space-y-4 rounded-xl border border-white/5 bg-surface p-4">
+          <div data-tour="settings-checkin-link">
+            <p className="text-sm font-medium text-white">Check-in link for the client</p>
+            <p className="mt-1 text-xs text-slate-500">
+              This link is permanently valid - the client can bookmark it and reuse it for every
+              check-in.
+            </p>
+            <div className="mt-2 flex gap-2">
+              <input
+                readOnly
+                value={checkinLink}
+                className="flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-slate-300"
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(checkinLink);
+                  setCopyFeedback(true);
+                  setTimeout(() => setCopyFeedback(false), 2000);
+                }}
+                className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-white hover:bg-white/5"
+              >
+                {copyFeedback ? "Copied!" : "Copy"}
+              </button>
+            </div>
             <button
               onClick={() => {
-                navigator.clipboard.writeText(checkinLink);
-                setCopyFeedback(true);
-                setTimeout(() => setCopyFeedback(false), 2000);
+                if (confirm("Generate a new link? The old link will stop working afterward.")) {
+                  regenerateTokenMutation.mutate();
+                }
               }}
-              className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-white hover:bg-white/5"
+              disabled={regenerateTokenMutation.isPending}
+              className="mt-2 text-xs text-slate-500 hover:text-white disabled:opacity-50"
             >
-              {copyFeedback ? "Copied!" : "Copy"}
+              Regenerate link
             </button>
           </div>
-          <button
-            onClick={() => {
-              if (confirm("Generate a new link? The old link will stop working afterward.")) {
-                regenerateTokenMutation.mutate();
-              }
-            }}
-            disabled={regenerateTokenMutation.isPending}
-            className="mt-2 text-xs text-slate-500 hover:text-white disabled:opacity-50"
-          >
-            Regenerate link
-          </button>
-        </div>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            updateClientMutation.mutate();
-          }}
-          className="space-y-3 border-t border-white/5 pt-4"
-        >
-          {!isSingleAccount && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              updateClientMutation.mutate();
+            }}
+            className="space-y-3 border-t border-white/5 pt-4"
+          >
             <label className="flex flex-col gap-1 text-sm text-slate-400">
               Client's email (for reminders)
               <input
@@ -153,25 +144,16 @@ export default function Settings() {
                 className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
               />
             </label>
-          )}
-          <label className="flex flex-col gap-1 text-sm text-slate-400">
-            {isSingleAccount
-              ? "Remind me after X days without a check-in (blank = no reminder)"
-              : "Reminder after X days without a check-in (blank = no reminder)"}
-            <input
-              type="number"
-              min={1}
-              value={reminderDays}
-              onChange={(e) => setReminderDays(e.target.value)}
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-            />
-          </label>
-          {isSingleAccount && (
-            <p className="text-xs text-slate-500">
-              The reminder is sent to your account email ({user?.email}).
-            </p>
-          )}
-          {!isSingleAccount && (
+            <label className="flex flex-col gap-1 text-sm text-slate-400">
+              Reminder after X days without a check-in (blank = no reminder)
+              <input
+                type="number"
+                min={1}
+                value={reminderDays}
+                onChange={(e) => setReminderDays(e.target.value)}
+                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+              />
+            </label>
             <label className="flex flex-col gap-1 text-sm text-slate-400">
               Private note (visible only to you)
               <textarea
@@ -181,16 +163,16 @@ export default function Settings() {
                 className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
               />
             </label>
-          )}
-          <button
-            type="submit"
-            disabled={updateClientMutation.isPending}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
-          >
-            {updateClientMutation.isPending ? "Saving…" : "Save"}
-          </button>
-        </form>
-      </div>
+            <button
+              type="submit"
+              disabled={updateClientMutation.isPending}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
+            >
+              {updateClientMutation.isPending ? "Saving…" : "Save"}
+            </button>
+          </form>
+        </div>
+      )}
 
       <div className="rounded-xl border border-white/5 bg-surface p-4">
         <h2 className="mb-1 text-lg font-semibold text-white">Poses</h2>

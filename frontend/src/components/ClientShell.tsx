@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 const SIDEBAR_COLLAPSED_KEY = "bodycomp:sidebarCollapsed";
 
@@ -20,6 +21,15 @@ const NAV_ITEMS = [
  * Design-Spec Abschnitt "ClientShell (vertikale Kunden-Navi)". */
 export default function ClientShell() {
   const { clientId } = useParams<{ clientId: string }>();
+  const { data: user } = useCurrentUser();
+  // Check-ins ist eine Coach<->Klient-Beziehungsfunktion - bei Single-
+  // Accounts (die sich selbst tracken) ergibt der Tab keinen Sinn, siehe
+  // Design-Spec "Usability-Fixes Runde 2" Abschnitt 1. Reine
+  // Sichtbarkeits-Filterung, keine Datenlöschung - wechselt ein Account
+  // später zum Coach, taucht der Tab sofort wieder auf.
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => item.to !== "checkins" || user?.account_type === "coach"
+  );
   const location = useLocation();
   const activeNavTo = NAV_ITEMS.find((item) =>
     item.to === "timeline"
@@ -70,7 +80,7 @@ export default function ClientShell() {
             className="flex h-full w-56 flex-col gap-1 bg-surface p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            {NAV_ITEMS.map((item) => (
+            {visibleNavItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -103,7 +113,7 @@ export default function ClientShell() {
           desktopCollapsed ? "w-14" : "w-48"
         } transition-all`}
       >
-        {NAV_ITEMS.map((item) => (
+        {visibleNavItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
