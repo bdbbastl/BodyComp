@@ -1,5 +1,5 @@
 import LegalPagePlaceholder from "./LegalPagePlaceholder";
 
 export default function Impressum() {
-  return <LegalPagePlaceholder title="Impressum" />;
+  return <LegalPagePlaceholder title="Legal Notice" />;
 }
