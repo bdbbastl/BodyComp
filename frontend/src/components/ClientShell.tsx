@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { to: "checkins", label: "Check-ins", icon: "✅" },
   { to: "unprocessed", label: "Import", icon: "📥" },
   { to: "compare", label: "Compare", icon: "🔍" },
-  { to: "statistics", label: "Statistik", icon: "📊" },
+  { to: "statistics", label: "Statistics", icon: "📊" },
   { to: "settings", label: "Settings", icon: "⚙️" },
 ];
 
@@ -57,7 +57,7 @@ export default function ClientShell() {
       <button
         onClick={() => setMobileOpen(true)}
         className="fixed left-0 top-16 z-20 rounded-r-lg border border-l-0 border-white/10 bg-surface px-2 py-3 text-slate-400 sm:hidden"
-        aria-label="Navigation öffnen"
+        aria-label="Open navigation"
       >
         ☰
       </button>
@@ -122,7 +122,7 @@ export default function ClientShell() {
           <button
             onClick={() => setDesktopCollapsed((c) => !c)}
             className="flex w-full items-center justify-center rounded-lg p-2 text-slate-500 hover:bg-white/5 hover:text-white"
-            aria-label={desktopCollapsed ? "Navigation ausklappen" : "Navigation einklappen"}
+            aria-label={desktopCollapsed ? "Expand navigation" : "Collapse navigation"}
           >
             {desktopCollapsed ? "»" : "«"}
           </button>
@@ -132,7 +132,7 @@ export default function ClientShell() {
       <div className="min-w-0 flex-1">
         {clientQuery.data && (
           <div className="mb-4 flex items-center gap-2 rounded-lg bg-surface/60 px-3 py-1.5 text-sm text-slate-300">
-            <span className="text-slate-500">Kunde:</span> {clientQuery.data.name}
+            <span className="text-slate-500">Client:</span> {clientQuery.data.name}
           </div>
         )}
         <Outlet />

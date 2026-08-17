@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 
 export function UpgradeBanner({
   message,
-  ctaLabel = "Jetzt upgraden",
+  ctaLabel = "Upgrade now",
 }: {
   message: string;
   ctaLabel?: string;

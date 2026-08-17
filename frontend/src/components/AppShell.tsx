@@ -79,7 +79,7 @@ export default function AppShell() {
                 to={`/clients/${backToClient.id}/timeline`}
                 className="text-xs text-slate-400 hover:text-white"
               >
-                ← Zurück zu {backToClient.name}
+                ← Back to {backToClient.name}
               </NavLink>
             )}
           </div>
@@ -108,7 +108,7 @@ export default function AppShell() {
         );
         return (
           <UpgradeBanner
-            message={`Noch ${daysLeft} ${daysLeft === 1 ? "Tag" : "Tage"} Testphase — schon jetzt deinen Plan sichern?`}
+            message={`${daysLeft} ${daysLeft === 1 ? "day" : "days"} left in your trial — lock in your plan now?`}
           />
         );
       })()}
