@@ -84,7 +84,9 @@ export default function Dashboard() {
       {user?.account_type === "coach" &&
         !["trialing", "active"].includes(user.subscription_status ?? "") &&
         clients.length >= 1 && (
-          <UpgradeBanner message="Du nutzt bereits einen Klienten kostenlos — für weitere brauchst du ein Abo." />
+          <div className="mb-4">
+            <UpgradeBanner message="Du nutzt bereits einen Klienten kostenlos — für weitere brauchst du ein Abo." />
+          </div>
         )}
 
       {showForm && (
