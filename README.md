@@ -109,6 +109,12 @@ Deploy passiert), wenn Backend-Tests oder der Frontend-Typecheck fehlschlagen.
    `customer.subscription.updated`, `customer.subscription.deleted`.
    Nach dem Anlegen zeigt Stripe ein "Signing secret" (`whsec_...`) -
    das ist `BODYCOMP_STRIPE_WEBHOOK_SECRET` unten.
+   **Wichtig:** Zusätzlich zu den obigen 3 Events muss am Webhook-
+   Endpoint auch `customer.subscription.trial_will_end` abonniert
+   werden (Dashboard → Developers → Webhooks → Endpoint → Events
+   bearbeiten). Das ist ein manueller Schritt, der sowohl im Test- als
+   auch im Live-Modus und für beide Railway-Environments (Staging +
+   Production) jeweils getrennt konfiguriert werden muss.
 3. Folgende zusätzliche **Umgebungsvariablen** in Railway setzen:
    - `BODYCOMP_STRIPE_SECRET_KEY` (`sk_test_...` zum Testen,
      `sk_live_...` für echten Betrieb)
