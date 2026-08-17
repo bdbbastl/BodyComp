@@ -27,66 +27,66 @@ def _base_email_html(title: str, body_html: str) -> str:
 
 def send_verification_email(*, to: str, verify_url: str) -> None:
     html = _base_email_html(
-        "Bitte bestätige deine E-Mail-Adresse",
+        "Please confirm your email address",
         f"""
-        <p>Klicke auf den folgenden Link, um deine Registrierung abzuschließen:</p>
+        <p>Click the link below to complete your registration:</p>
         <p><a href="{verify_url}">{verify_url}</a></p>
-        <p style="color: #64748b; font-size: 13px;">Der Link ist 24 Stunden gültig.</p>
+        <p style="color: #64748b; font-size: 13px;">This link is valid for 24 hours.</p>
         """,
     )
     resend.Emails.send({
         "from": settings.email_from_address,
         "to": [to],
-        "subject": "Bestätige deine E-Mail-Adresse - BodyComp Tracker",
+        "subject": "Confirm your email address - BodyComp Tracker",
         "html": html,
     })
 
 
 def send_password_reset_email(*, to: str, reset_url: str) -> None:
     html = _base_email_html(
-        "Passwort zurücksetzen",
+        "Reset your password",
         f"""
-        <p>Klicke auf den folgenden Link, um ein neues Passwort zu setzen:</p>
+        <p>Click the link below to set a new password:</p>
         <p><a href="{reset_url}">{reset_url}</a></p>
-        <p style="color: #64748b; font-size: 13px;">Der Link ist 1 Stunde gültig. Falls du das
-        nicht warst, kannst du diese Mail ignorieren.</p>
+        <p style="color: #64748b; font-size: 13px;">This link is valid for 1 hour. If this
+        wasn't you, you can safely ignore this email.</p>
         """,
     )
     resend.Emails.send({
         "from": settings.email_from_address,
         "to": [to],
-        "subject": "Passwort zurücksetzen - BodyComp Tracker",
+        "subject": "Reset your password - BodyComp Tracker",
         "html": html,
     })
 
 
 def send_checkin_submitted_email(*, to: str, client_name: str, checkins_url: str) -> None:
     html = _base_email_html(
-        "Neuer Check-in eingereicht",
+        "New check-in submitted",
         f"""
-        <p><strong>{client_name}</strong> hat gerade einen neuen Check-in eingereicht.</p>
-        <p><a href="{checkins_url}">Jetzt ansehen</a></p>
+        <p><strong>{client_name}</strong> just submitted a new check-in.</p>
+        <p><a href="{checkins_url}">View it now</a></p>
         """,
     )
     resend.Emails.send({
         "from": settings.email_from_address,
         "to": [to],
-        "subject": f"Neuer Check-in von {client_name} - BodyComp Tracker",
+        "subject": f"New check-in from {client_name} - BodyComp Tracker",
         "html": html,
     })
 
 
 def send_checkin_reminder_email(*, to: str, checkin_url: str) -> None:
     html = _base_email_html(
-        "Zeit für deinen nächsten Check-in",
+        "Time for your next check-in",
         f"""
-        <p>Dein Coach wartet auf deinen nächsten Check-in - reich ihn hier ein:</p>
+        <p>Your coach is waiting for your next check-in - submit it here:</p>
         <p><a href="{checkin_url}">{checkin_url}</a></p>
         """,
     )
     resend.Emails.send({
         "from": settings.email_from_address,
         "to": [to],
-        "subject": "Zeit für deinen Check-in - BodyComp Tracker",
+        "subject": "Time for your check-in - BodyComp Tracker",
         "html": html,
     })
