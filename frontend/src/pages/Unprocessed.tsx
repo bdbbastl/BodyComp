@@ -50,11 +50,6 @@ export default function Unprocessed() {
     });
   }, [photosQuery.data]);
 
-  const syncMutation = useMutation({
-    mutationFn: () => api.photos.sync(clientIdNum),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] }),
-  });
-
   // Datei-Upload: Dateien werden nach photos_incoming/ kopiert und im
   // selben Request direkt verarbeitet (Backend ruft intern denselben Scan
   // wie /sync auf) - kein separater "Ordner synchronisieren"-Klick nötig
@@ -146,14 +141,6 @@ export default function Unprocessed() {
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {uploadMutation.isPending ? "Uploading…" : "📤 Upload photos"}
-            </button>
-            <button
-              onClick={() => syncMutation.mutate()}
-              disabled={syncMutation.isPending}
-              className="rounded-lg border border-white/10 bg-black/30 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-50"
-              title="Rescans backend/data/photos_incoming for files placed there directly on disk"
-            >
-              {syncMutation.isPending ? "Syncing…" : "Sync folder"}
             </button>
             <button
               onClick={handleBulkAssign}
