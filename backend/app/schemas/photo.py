@@ -1,8 +1,9 @@
 from datetime import datetime
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, computed_field, field_validator
 
 from app.models.photo import ProcessingStatus
+from app.utils.weight import parse_weight_kg
 
 
 class PhotoOut(BaseModel):
@@ -46,14 +47,26 @@ class PhotoUnprocessedOut(PhotoOut):
     suggested_pose_id: int | None = None
 
 
-class PhotoAssign(BaseModel):
+class _WeightValidatorMixin:
+    @field_validator("weight_kg", mode="before")
+    @classmethod
+    def _parse_weight(cls, v):
+        if v is None or isinstance(v, (int, float)):
+            return v
+        try:
+            return parse_weight_kg(v)
+        except ValueError:
+            raise ValueError("weight_kg must be a number (comma or dot as decimal separator)")
+
+
+class PhotoAssign(_WeightValidatorMixin, BaseModel):
     """Payload für die manuelle Zuordnung eines Unprocessed-Bilds."""
 
     pose_id: int
     weight_kg: float | None = None  # optional: aktualisiert/erstellt DayLog des taken_at-Datums
 
 
-class PhotoBulkAssignItem(BaseModel):
+class PhotoBulkAssignItem(_WeightValidatorMixin, BaseModel):
     photo_id: int
     pose_id: int
     weight_kg: float | None = None

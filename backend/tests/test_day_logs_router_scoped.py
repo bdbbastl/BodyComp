@@ -68,3 +68,13 @@ def test_upsert_day_log_updating_existing_day_does_not_consume_quota(client, db_
         f"/api/clients/{client_id}/day-logs", json={"date": "2026-01-01", "weight_kg": 80.5}
     )
     assert response.status_code == 200
+
+
+def test_upsert_day_log_accepts_comma_decimal_weight(client, db_session):
+    client_id = _login_and_get_client(client, db_session)
+
+    response = client.put(
+        f"/api/clients/{client_id}/day-logs", json={"date": "2026-01-01", "weight_kg": "76,05"}
+    )
+    assert response.status_code == 200
+    assert response.json()["weight_kg"] == 76.05

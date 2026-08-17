@@ -109,3 +109,34 @@ def test_assign_photo_blocked_for_single_account_after_free_quota(client, db_ses
     # 3. neuer Tag -> blockiert.
     r3 = client.post(f"/api/clients/{client_id}/photos/{photos[2].id}/assign", json={"pose_id": pose.id})
     assert r3.status_code == 402
+
+
+def test_assign_photo_accepts_comma_decimal_weight(client, db_session):
+    from app.models.photo import Photo, ProcessingStatus
+    from app.models.pose import Pose
+
+    client_id = _login_and_get_client(client, db_session)
+
+    pose = Pose(client_id=client_id, name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+
+    photo = Photo(
+        client_id=client_id,
+        filename="p1.jpg",
+        original_path=f"photos_incoming/{client_id}/p1.jpg",
+        taken_at=datetime(2026, 1, 1, 12, 0, 0),
+        status=ProcessingStatus.UNPROCESSED,
+    )
+    db_session.add(photo)
+    db_session.commit()
+    db_session.refresh(photo)
+
+    response = client.post(
+        f"/api/clients/{client_id}/photos/{photo.id}/assign",
+        json={"pose_id": pose.id, "weight_kg": "76,05"},
+    )
+    assert response.status_code == 200
+
+    day_logs = client.get(f"/api/clients/{client_id}/day-logs").json()
+    assert any(log["weight_kg"] == 76.05 for log in day_logs)

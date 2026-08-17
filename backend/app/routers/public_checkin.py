@@ -24,6 +24,7 @@ from app.services.email import send_checkin_submitted_email
 from app.services.folder_sync import sync_incoming_folder
 from app.services.storage_paths import incoming_dir_for_client
 from app.services.storage_sync import push
+from app.utils.weight import parse_weight_kg
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ def get_checkin_page(
 
 @router.post("/{token}/submit", response_model=CheckinSubmissionOut, status_code=201)
 def submit_checkin(
-    weight_kg: float | None = Form(default=None),
+    weight_kg: str | None = Form(default=None),
     client_note: str | None = Form(default=None),
     files: list[UploadFile] = File(default=[]),
     client_row: Client = Depends(get_client_by_checkin_token),
@@ -83,8 +84,13 @@ def submit_checkin(
         if upload.size is not None and upload.size > MAX_FILE_SIZE_BYTES:
             raise HTTPException(400, "File too large (max. 25 MB per photo)")
 
+    try:
+        parsed_weight_kg = parse_weight_kg(weight_kg)
+    except ValueError:
+        raise HTTPException(400, "Weight must be a number (comma or dot as decimal separator)")
+
     submission = CheckinSubmission(
-        client_id=client_row.id, weight_kg=weight_kg, client_note=client_note
+        client_id=client_row.id, weight_kg=parsed_weight_kg, client_note=client_note
     )
     db.add(submission)
     db.flush()
@@ -93,7 +99,7 @@ def submit_checkin(
     # berichtet "heute geht es mir so", unabhängig vom EXIF-Datum
     # eventuell mitgeschickter Fotos - die werden unten separat und
     # unverändert nach ihrem eigenen Aufnahmedatum einsortiert).
-    if weight_kg is not None or client_note:
+    if parsed_weight_kg is not None or client_note:
         today = date_.today()
         day_log = (
             db.query(DayLog)
@@ -108,8 +114,8 @@ def submit_checkin(
             check_and_consume_free_checkin(client_row.owner, db)
             day_log = DayLog(client_id=client_row.id, date=today)
             db.add(day_log)
-        if weight_kg is not None:
-            day_log.weight_kg = weight_kg
+        if parsed_weight_kg is not None:
+            day_log.weight_kg = parsed_weight_kg
         if client_note:
             day_log.notes = client_note
 

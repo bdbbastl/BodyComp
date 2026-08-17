@@ -153,6 +153,20 @@ def test_submit_checkin_with_invalid_token_returns_404(client, db_session):
     assert response.status_code == 404
 
 
+def test_submit_checkin_accepts_comma_decimal_weight(client, db_session):
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    response = client.post(
+        f"/api/public/checkin/{token}/submit",
+        data={"weight_kg": "76,05"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["weight_kg"] == 76.05
+
+
 def test_submit_checkin_does_not_attribute_unrelated_incoming_photo(client, db_session, monkeypatch, tmp_path):
     """Regression: sync_incoming_folder scannt den GESAMTEN incoming_dir,
     nicht nur die Dateien dieses Requests - eine Datei, die der Coach
