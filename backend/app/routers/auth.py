@@ -29,7 +29,11 @@ from app.services.auth import (
     verify_password,
     verify_session_token,
 )
-from app.services.email import send_password_reset_email, send_verification_email
+from app.services.email import (
+    send_password_reset_email,
+    send_verification_email,
+    send_welcome_email,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -210,9 +214,17 @@ def verify_email(
         raise HTTPException(400, "Link is invalid, expired, or already used")
 
     user = db.get(User, payload["user_id"])
+    already_verified = user.email_verified_at is not None
     user.email_verified_at = datetime.now(timezone.utc)
     token_row.used_at = datetime.now(timezone.utc)
     db.commit()
+
+    if not already_verified:
+        try:
+            send_welcome_email(to=user.email, display_name=user.display_name)
+        except Exception:
+            logger.warning("Could not send welcome email", exc_info=True)
+
     return {"verified": True}
 
 

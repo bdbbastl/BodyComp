@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 
+from app.models.email_token import EmailToken, EmailTokenPurpose
 from app.models.user import User
-from app.services.auth import hash_password
+from app.services.auth import create_email_token, hash_email_token, hash_password
 
 
 def _make_user(db_session, email="basti@example.com", password="Grindcore123!"):
@@ -108,3 +109,46 @@ def test_complete_onboarding_sets_timestamp(client, db_session):
 def test_complete_onboarding_requires_login(client, db_session):
     response = client.patch("/api/auth/onboarding-complete")
     assert response.status_code == 401
+
+
+def test_verify_email_sends_welcome_email_only_once(client, db_session, monkeypatch):
+    sent = []
+    monkeypatch.setattr(
+        "app.routers.auth.send_welcome_email", lambda **kwargs: sent.append(kwargs)
+    )
+
+    user = User(
+        email="new@example.com",
+        password_hash=hash_password("Grindcore123!"),
+        display_name="New",
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    raw_token = create_email_token(user_id=user.id, purpose=EmailTokenPurpose.VERIFY_EMAIL.value)
+    db_session.add(EmailToken(
+        user_id=user.id,
+        token_hash=hash_email_token(raw_token),
+        purpose=EmailTokenPurpose.VERIFY_EMAIL,
+        expires_at=datetime.now(timezone.utc).replace(year=2030),
+    ))
+    db_session.commit()
+
+    response1 = client.get(f"/api/auth/verify-email?token={raw_token}")
+    assert response1.status_code == 200
+    assert len(sent) == 1
+    assert sent[0]["to"] == "new@example.com"
+
+    raw_token_2 = create_email_token(user_id=user.id, purpose=EmailTokenPurpose.VERIFY_EMAIL.value)
+    db_session.add(EmailToken(
+        user_id=user.id,
+        token_hash=hash_email_token(raw_token_2),
+        purpose=EmailTokenPurpose.VERIFY_EMAIL,
+        expires_at=datetime.now(timezone.utc).replace(year=2030),
+    ))
+    db_session.commit()
+
+    response2 = client.get(f"/api/auth/verify-email?token={raw_token_2}")
+    assert response2.status_code == 200
+    assert len(sent) == 1
