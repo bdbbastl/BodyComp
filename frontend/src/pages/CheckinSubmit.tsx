@@ -96,8 +96,11 @@ export default function CheckinSubmit() {
               multiple
               accept="image/jpeg,image/png,image/heic,.heic"
               onChange={(e) => setFiles(e.target.files ? Array.from(e.target.files) : [])}
-              className="text-sm text-slate-400"
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-900"
             />
+            {files.length > 0 && (
+              <span className="text-xs text-slate-500">{files.length} Datei(en) ausgewählt</span>
+            )}
           </label>
           {submitMutation.isError && (
             <p className="text-sm text-red-400">Einreichen fehlgeschlagen - bitte erneut versuchen.</p>
@@ -105,7 +108,7 @@ export default function CheckinSubmit() {
           <button
             type="submit"
             disabled={submitMutation.isPending}
-            className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
+            className="sticky bottom-4 w-full rounded-lg bg-accent px-4 py-3 text-sm font-medium text-slate-900 shadow-lg shadow-black/40 hover:opacity-90 disabled:opacity-50 sm:static sm:py-2 sm:shadow-none"
           >
             {submitMutation.isPending ? "Sende…" : "Check-in einreichen"}
           </button>
