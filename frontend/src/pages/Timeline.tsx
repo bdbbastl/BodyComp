@@ -9,6 +9,7 @@ import { ZoomSlider } from "../components/ZoomSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
+import { SkeletonCard } from "../components/Skeleton";
 
 const DEFAULT_COLUMNS_MAX = 5;
 const DEFAULT_WEEKS_PER_PAGE = 8;
@@ -60,7 +61,11 @@ export default function Timeline() {
     return (
       <>
         <PageHeader title="Timeline" />
-        <p className="text-slate-500">Lade Timeline…</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
       </>
     );
   }

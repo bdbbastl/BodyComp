@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
+import { SkeletonGrid } from "../components/Skeleton";
 import { UpgradeBanner } from "../components/UpgradeBanner";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import type { Client } from "../types";
@@ -185,7 +186,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {clientsQuery.isLoading && <p className="text-slate-500">Lade…</p>}
+      {clientsQuery.isLoading && <SkeletonGrid />}
 
       {!clientsQuery.isLoading && clients.length === 0 && (
         <EmptyState
