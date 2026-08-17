@@ -73,7 +73,17 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const { data: user } = useCurrentUser();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const clientsQuery = useQuery({ queryKey: ["clients"], queryFn: api.clients.list });
+  // Nur laden, wenn wirklich gebraucht (Single-Account, eingeloggt) - sonst
+  // würde diese Query auch auf öffentlichen Seiten (Login/Signup) unnötig
+  // mit 401 + Default-Retries (3x mit Backoff) feuern, siehe Pattern in
+  // AppShell.tsx's clientsListQuery/useCurrentUser.ts (gefunden im
+  // finalen Review).
+  const clientsQuery = useQuery({
+    queryKey: ["clients"],
+    queryFn: api.clients.list,
+    enabled: user?.account_type === "single",
+    retry: false,
+  });
   const [phase, setPhase] = useState<"modal" | "tour" | null>(null);
   const [modalSlide, setModalSlide] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
