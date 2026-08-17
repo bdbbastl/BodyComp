@@ -47,7 +47,7 @@ def compare(
     photo_x = _find_photo(db, client_row.id, pose_id, date_x)
     photo_y = _find_photo(db, client_row.id, pose_id, date_y)
     if not photo_x or not photo_y:
-        raise HTTPException(404, "Für mindestens eines der Daten existiert kein Foto dieser Pose")
+        raise HTTPException(404, "No photo of this pose exists for at least one of the dates")
     return {
         "photo_x": PhotoOut.model_validate(photo_x),
         "photo_y": PhotoOut.model_validate(photo_y),
@@ -72,11 +72,11 @@ def ai_analysis(
     photo_x = _find_photo(db, client_row.id, pose_id, date_x)
     photo_y = _find_photo(db, client_row.id, pose_id, date_y)
     if not photo_x or not photo_y:
-        raise HTTPException(404, "Für mindestens eines der Daten existiert kein Foto dieser Pose")
+        raise HTTPException(404, "No photo of this pose exists for at least one of the dates")
 
     pose = db.query(Pose).filter(Pose.id == pose_id, Pose.client_id == client_row.id).first()
     if not pose:
-        raise HTTPException(404, "Pose nicht gefunden")
+        raise HTTPException(404, "Pose not found")
     pose_name = pose.name
 
     path_x = settings.data_dir / (photo_x.normalized_path or photo_x.preview_path or photo_x.original_path)
@@ -137,7 +137,7 @@ def ai_analysis_all(
         pairs.append((pose.name, path_x, path_y))
 
     if not pairs:
-        raise HTTPException(404, "Für keine Pose existieren Fotos an beiden gewählten Terminen")
+        raise HTTPException(404, "No pose has photos on both selected dates")
 
     day_log_x = db.query(DayLog).filter(DayLog.client_id == client_row.id, DayLog.date == date_x).first()
     day_log_y = db.query(DayLog).filter(DayLog.client_id == client_row.id, DayLog.date == date_y).first()

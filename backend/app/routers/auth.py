@@ -65,13 +65,13 @@ def get_current_user(
     Passwort-Reset invalidiert wurde. Wirft 401, wenn irgendwas davon
     fehlschlägt."""
     if session is None:
-        raise HTTPException(401, "Nicht eingeloggt")
+        raise HTTPException(401, "Not logged in")
     payload = verify_session_token(session)
     if payload is None:
-        raise HTTPException(401, "Nicht eingeloggt")
+        raise HTTPException(401, "Not logged in")
     user = db.get(User, payload["user_id"])
     if user is None:
-        raise HTTPException(401, "Nicht eingeloggt")
+        raise HTTPException(401, "Not logged in")
     if user.sessions_invalidated_at is not None:
         issued_at = datetime.fromisoformat(payload["issued_at"])
         if issued_at.tzinfo is None:
@@ -80,7 +80,7 @@ def get_current_user(
         if invalidated_at.tzinfo is None:
             invalidated_at = invalidated_at.replace(tzinfo=timezone.utc)
         if issued_at < invalidated_at:
-            raise HTTPException(401, "Nicht eingeloggt")
+            raise HTTPException(401, "Not logged in")
     return user
 
 
@@ -93,9 +93,9 @@ def login(
 ):
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not user.password_hash or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(401, "E-Mail oder Passwort falsch")
+        raise HTTPException(401, "Email or password incorrect")
     if user.email_verified_at is None:
-        raise HTTPException(403, "Bitte bestätige zuerst deine E-Mail-Adresse")
+        raise HTTPException(403, "Please verify your email address first")
 
     token = create_session_token(user.id)
     response.set_cookie(
@@ -162,7 +162,7 @@ def signup(
         # einloggen) - das Enumeration-Risiko wiegt hier geringer als bei
         # Passwort-Reset, wo gezieltes Durchprobieren fremder Accounts das
         # eigentliche Bedrohungsmodell ist.
-        raise HTTPException(409, "E-Mail-Adresse ist bereits registriert")
+        raise HTTPException(409, "Email address is already registered")
 
     user = create_account(
         db, email=payload.email, password=payload.password, display_name=payload.display_name
@@ -194,7 +194,7 @@ def verify_email(
 ):
     payload = verify_email_token_signature(token, max_age_seconds=60 * 60 * 24)
     if payload is None or payload.get("purpose") != EmailTokenPurpose.VERIFY_EMAIL.value:
-        raise HTTPException(400, "Link ist ungültig oder abgelaufen")
+        raise HTTPException(400, "Link is invalid or expired")
 
     token_row = (
         db.query(EmailToken)
@@ -207,7 +207,7 @@ def verify_email(
         .first()
     )
     if token_row is None:
-        raise HTTPException(400, "Link ist ungültig, abgelaufen oder bereits verwendet")
+        raise HTTPException(400, "Link is invalid, expired, or already used")
 
     user = db.get(User, payload["user_id"])
     user.email_verified_at = datetime.now(timezone.utc)
@@ -317,7 +317,7 @@ def reset_password(
 ):
     token_payload = verify_email_token_signature(payload.token, max_age_seconds=60 * 60)
     if token_payload is None or token_payload.get("purpose") != EmailTokenPurpose.RESET_PASSWORD.value:
-        raise HTTPException(400, "Link ist ungültig oder abgelaufen")
+        raise HTTPException(400, "Link is invalid or expired")
 
     token_row = (
         db.query(EmailToken)
@@ -330,7 +330,7 @@ def reset_password(
         .first()
     )
     if token_row is None:
-        raise HTTPException(400, "Link ist ungültig, abgelaufen oder bereits verwendet")
+        raise HTTPException(400, "Link is invalid, expired, or already used")
 
     user = db.get(User, token_payload["user_id"])
     user.password_hash = hash_password(payload.new_password)
@@ -348,7 +348,7 @@ def delete_account(
 ):
     if current_user.password_hash is not None:
         if not payload.password or not verify_password(payload.password, current_user.password_hash):
-            raise HTTPException(401, "Passwort falsch")
+            raise HTTPException(401, "Incorrect password")
 
     def _log_rmtree_error(func, path, exc_info):
         logger.warning("Konnte %s nicht löschen (Account-Löschung): %s", path, exc_info[1])

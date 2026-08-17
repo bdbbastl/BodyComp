@@ -61,7 +61,7 @@ def check_can_create_client(user: User, db: Session) -> None:
     if current_count >= limit:
         raise HTTPException(
             402,
-            "Klienten-Limit erreicht - bitte Abo abschließen oder auf die nächste Staffel upgraden.",
+            "Client limit reached - please subscribe or upgrade to the next tier.",
         )
 
 
@@ -94,7 +94,7 @@ def check_and_consume_free_checkin(user: User, db: Session) -> None:
     if result.rowcount == 0:
         raise HTTPException(
             402,
-            "Kostenloses Kontingent aufgebraucht - bitte Abo abschließen, um weitere Check-ins einzureichen.",
+            "Free allowance used up - please subscribe to submit more check-ins.",
         )
     db.flush()
     db.refresh(user)

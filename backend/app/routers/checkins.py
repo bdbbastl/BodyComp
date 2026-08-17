@@ -45,7 +45,7 @@ def update_checkin(
         .first()
     )
     if submission is None:
-        raise HTTPException(404, "Check-in nicht gefunden")
+        raise HTTPException(404, "Check-in not found")
 
     if payload.coach_feedback_text is not None:
         submission.coach_feedback_text = payload.coach_feedback_text

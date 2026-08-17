@@ -35,7 +35,7 @@ def get_owned_client(
         .first()
     )
     if client_row is None:
-        raise HTTPException(404, "Kunde nicht gefunden")
+        raise HTTPException(404, "Client not found")
     return client_row
 
 

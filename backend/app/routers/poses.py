@@ -32,7 +32,7 @@ def create_pose(
         .first()
     )
     if exists:
-        raise HTTPException(409, "Pose mit diesem Namen existiert bereits")
+        raise HTTPException(409, "A pose with this name already exists")
     max_order = (
         db.query(func.max(Pose.sort_order)).filter(Pose.client_id == client_row.id).scalar() or 0
     )
@@ -46,7 +46,7 @@ def create_pose(
 def _get_owned_pose(pose_id: int, client_row: Client, db: Session) -> Pose:
     pose = db.query(Pose).filter(Pose.id == pose_id, Pose.client_id == client_row.id).first()
     if not pose:
-        raise HTTPException(404, "Pose nicht gefunden")
+        raise HTTPException(404, "Pose not found")
     return pose
 
 

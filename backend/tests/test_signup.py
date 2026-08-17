@@ -72,4 +72,4 @@ def test_login_before_verification_is_rejected(client, db_session):
         "/api/auth/login", json={"email": "unverified@example.com", "password": "SuperSecret123!"}
     )
     assert response.status_code == 403
-    assert "best" in response.json()["detail"].lower()  # "bestätige" o.ä.
+    assert "verify" in response.json()["detail"].lower()  # "Please verify your email address first"

@@ -87,7 +87,7 @@ def upload_photos(
         saved_any = True
 
     if not saved_any:
-        raise HTTPException(400, "Keine gültigen Bilddateien im Upload gefunden")
+        raise HTTPException(400, "No valid image files found in upload")
 
     return sync_incoming_folder(db, client_row.id)
 
@@ -327,11 +327,11 @@ def assign_photo(
 ):
     photo = db.query(Photo).filter(Photo.id == photo_id, Photo.client_id == client_row.id).first()
     if not photo:
-        raise HTTPException(404, "Foto nicht gefunden")
+        raise HTTPException(404, "Photo not found")
 
     pose = db.query(Pose).filter(Pose.id == payload.pose_id, Pose.client_id == client_row.id).first()
     if not pose:
-        raise HTTPException(404, "Pose nicht gefunden")
+        raise HTTPException(404, "Pose not found")
 
     return _assign_photo(db, photo, pose, payload.weight_kg, client_row.owner)
 
@@ -394,7 +394,7 @@ def delete_photo(
     """
     photo = db.query(Photo).filter(Photo.id == photo_id, Photo.client_id == client_row.id).first()
     if not photo:
-        raise HTTPException(404, "Foto nicht gefunden")
+        raise HTTPException(404, "Photo not found")
 
     _delete_photo_files(photo)
     db.delete(photo)
@@ -416,11 +416,11 @@ def change_photo_pose(
     """
     photo = db.query(Photo).filter(Photo.id == photo_id, Photo.client_id == client_row.id).first()
     if not photo:
-        raise HTTPException(404, "Foto nicht gefunden")
+        raise HTTPException(404, "Photo not found")
 
     pose = db.query(Pose).filter(Pose.id == payload.pose_id, Pose.client_id == client_row.id).first()
     if not pose:
-        raise HTTPException(404, "Pose nicht gefunden")
+        raise HTTPException(404, "Pose not found")
 
     if photo.pose_id == pose.id:
         return photo

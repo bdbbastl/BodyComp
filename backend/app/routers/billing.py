@@ -38,11 +38,11 @@ def create_checkout_session(
     db: Session = Depends(get_db),
 ):
     if payload.tier not in TIER_PRICE_IDS:
-        raise HTTPException(400, "Ungültige Staffel")
+        raise HTTPException(400, "Invalid tier")
     if current_user.account_type == AccountType.SINGLE and payload.tier != "single":
-        raise HTTPException(400, "Single-Accounts können nur das Single-Abo wählen")
+        raise HTTPException(400, "Single accounts can only choose the Single subscription")
     if current_user.account_type == AccountType.COACH and payload.tier not in COACH_TIERS:
-        raise HTTPException(400, "Coach-Accounts wählen eine Klienten-Staffel")
+        raise HTTPException(400, "Coach accounts must choose a client tier")
 
     if not current_user.stripe_customer_id:
         customer = stripe.Customer.create(email=current_user.email)
@@ -69,7 +69,7 @@ def create_checkout_session(
 @router.post("/portal", response_model=PortalResponse)
 def create_portal_session(current_user: User = Depends(get_current_user)):
     if not current_user.stripe_customer_id:
-        raise HTTPException(400, "Kein Stripe-Kunde vorhanden - zuerst ein Abo abschließen")
+        raise HTTPException(400, "No Stripe customer found - please subscribe first")
     portal_session = stripe.billing_portal.Session.create(
         customer=current_user.stripe_customer_id,
         return_url=f"{settings.frontend_base_url}/account",
@@ -91,7 +91,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, settings.stripe_webhook_secret)
     except (ValueError, stripe.error.SignatureVerificationError):
-        raise HTTPException(400, "Ungültige Webhook-Signatur")
+        raise HTTPException(400, "Invalid webhook signature")
 
     obj = event["data"]["object"]
     event_type = event["type"]

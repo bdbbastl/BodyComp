@@ -48,7 +48,7 @@ def get_client_by_checkin_token(token: str, db: Session = Depends(get_db)) -> Cl
     keine Session nötig. 404 bei unbekanntem/regeneriertem Token."""
     client_row = db.query(Client).filter(Client.checkin_token == token).first()
     if client_row is None:
-        raise HTTPException(404, "Link ungültig")
+        raise HTTPException(404, "Link is invalid")
     return client_row
 
 
@@ -78,10 +78,10 @@ def submit_checkin(
     # niemals einen halb gespeicherten Zustand hinterlässt (Submission/
     # DayLog ohne die dazugehörigen Fotos).
     if len(files) > MAX_FILES_PER_SUBMISSION:
-        raise HTTPException(400, f"Maximal {MAX_FILES_PER_SUBMISSION} Fotos pro Check-in")
+        raise HTTPException(400, f"Maximum {MAX_FILES_PER_SUBMISSION} photos per check-in")
     for upload in files:
         if upload.size is not None and upload.size > MAX_FILE_SIZE_BYTES:
-            raise HTTPException(400, "Datei zu groß (max. 25 MB pro Foto)")
+            raise HTTPException(400, "File too large (max. 25 MB per photo)")
 
     submission = CheckinSubmission(
         client_id=client_row.id, weight_kg=weight_kg, client_note=client_note
