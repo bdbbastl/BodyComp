@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import type { Photo, Pose } from "../types";
 import { formatDateWithWeek } from "../utils/date";
@@ -8,6 +8,7 @@ import { transformStyle, usePanZoom } from "../hooks/usePanZoom";
 import { ZoomSlider } from "../components/ZoomSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
+import { EmptyState } from "../components/EmptyState";
 
 const DEFAULT_COLUMNS_MAX = 5;
 const DEFAULT_WEEKS_PER_PAGE = 8;
@@ -110,10 +111,19 @@ export default function Timeline() {
     return (
       <>
         <PageHeader title="Timeline" />
-        <div className="rounded-xl border border-white/5 bg-surface p-8 text-center text-slate-400">
-          Noch keine zugeordneten Fotos. Gehe zu{" "}
-          <span className="text-accent">Unprocessed</span>, um Fotos einer Pose zuzuordnen.
-        </div>
+        <EmptyState
+          icon="📸"
+          title="Hier ist noch nichts zu sehen"
+          description="Sobald der erste Check-in oder Foto-Import da ist, taucht er hier auf."
+          action={
+            <Link
+              to={`/clients/${clientIdNum}/unprocessed`}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
+            >
+              Zu Import
+            </Link>
+          }
+        />
       </>
     );
   }

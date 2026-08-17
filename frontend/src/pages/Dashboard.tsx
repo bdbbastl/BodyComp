@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
+import { EmptyState } from "../components/EmptyState";
 import { UpgradeBanner } from "../components/UpgradeBanner";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import type { Client } from "../types";
@@ -187,9 +188,19 @@ export default function Dashboard() {
       {clientsQuery.isLoading && <p className="text-slate-500">Lade…</p>}
 
       {!clientsQuery.isLoading && clients.length === 0 && (
-        <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-slate-500">
-          Noch keine Kunden — leg deinen ersten an.
-        </div>
+        <EmptyState
+          icon="🚀"
+          title="Noch kein Klient an Bord"
+          description="Leg deinen ersten Klienten an und starte den Check-in-Flow."
+          action={
+            <button
+              onClick={() => setShowForm(true)}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
+            >
+              Ersten Klienten anlegen
+            </button>
+          }
+        />
       )}
 
       {!clientsQuery.isLoading && clients.length > 0 && filteredClients.length === 0 && (

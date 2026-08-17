@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import PageHeader from "../components/PageHeader";
+import { EmptyState } from "../components/EmptyState";
 import type { CheckinSubmission } from "../types";
 
 function complianceRate(submissions: CheckinSubmission[]): string {
@@ -52,9 +53,11 @@ export default function ClientCheckins() {
       {checkinsQuery.isLoading && <p className="text-slate-500">Lade…</p>}
 
       {!checkinsQuery.isLoading && checkins.length === 0 && (
-        <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-slate-500">
-          Noch keine Check-ins eingereicht.
-        </div>
+        <EmptyState
+          icon="📭"
+          title="Noch keine Einreichungen"
+          description="Teile den Check-in-Link mit deinem Klienten, damit er/sie den ersten Check-in einreichen kann."
+        />
       )}
 
       <div className="space-y-3">

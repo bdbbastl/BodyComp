@@ -6,6 +6,7 @@ import type { UnprocessedPhoto } from "../types";
 import { formatDateWithWeek } from "../utils/date";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
+import { EmptyState } from "../components/EmptyState";
 
 interface DateGroup {
   date: string; // YYYY-MM-DD
@@ -190,12 +191,19 @@ export default function Unprocessed() {
       {photosQuery.isLoading && <p className="text-slate-500">Lade…</p>}
 
       {!photosQuery.isLoading && photos.length === 0 && (
-        <div className="rounded-xl border border-white/5 bg-surface p-8 text-center text-slate-400">
-          Keine unverarbeiteten Fotos. Klicke "Fotos hochladen", um Bilder von der eigenen
-          Festplatte auszuwählen, oder lege sie direkt in{" "}
-          <code className="text-accent">backend/data/photos_incoming</code> ab und klicke
-          "Ordner synchronisieren".
-        </div>
+        <EmptyState
+          icon="✨"
+          title="Alles einsortiert!"
+          description={'Keine unbearbeiteten Fotos mehr übrig. Klicke "Fotos hochladen" für neue Bilder.'}
+          action={
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
+            >
+              📤 Fotos hochladen
+            </button>
+          }
+        />
       )}
 
       <div className="space-y-8">
