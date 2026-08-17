@@ -178,6 +178,39 @@ def test_webhook_marks_canceled_on_deletion_event(client, db_session, monkeypatc
     assert user.subscription_status == "canceled"
 
 
+def test_webhook_sends_trial_ending_email(client, db_session, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    sent = []
+    monkeypatch.setattr(
+        "app.routers.billing.send_trial_ending_email", lambda **kwargs: sent.append(kwargs)
+    )
+
+    user = User(
+        email="coach@example.com", password_hash=hash_password("pw12345"), display_name="Coach",
+        email_verified_at=datetime.now(timezone.utc), stripe_customer_id="cus_trial_test",
+        subscription_tier="starter",
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    trial_end_ts = int((datetime.now(timezone.utc) + timedelta(days=3)).timestamp())
+    fake_event = {
+        "type": "customer.subscription.trial_will_end",
+        "data": {"object": {"customer": "cus_trial_test", "trial_end": trial_end_ts}},
+    }
+    monkeypatch.setattr(
+        "app.routers.billing.stripe.Webhook.construct_event", lambda *a, **kw: fake_event
+    )
+
+    response = client.post(
+        "/api/billing/webhook", content=b"{}", headers={"stripe-signature": "fake"}
+    )
+    assert response.status_code == 204
+    assert sent[0]["to"] == "coach@example.com"
+    assert sent[0]["days_left"] == 3
+
+
 class _FakeStripeObject(dict):
     """Ahmt das echte Verhalten von stripe._stripe_object.StripeObject nach:
     []/`in` funktionieren (dict-Basis), aber .get() NICHT - das echte SDK

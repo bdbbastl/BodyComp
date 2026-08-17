@@ -4,6 +4,7 @@ Abschnitt "Zahlungsanbieter & Verwaltung". Die eigentliche Limit-Logik
 (wer darf was) lebt in services/billing.py, hier geht es nur um die
 Kommunikation mit Stripe selbst.
 """
+import logging
 from datetime import datetime, timezone
 
 import stripe
@@ -15,8 +16,11 @@ from app.core.database import get_db
 from app.models.user import AccountType, User
 from app.routers.auth import get_current_user
 from app.schemas.billing import CheckoutRequest, CheckoutResponse, PortalResponse
+from app.services.email import send_trial_ending_email
 
 router = APIRouter(prefix="/api/billing", tags=["billing"])
+
+logger = logging.getLogger(__name__)
 
 stripe.api_key = settings.stripe_secret_key
 
@@ -119,3 +123,19 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         if user is not None:
             user.subscription_status = "canceled"
             db.commit()
+    elif event_type == "customer.subscription.trial_will_end":
+        user = db.query(User).filter(User.stripe_customer_id == obj["customer"]).first()
+        if user is not None:
+            try:
+                trial_end = obj["trial_end"]
+            except KeyError:
+                trial_end = None
+            days_left = 3  # Stripe feuert dieses Event standardmaessig genau 3 Tage vorher
+            if trial_end:
+                delta = datetime.fromtimestamp(trial_end, tz=timezone.utc) - datetime.now(timezone.utc)
+                days_left = max(1, round(delta.total_seconds() / 86400))
+            plan_name = (user.subscription_tier or "").capitalize() or "subscription"
+            try:
+                send_trial_ending_email(to=user.email, days_left=days_left, plan_name=plan_name)
+            except Exception:
+                logger.warning("Could not send trial-ending email", exc_info=True)
