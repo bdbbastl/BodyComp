@@ -193,6 +193,11 @@ export default function Settings() {
       </div>
 
       <div className="rounded-xl border border-white/5 bg-surface p-4">
+        <h2 className="mb-1 text-lg font-semibold text-white">Posen</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Die Positionen/Winkel, in denen Fotos aufgenommen werden (z.B. "Front", "Side", "Back") -
+          erscheinen in dieser Reihenfolge in allen Foto-Zuordnungs-Dropdowns.
+        </p>
         <ul className="divide-y divide-white/5">
           {poses.map((pose, index) => {
             const editValue = editing[pose.id] ?? pose.name;
