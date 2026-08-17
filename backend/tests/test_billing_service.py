@@ -126,3 +126,18 @@ def test_check_and_consume_free_checkin_noop_with_active_subscription(db_session
     )
     check_and_consume_free_checkin(user, db_session)  # darf nicht werfen, zahlendes Abo
     assert user.free_checkins_used == FREE_CHECKINS_LIMIT  # kein weiteres Hochzählen nötig
+
+
+def test_sends_quota_warning_email_after_first_free_checkin(db_session, monkeypatch):
+    sent = []
+    monkeypatch.setattr(
+        "app.services.billing.send_quota_warning_email", lambda **kwargs: sent.append(kwargs)
+    )
+    user = _make_user(db_session, email="single@b.com", account_type=AccountType.SINGLE)
+
+    check_and_consume_free_checkin(user, db_session)  # 1. Check-in
+    assert len(sent) == 1
+    assert sent[0]["to"] == "single@b.com"
+
+    check_and_consume_free_checkin(user, db_session)  # 2. Check-in - kein weiterer Nudge
+    assert len(sent) == 1

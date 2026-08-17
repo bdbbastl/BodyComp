@@ -6,11 +6,16 @@ Portal, Webhook) leben in routers/billing.py; hier steht nur die
 Entscheidungslogik "darf dieser Account das gerade tun", damit sie ohne
 Mocking testbar ist.
 """
+import logging
+
 from app.models.client import Client
 from app.models.user import AccountType, User
+from app.services.email import send_quota_warning_email
 from fastapi import HTTPException
 from sqlalchemy import update
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 # Fest im Code ausgenommener Betreiber-Account - siehe Design-Spec
 # Abschnitt "Ausnahme: Betreiber-Account". Bewusst eine Code-Konstante,
@@ -98,3 +103,13 @@ def check_and_consume_free_checkin(user: User, db: Session) -> None:
         )
     db.flush()
     db.refresh(user)
+
+    # Nudge genau beim Uebergang zu "noch 1 uebrig" - dank des nie
+    # sinkenden, kumulativen Zaehlers passiert das automatisch nur genau
+    # einmal pro Account, kein zusaetzlicher Idempotenz-Mechanismus
+    # noetig. Siehe Design-Spec "E-Mail-Sequenzen" Abschnitt 3.
+    if user.free_checkins_used == FREE_CHECKINS_LIMIT - 1:
+        try:
+            send_quota_warning_email(to=user.email)
+        except Exception:
+            logger.warning("Could not send quota-warning email", exc_info=True)
