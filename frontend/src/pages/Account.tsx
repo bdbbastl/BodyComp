@@ -5,6 +5,7 @@ import { api } from "../api/client";
 import type { DisplaySettings } from "../api/client";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import PageHeader from "../components/PageHeader";
+import { Card } from "../components/Card";
 
 const COLUMNS_MAX_LIMIT = 10;
 const WEEKS_PER_PAGE_LIMIT = 25;
@@ -51,13 +52,10 @@ function DisplaySettingsSection() {
       statusQuery.data.timeline_weeks_per_page !== weeksPerPage);
 
   return (
-    <div className="rounded-xl border border-white/5 bg-surface p-4">
-      <h2 className="mb-1 text-lg font-semibold text-white">Anzeige-Einstellungen</h2>
-      <p className="mb-4 text-sm text-slate-400">
-        Steuert, wie die Timeline gerendert wird - v.a. bei vielen Fotos/Tagen relevant für die
-        Performance.
-      </p>
-
+    <Card
+      title="Anzeige-Einstellungen"
+      description="Steuert, wie die Timeline gerendert wird - v.a. bei vielen Fotos/Tagen relevant für die Performance."
+    >
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm text-slate-400">
           Bilder nebeneinander (max. {COLUMNS_MAX_LIMIT})
@@ -100,7 +98,7 @@ function DisplaySettingsSection() {
           {saveMutation.isPending ? "Speichere…" : "Speichern"}
         </button>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -136,8 +134,7 @@ function GeminiKeySettings() {
   const status = statusQuery.data;
 
   return (
-    <div className="rounded-xl border border-white/5 bg-surface p-4">
-      <h2 className="mb-1 text-lg font-semibold text-white">KI-Einstellungen</h2>
+    <Card title="KI-Einstellungen">
       <p className="mb-4 text-sm text-slate-400">
         Für die KI-Judge-Analyse in Compare wird ein kostenloser Gemini-API-Key benötigt.
         Kostenlos erstellen unter{" "}
@@ -222,7 +219,7 @@ function GeminiKeySettings() {
       {saveMutation.isError && (
         <p className="mt-2 text-xs text-red-400">Key konnte nicht gespeichert werden.</p>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -256,8 +253,7 @@ function DangerZoneSection() {
   });
 
   return (
-    <div className="rounded-xl border border-red-900/40 bg-surface p-4">
-      <h2 className="mb-1 text-lg font-semibold text-white">Konto-Verwaltung</h2>
+    <Card title="Konto-Verwaltung" danger>
       <div className="mt-3 flex flex-col gap-3">
         <button
           onClick={() => exportMutation.mutate()}
@@ -312,7 +308,7 @@ function DangerZoneSection() {
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -468,18 +464,16 @@ export default function Account() {
   });
 
   return (
-    <div className="max-w-xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader title="Account" />
 
       <BillingSection />
 
       {user?.account_type === "single" && (
-        <div className="rounded-xl border border-white/5 bg-surface p-4">
-          <h2 className="mb-1 text-lg font-semibold text-white">Kontotyp</h2>
-          <p className="mb-4 text-sm text-slate-400">
-            Du trackst aktuell nur dich selbst. Wenn du auch andere Kunden betreust, kannst du
-            hier ein Dashboard mit mehreren Kundenprofilen freischalten.
-          </p>
+        <Card
+          title="Kontotyp"
+          description="Du trackst aktuell nur dich selbst. Wenn du auch andere Kunden betreust, kannst du hier ein Dashboard mit mehreren Kundenprofilen freischalten."
+        >
           <button
             onClick={() => switchToCoachMutation.mutate()}
             disabled={switchToCoachMutation.isPending}
@@ -487,7 +481,7 @@ export default function Account() {
           >
             {switchToCoachMutation.isPending ? "Wird umgestellt…" : "Ich betreue auch andere Kunden"}
           </button>
-        </div>
+        </Card>
       )}
 
       <GeminiKeySettings />
