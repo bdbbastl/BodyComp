@@ -51,7 +51,7 @@ export default function App() {
       <Route path="/agb" element={<Agb />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
-          <Route index element={<ClientRedirect />} />
+          <Route path="app" element={<ClientRedirect />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="account" element={<Account />} />
           <Route path="clients/:clientId" element={<ClientShell />}>

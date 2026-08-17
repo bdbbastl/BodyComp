@@ -55,7 +55,7 @@ export default function AppShell() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <Link
-              to={user?.account_type === "coach" ? "/dashboard" : "/"}
+              to={user?.account_type === "coach" ? "/dashboard" : "/app"}
               className="text-sm font-semibold tracking-wide text-white transition-colors hover:text-accent"
             >
               BodyComp <span className="text-accent">Tracker</span>
