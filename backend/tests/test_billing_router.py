@@ -178,6 +178,58 @@ def test_webhook_marks_canceled_on_deletion_event(client, db_session, monkeypatc
     assert user.subscription_status == "canceled"
 
 
+class _FakeStripeObject(dict):
+    """Ahmt das echte Verhalten von stripe._stripe_object.StripeObject nach:
+    []/`in` funktionieren (dict-Basis), aber .get() NICHT - das echte SDK
+    ueberschreibt __getattr__ so, dass .get() zu einem KeyError/AttributeError
+    fuehrt statt zur eingebauten dict.get()-Methode (gefunden im Live-Debugging
+    am 2026-08-17: echte Webhooks crashten mit `AttributeError: get` in
+    routers/billing.py, weil die Tests bisher nur mit reinen dicts liefen,
+    deren .get() klaglos funktioniert und den Bug nie aufgedeckt hat)."""
+
+    def get(self, *args, **kwargs):
+        raise AttributeError("get")
+
+
+def test_webhook_handles_real_stripe_object_without_get_method(client, db_session, monkeypatch):
+    """Regression fuer den Live-Bug: obj.get("trial_end") crasht mit dem
+    echten Stripe-SDK-Objekttyp - der Code muss stattdessen []/try-except
+    verwenden (siehe Fix in routers/billing.py)."""
+    user = User(
+        email="webhook3@b.com", password_hash=hash_password("pw12345"), display_name="W3",
+        email_verified_at=datetime.now(timezone.utc), stripe_customer_id="cus_webhook_test3",
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    trial_end_ts = int(datetime(2026, 9, 1, tzinfo=timezone.utc).timestamp())
+    fake_event = {
+        "type": "customer.subscription.created",
+        "data": {
+            "object": _FakeStripeObject(
+                customer="cus_webhook_test3",
+                status="trialing",
+                items={"data": [{"price": {"id": "price_starter_fake"}}]},
+                trial_end=trial_end_ts,
+            )
+        },
+    }
+    monkeypatch.setattr("app.routers.billing.TIER_PRICE_IDS", {"starter": "price_starter_fake"})
+    monkeypatch.setattr(
+        "app.routers.billing.stripe.Webhook.construct_event", lambda *a, **kw: fake_event
+    )
+
+    response = client.post(
+        "/api/billing/webhook", content=b"{}", headers={"stripe-signature": "fake"}
+    )
+    assert response.status_code == 204
+
+    db_session.refresh(user)
+    assert user.subscription_status == "trialing"
+    assert user.subscription_tier == "starter"
+    assert user.trial_ends_at.replace(tzinfo=timezone.utc) == datetime(2026, 9, 1, tzinfo=timezone.utc)
+
+
 def test_webhook_rejects_invalid_signature(client, db_session, monkeypatch):
     import stripe as stripe_module
 

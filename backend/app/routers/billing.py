@@ -104,8 +104,15 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
             tier = _tier_for_price_id(price_id)
             if tier is not None:
                 user.subscription_tier = tier
-            if obj.get("trial_end"):
-                user.trial_ends_at = datetime.fromtimestamp(obj["trial_end"], tz=timezone.utc)
+            # obj ist ein Stripe-SDK-Objekt, kein reines dict - .get() wird
+            # nicht unterstuetzt (fuehrt zu KeyError/AttributeError, siehe
+            # Live-Debugging am 2026-08-17), daher []/try-except statt .get().
+            try:
+                trial_end = obj["trial_end"]
+            except KeyError:
+                trial_end = None
+            if trial_end:
+                user.trial_ends_at = datetime.fromtimestamp(trial_end, tz=timezone.utc)
             db.commit()
     elif event_type == "customer.subscription.deleted":
         user = db.query(User).filter(User.stripe_customer_id == obj["customer"]).first()
