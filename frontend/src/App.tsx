@@ -3,6 +3,7 @@ import AppShell from "./components/AppShell";
 import ClientShell from "./components/ClientShell";
 import RequireAuth from "./components/RequireAuth";
 import ClientRedirect from "./components/ClientRedirect";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import SignupSuccess from "./pages/SignupSuccess";
@@ -39,6 +40,7 @@ export default function App() {
     <BusyOverlayProvider>
     <OnboardingProvider>
       <Routes>
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/signup-success" element={<SignupSuccess />} />
