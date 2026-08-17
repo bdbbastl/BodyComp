@@ -24,6 +24,8 @@ import CheckinSubmit from "./pages/CheckinSubmit";
 import { OnboardingProvider, useOnboarding } from "./contexts/OnboardingContext";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { OnboardingTooltip } from "./components/OnboardingTooltip";
+import { BusyOverlayProvider } from "./contexts/BusyOverlayContext";
+import { BusyOverlay } from "./components/BusyOverlay";
 
 function OnboardingModalGate() {
   const { phase } = useOnboarding();
@@ -34,6 +36,7 @@ function OnboardingModalGate() {
 
 export default function App() {
   return (
+    <BusyOverlayProvider>
     <OnboardingProvider>
       <Routes>
       <Route path="/login" element={<Login />} />
@@ -64,5 +67,7 @@ export default function App() {
       </Routes>
       <OnboardingModalGate />
     </OnboardingProvider>
+    <BusyOverlay />
+    </BusyOverlayProvider>
   );
 }

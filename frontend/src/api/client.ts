@@ -102,12 +102,17 @@ export const api = {
       client.delete<{ deleted: number }>(`/clients/${clientId}/photos/by-date/${date}`).then((r) => r.data),
     changePose: (clientId: number, id: number, poseId: number) =>
       client.patch<Photo>(`/clients/${clientId}/photos/${id}/pose`, { pose_id: poseId }).then((r) => r.data),
-    upload: (clientId: number, files: File[]) => {
+    upload: (clientId: number, files: File[], onUploadProgress?: (percent: number) => void) => {
       const form = new FormData();
       for (const file of files) form.append("files", file);
       return client
         .post<UnprocessedPhoto[]>(`/clients/${clientId}/photos/upload`, form, {
           headers: { "Content-Type": "multipart/form-data" },
+          onUploadProgress: onUploadProgress
+            ? (e) => {
+                if (e.total) onUploadProgress(Math.round((e.loaded / e.total) * 100));
+              }
+            : undefined,
         })
         .then((r) => r.data);
     },

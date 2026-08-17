@@ -8,6 +8,7 @@ import { parseWeightInput } from "../utils/weight";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
+import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 
 interface DateGroup {
   date: string; // YYYY-MM-DD
@@ -22,6 +23,7 @@ export default function Unprocessed() {
   // Ein Gewicht pro Tag statt pro Foto - gilt für alle Fotos dieses
   // Datums, wie gewünscht ("für alle Bilder eines Tages").
   const [weightByDate, setWeightByDate] = useState<Record<string, string>>({});
+  const { show, updateProgress, hide } = useBusyOverlay();
 
   const posesQuery = useQuery({
     queryKey: ["poses", clientIdNum],
@@ -56,8 +58,15 @@ export default function Unprocessed() {
   // wie /sync auf) - kein separater "Ordner synchronisieren"-Klick nötig
   // für hochgeladene Dateien.
   const uploadMutation = useMutation({
-    mutationFn: (files: File[]) => api.photos.upload(clientIdNum, files),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] }),
+    mutationFn: (files: File[]) => {
+      show("Uploading photos…", 0);
+      return api.photos.upload(clientIdNum, files, (percent) => updateProgress(percent));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] });
+      hide();
+    },
+    onError: () => hide(),
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -76,12 +85,16 @@ export default function Unprocessed() {
   });
 
   const bulkAssignMutation = useMutation({
-    mutationFn: (items: { photo_id: number; pose_id: number; weight_kg: number | null }[]) =>
-      api.photos.assignBulk(clientIdNum, items),
+    mutationFn: (items: { photo_id: number; pose_id: number; weight_kg: number | null }[]) => {
+      show("Saving…");
+      return api.photos.assignBulk(clientIdNum, items);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] });
       queryClient.invalidateQueries({ queryKey: ["day-logs", clientIdNum] });
+      hide();
     },
+    onError: () => hide(),
   });
 
   const deleteMutation = useMutation({
