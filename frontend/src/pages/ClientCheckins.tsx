@@ -9,7 +9,7 @@ import type { CheckinSubmission } from "../types";
 function complianceRate(submissions: CheckinSubmission[]): string {
   const fourWeeksAgo = Date.now() - 28 * 24 * 60 * 60 * 1000;
   const recent = submissions.filter((s) => new Date(s.submitted_at).getTime() >= fourWeeksAgo);
-  return `${recent.length} Check-ins in den letzten 4 Wochen`;
+  return `${recent.length} check-ins in the last 4 weeks`;
 }
 
 export default function ClientCheckins() {
@@ -50,13 +50,13 @@ export default function ClientCheckins() {
         <p className="text-sm text-slate-500">{complianceRate(checkins)}</p>
       )}
 
-      {checkinsQuery.isLoading && <p className="text-slate-500">Lade…</p>}
+      {checkinsQuery.isLoading && <p className="text-slate-500">Loading…</p>}
 
       {!checkinsQuery.isLoading && checkins.length === 0 && (
         <EmptyState
           icon="📭"
-          title="Noch keine Einreichungen"
-          description="Teile den Check-in-Link mit deinem Klienten, damit er/sie den ersten Check-in einreichen kann."
+          title="No submissions yet"
+          description="Share the check-in link with your client so they can submit their first check-in."
         />
       )}
 
@@ -71,7 +71,7 @@ export default function ClientCheckins() {
                 className="flex w-full items-center justify-between text-left"
               >
                 <span className="text-sm text-white">
-                  {new Date(checkin.submitted_at).toLocaleString("de-DE")}
+                  {new Date(checkin.submitted_at).toLocaleString("en-US")}
                   {checkin.weight_kg != null && (
                     <span className="ml-2 text-slate-500">{checkin.weight_kg} kg</span>
                   )}
@@ -81,14 +81,14 @@ export default function ClientCheckins() {
                     checkin.status === "pending" ? "text-amber-400" : "text-accent"
                   }`}
                 >
-                  {checkin.status === "pending" ? "⏳ Offen" : "✅ Geprüft"}
+                  {checkin.status === "pending" ? "⏳ Open" : "✅ Reviewed"}
                 </span>
               </button>
 
               {isOpen && (
                 <div className="mt-4 space-y-3 border-t border-white/5 pt-4">
                   {checkin.client_note && (
-                    <p className="text-sm text-slate-300">„{checkin.client_note}“</p>
+                    <p className="text-sm text-slate-300">&ldquo;{checkin.client_note}&rdquo;</p>
                   )}
                   {checkin.photos.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto">
@@ -117,7 +117,7 @@ export default function ClientCheckins() {
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-sm text-slate-400">
-                    Video-Link (Loom o.ä.)
+                    Video link (Loom, etc.)
                     <input
                       value={draft.videoUrl}
                       onChange={(e) =>
@@ -144,7 +144,7 @@ export default function ClientCheckins() {
                       disabled={updateMutation.isPending}
                       className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/5 disabled:opacity-50"
                     >
-                      Feedback speichern
+                      Save feedback
                     </button>
                     {checkin.status === "pending" && (
                       <button
@@ -161,7 +161,7 @@ export default function ClientCheckins() {
                         disabled={updateMutation.isPending}
                         className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
                       >
-                        Als geprüft markieren
+                        Mark as reviewed
                       </button>
                     )}
                   </div>

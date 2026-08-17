@@ -40,7 +40,7 @@ export default function CheckinSubmit() {
   if (pageQuery.isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 text-slate-400">
-        Lade…
+        Loading…
       </div>
     );
   }
@@ -48,7 +48,7 @@ export default function CheckinSubmit() {
   if (pageQuery.isError || !pageQuery.data) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <p className="text-slate-400">Dieser Link ist ungültig oder abgelaufen.</p>
+        <p className="text-slate-400">This link is invalid or has expired.</p>
       </div>
     );
   }
@@ -59,7 +59,7 @@ export default function CheckinSubmit() {
     <div className="min-h-screen bg-background px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-md space-y-6">
         <div>
-          <p className="text-xs text-slate-500">Check-in für</p>
+          <p className="text-xs text-slate-500">Check-in for</p>
           <h1 className="text-xl font-semibold text-white">{page.client_name}</h1>
         </div>
 
@@ -71,7 +71,7 @@ export default function CheckinSubmit() {
           className="space-y-4 rounded-xl border border-white/5 bg-surface p-4"
         >
           <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Gewicht (kg)
+            Weight (kg)
             <input
               type="number"
               step="0.1"
@@ -81,7 +81,7 @@ export default function CheckinSubmit() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Notiz (optional)
+            Note (optional)
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -90,7 +90,7 @@ export default function CheckinSubmit() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Fotos (optional)
+            Photos (optional)
             <input
               type="file"
               multiple
@@ -99,36 +99,36 @@ export default function CheckinSubmit() {
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-900"
             />
             {files.length > 0 && (
-              <span className="text-xs text-slate-500">{files.length} Datei(en) ausgewählt</span>
+              <span className="text-xs text-slate-500">{files.length} file(s) selected</span>
             )}
           </label>
           {submitMutation.isError && (
-            <p className="text-sm text-red-400">Einreichen fehlgeschlagen - bitte erneut versuchen.</p>
+            <p className="text-sm text-red-400">Submission failed - please try again.</p>
           )}
           <button
             type="submit"
             disabled={submitMutation.isPending}
             className="sticky bottom-4 w-full rounded-lg bg-accent px-4 py-3 text-sm font-medium text-slate-900 shadow-lg shadow-black/40 hover:opacity-90 disabled:opacity-50 sm:static sm:py-2 sm:shadow-none"
           >
-            {submitMutation.isPending ? "Sende…" : "Check-in einreichen"}
+            {submitMutation.isPending ? "Submitting…" : "Submit check-in"}
           </button>
         </form>
 
         <div className="space-y-3">
-          <h2 className="text-sm font-medium text-slate-400">Meine bisherigen Check-ins</h2>
+          <h2 className="text-sm font-medium text-slate-400">My previous check-ins</h2>
           {page.submissions.length === 0 && (
-            <p className="text-sm text-slate-600">Noch keine Check-ins eingereicht.</p>
+            <p className="text-sm text-slate-600">No check-ins submitted yet.</p>
           )}
           {page.submissions.map((s) => (
             <div key={s.id} className="rounded-xl border border-white/5 bg-surface p-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-white">
-                  {new Date(s.submitted_at).toLocaleDateString("de-DE")}
+                  {new Date(s.submitted_at).toLocaleDateString("en-US")}
                 </span>
                 <span
                   className={`text-xs ${s.status === "reviewed" ? "text-accent" : "text-slate-500"}`}
                 >
-                  {s.status === "reviewed" ? "✅ Geprüft" : "⏳ Ausstehend"}
+                  {s.status === "reviewed" ? "✅ Reviewed" : "⏳ Pending"}
                 </span>
               </div>
               {s.weight_kg != null && (
@@ -156,7 +156,7 @@ export default function CheckinSubmit() {
                   rel="noreferrer"
                   className="mt-1 inline-block text-sm text-accent hover:underline"
                 >
-                  Video-Feedback ansehen
+                  View video feedback
                 </a>
               )}
             </div>
