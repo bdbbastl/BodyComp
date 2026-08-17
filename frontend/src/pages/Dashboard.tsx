@@ -1,13 +1,14 @@
 // frontend/src/pages/Dashboard.tsx
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { SkeletonGrid } from "../components/Skeleton";
 import { UpgradeBanner } from "../components/UpgradeBanner";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useOnboarding } from "../contexts/OnboardingContext";
 import type { Client } from "../types";
 
 function ageFromBirthDate(birthDate: string | null): number | null {
@@ -20,6 +21,8 @@ function ageFromBirthDate(birthDate: string | null): number | null {
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
+  const { phase, stepIndex, steps, nextStep } = useOnboarding();
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [heightCm, setHeightCm] = useState("");
@@ -41,7 +44,7 @@ export default function Dashboard() {
         gender: gender.trim() === "" ? null : gender,
         start_date: startDate.trim() === "" ? null : startDate,
       }),
-    onSuccess: () => {
+    onSuccess: (createdClient) => {
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       setShowForm(false);
       setName("");
@@ -49,6 +52,11 @@ export default function Dashboard() {
       setBirthDate("");
       setGender("");
       setStartDate("");
+
+      if (phase === "tour" && steps[stepIndex]?.id === "new-client") {
+        nextStep();
+        navigate(`/clients/${createdClient.id}/settings`);
+      }
     },
   });
 

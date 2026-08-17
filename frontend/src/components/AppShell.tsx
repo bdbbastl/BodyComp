@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { UpgradeBanner } from "./UpgradeBanner";
+import { useOnboarding } from "../contexts/OnboardingContext";
 
 /** Äußerer Rahmen, identisch auf JEDER eingeloggten Seite - siehe
  * Design-Spec Abschnitt "AppShell (oberer Header)". Enthält keine
@@ -10,6 +12,13 @@ import { UpgradeBanner } from "./UpgradeBanner";
  * /clients/:id/*-Routen (siehe components/ClientShell.tsx). */
 export default function AppShell() {
   const { data: user } = useCurrentUser();
+  const { start } = useOnboarding();
+  useEffect(() => {
+    if (user && user.onboarding_completed_at === null) {
+      start();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();

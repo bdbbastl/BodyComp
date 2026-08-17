@@ -21,10 +21,21 @@ import Datenschutz from "./pages/legal/Datenschutz";
 import Impressum from "./pages/legal/Impressum";
 import Agb from "./pages/legal/Agb";
 import CheckinSubmit from "./pages/CheckinSubmit";
+import { OnboardingProvider, useOnboarding } from "./contexts/OnboardingContext";
+import { OnboardingModal } from "./components/OnboardingModal";
+import { OnboardingTooltip } from "./components/OnboardingTooltip";
+
+function OnboardingModalGate() {
+  const { phase } = useOnboarding();
+  if (phase === "modal") return <OnboardingModal />;
+  if (phase === "tour") return <OnboardingTooltip />;
+  return null;
+}
 
 export default function App() {
   return (
-    <Routes>
+    <OnboardingProvider>
+      <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/signup-success" element={<SignupSuccess />} />
@@ -50,6 +61,8 @@ export default function App() {
           </Route>
         </Route>
       </Route>
-    </Routes>
+      </Routes>
+      <OnboardingModalGate />
+    </OnboardingProvider>
   );
 }

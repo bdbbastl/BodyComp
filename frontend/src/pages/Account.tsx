@@ -6,6 +6,7 @@ import type { DisplaySettings } from "../api/client";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import PageHeader from "../components/PageHeader";
 import { Card } from "../components/Card";
+import { useOnboarding } from "../contexts/OnboardingContext";
 
 const COLUMNS_MAX_LIMIT = 10;
 const WEEKS_PER_PAGE_LIMIT = 25;
@@ -455,6 +456,7 @@ function BillingSection() {
 export default function Account() {
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
+  const { restart } = useOnboarding();
 
   const switchToCoachMutation = useMutation({
     mutationFn: api.auth.switchToCoach,
@@ -468,6 +470,15 @@ export default function Account() {
       <PageHeader title="Account" />
 
       <BillingSection />
+
+      <Card title="Need a refresher?">
+        <button
+          onClick={restart}
+          className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+        >
+          Restart tour
+        </button>
+      </Card>
 
       {user?.account_type === "single" && (
         <Card
