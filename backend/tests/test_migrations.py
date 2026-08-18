@@ -109,3 +109,22 @@ def test_onboarding_completed_at_column_added_to_pre_existing_users_table(tmp_pa
     inspector = inspect(engine)
     users_columns = {c["name"] for c in inspector.get_columns("users")}
     assert "onboarding_completed_at" in users_columns
+
+
+def test_new_email_column_added_to_pre_existing_email_tokens_table(tmp_path):
+    """Simuliert eine alte DB von vor der Change-Email-Funktion: legt
+    email_tokens OHNE new_email an, prüft dass die Migration die Spalte
+    nachträgt."""
+    db_path = tmp_path / "old.db"
+    engine = create_engine(f"sqlite:///{db_path.as_posix()}")
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE email_tokens (id INTEGER PRIMARY KEY, user_id INTEGER, "
+            "token_hash VARCHAR(64), purpose VARCHAR(20), expires_at DATETIME, used_at DATETIME)"
+        ))
+
+    run_lightweight_migrations(engine)
+
+    inspector = inspect(engine)
+    columns = {c["name"] for c in inspector.get_columns("email_tokens")}
+    assert "new_email" in columns
