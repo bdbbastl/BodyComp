@@ -17,7 +17,7 @@ from app.core.rate_limit import RateLimiter
 from app.models.email_token import EmailToken, EmailTokenPurpose
 from app.models.user import AccountType, User
 from app.schemas.auth import LoginRequest, UserOut
-from app.schemas.signup import ForgotPasswordRequest, ResetPasswordRequest, SignupRequest
+from app.schemas.signup import ChangePasswordRequest, ForgotPasswordRequest, ResetPasswordRequest, SignupRequest
 from app.services.account import create_account
 from app.services.auth import (
     SESSION_COOKIE_NAME,
@@ -55,6 +55,7 @@ resend_verification_rate_limit = RateLimiter(max_requests=5, window_seconds=3600
 forgot_password_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
 verify_email_rate_limit = RateLimiter(max_requests=20, window_seconds=3600)
 reset_password_rate_limit = RateLimiter(max_requests=20, window_seconds=3600)
+change_password_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
 
 
 class DeleteAccountRequest(BaseModel):
@@ -122,6 +123,24 @@ def logout(response: Response):
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/change-password", status_code=204)
+def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _rate_limit: None = Depends(change_password_rate_limit),
+):
+    if current_user.password_hash is None:
+        # Google-only-Account - hat kein Passwort zum Ändern. Das Frontend
+        # blendet diesen Bereich bereits aus (has_password=false), das
+        # hier ist nur die serverseitige Absicherung.
+        raise HTTPException(400, "This account has no password set")
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(401, "Current password is incorrect")
+    current_user.password_hash = hash_password(payload.new_password)
+    db.commit()
 
 
 @router.post("/switch-to-coach", response_model=UserOut)

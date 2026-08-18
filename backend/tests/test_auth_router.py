@@ -162,3 +162,76 @@ def test_verify_email_sends_welcome_email_only_once(client, db_session, monkeypa
     response2 = client.get(f"/api/auth/verify-email?token={raw_token_2}")
     assert response2.status_code == 200
     assert len(sent) == 1
+
+
+def test_change_password_requires_login(client, db_session):
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "x", "new_password": "NewPass123!"},
+    )
+    assert response.status_code == 401
+
+
+def test_change_password_rejects_wrong_current_password(client, db_session):
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "wrong", "new_password": "NewPass123!"},
+    )
+    assert response.status_code == 401
+
+
+def test_change_password_rejects_too_short_new_password(client, db_session):
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "Grindcore123!", "new_password": "short"},
+    )
+    assert response.status_code == 422
+
+
+def test_change_password_succeeds_and_new_password_works_on_next_login(client, db_session):
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "Grindcore123!", "new_password": "NewPass123!"},
+    )
+    assert response.status_code == 204
+
+    client.post("/api/auth/logout")
+    login_response = client.post(
+        "/api/auth/login", json={"email": "basti@example.com", "password": "NewPass123!"}
+    )
+    assert login_response.status_code == 200
+
+
+def test_change_password_rejects_google_only_account(client, db_session):
+    user = User(
+        email="google@example.com",
+        password_hash=None,
+        google_id="google-sub-123",
+        display_name="Google User",
+        email_verified_at=datetime.now(timezone.utc),
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    # Google-only-Accounts können sich nicht per Passwort einloggen - die
+    # Session wird hier direkt über den Login-Endpunkt simuliert, indem wir
+    # stattdessen die Session-Cookie-Mechanik nutzen: einfacher ist es, den
+    # bestehenden Login-mit-Passwort-Weg für Google-Accounts NICHT zu
+    # testen (den gibt's nicht) und stattdessen direkt zu prüfen, dass der
+    # Endpunkt bei fehlendem Passwort-Hash ablehnt, sobald ein Cookie da
+    # ist. Dazu erzeugen wir die Session wie login() es tun würde.
+    from app.services.auth import create_session_token, SESSION_COOKIE_NAME
+    token = create_session_token(user.id)
+    client.cookies.set(SESSION_COOKIE_NAME, token)
+
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "anything", "new_password": "NewPass123!"},
+    )
+    assert response.status_code == 400
