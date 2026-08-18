@@ -58,6 +58,16 @@ def test_me_returns_current_user_after_login(client, db_session):
     assert body["account_type"] == "single"
 
 
+def test_me_includes_created_at_and_has_google_account(client, db_session):
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    response = client.get("/api/auth/me")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["created_at"] is not None
+    assert body["has_google_account"] is False
+
+
 def test_logout_clears_session(client, db_session):
     _make_user(db_session)
     client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
