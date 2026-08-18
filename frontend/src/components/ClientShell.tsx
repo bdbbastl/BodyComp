@@ -149,7 +149,7 @@ export default function ClientShell() {
           Kopfzeile ÜBER den Nav-Punkten (Design-Spec "Toggle-Kopfzeile"),
           statt isoliert unten zu hängen. */}
       <nav
-        className={`hidden shrink-0 flex-col gap-1 rounded-xl bg-surface/40 p-2 sm:flex ${
+        className={`hidden shrink-0 flex-col gap-1 self-start rounded-xl bg-surface/40 p-2 sm:flex ${
           desktopCollapsed ? "w-14" : "w-48"
         } transition-all`}
       >
