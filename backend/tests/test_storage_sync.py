@@ -84,6 +84,36 @@ def test_ensure_local_skips_download_if_already_present_locally(fake_r2, tmp_pat
     assert "photos_processed/1/a.jpg" not in fake_r2.uploaded  # nie hochgeladen, nur lokal geprüft
 
 
+def test_ensure_local_creates_missing_parent_directory(monkeypatch, tmp_path):
+    """Regression: echtes boto3 download_file() legt das Zielverzeichnis
+    NICHT selbst an (anders als FakeR2Client oben) - schlägt mit
+    FileNotFoundError fehl, wenn es fehlt. Betraf JEDEN Redeploy in
+    Produktion, da Railways Container-Plattenspeicher dabei geleert wird
+    und photos_processed/<client_id>/... dann komplett neu angelegt
+    werden muss. Simuliert hier das echte boto3-Verhalten bewusst, statt
+    den (den Bug bislang verdeckenden) FakeR2Client zu verwenden."""
+
+    class RealisticFakeR2Client:
+        def download_file(self, bucket, key, local_path):
+            # Echtes boto3/s3transfer öffnet die Zieldatei direkt zum
+            # Schreiben - ohne existierendes Elternverzeichnis: FileNotFoundError.
+            with open(local_path, "wb") as f:
+                f.write(b"from-r2")
+
+    monkeypatch.setattr(storage_sync, "_r2_client", lambda: RealisticFakeR2Client())
+    monkeypatch.setattr(storage_sync.settings, "data_dir", tmp_path)
+    monkeypatch.setattr(storage_sync.settings, "storage_backend", "r2")
+    monkeypatch.setattr(storage_sync.settings, "r2_bucket", "test-bucket")
+
+    local_file = tmp_path / "photos_processed" / "1" / "a.jpg"
+    assert not local_file.parent.exists()
+
+    storage_sync.ensure_local("photos_processed/1/a.jpg")
+
+    assert local_file.exists()
+    assert local_file.read_bytes() == b"from-r2"
+
+
 def test_delete_remote_removes_from_r2(fake_r2):
     fake_r2.uploaded["photos_processed/1/a.jpg"] = b"data"
 

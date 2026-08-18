@@ -71,6 +71,12 @@ def ensure_local(rel_path: str) -> None:
     if local_path.exists():
         return
     try:
+        # Zielverzeichnis muss existieren, BEVOR boto3 die Datei dorthin
+        # herunterlädt - legt es selbst nie an (FileNotFoundError sonst).
+        # Betrifft JEDEN Redeploy, da Railways Container-Plattenspeicher
+        # bei jedem Neustart geleert wird (gefunden im Live-Debugging
+        # am 2026-08-18: alle Bilder waren nach einem Redeploy unsichtbar).
+        local_path.parent.mkdir(parents=True, exist_ok=True)
         _r2_client().download_file(settings.r2_bucket, rel_path, str(local_path))
     except ClientError:
         # Datei existiert auch in R2 nicht (z.B. gelöscht/nie hochgeladen) -
