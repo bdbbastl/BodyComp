@@ -60,6 +60,26 @@ def send_password_reset_email(*, to: str, reset_url: str) -> None:
     })
 
 
+def send_email_change_confirmation(*, to: str, confirm_url: str) -> None:
+    html = _base_email_html(
+        "Confirm your new email address",
+        f"""
+        <p>Click the link below to confirm this as your new BodyComp Tracker
+        login email:</p>
+        <p><a href="{confirm_url}">{confirm_url}</a></p>
+        <p style="color: #64748b; font-size: 13px;">This link is valid for 24 hours.
+        If you didn't request this change, you can safely ignore this email -
+        your login email stays unchanged.</p>
+        """,
+    )
+    resend.Emails.send({
+        "from": settings.email_from_address,
+        "to": [to],
+        "subject": "Confirm your new email address - BodyComp Tracker",
+        "html": html,
+    })
+
+
 def send_checkin_submitted_email(*, to: str, client_name: str, checkins_url: str) -> None:
     html = _base_email_html(
         "New check-in submitted",

@@ -260,3 +260,97 @@ def test_change_password_invalidates_other_sessions_but_keeps_caller_logged_in(c
     client.cookies.set("session", new_session_cookie)
     new_session_response = client.get("/api/auth/me")
     assert new_session_response.status_code == 200
+
+
+def test_change_email_requires_login(client, db_session):
+    response = client.post(
+        "/api/auth/change-email",
+        json={"new_email": "new@example.com", "current_password": "x"},
+    )
+    assert response.status_code == 401
+
+
+def test_change_email_rejects_wrong_password(client, db_session, monkeypatch):
+    monkeypatch.setattr("app.routers.auth.send_email_change_confirmation", lambda **kwargs: None)
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    response = client.post(
+        "/api/auth/change-email",
+        json={"new_email": "new@example.com", "current_password": "wrong"},
+    )
+    assert response.status_code == 401
+
+
+def test_change_email_rejects_already_taken_address(client, db_session, monkeypatch):
+    monkeypatch.setattr("app.routers.auth.send_email_change_confirmation", lambda **kwargs: None)
+    _make_user(db_session)
+    _make_user(db_session, email="taken@example.com", password="Other123!")
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    response = client.post(
+        "/api/auth/change-email",
+        json={"new_email": "taken@example.com", "current_password": "Grindcore123!"},
+    )
+    assert response.status_code == 409
+
+
+def test_change_email_does_not_change_email_immediately(client, db_session, monkeypatch):
+    monkeypatch.setattr("app.routers.auth.send_email_change_confirmation", lambda **kwargs: None)
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    response = client.post(
+        "/api/auth/change-email",
+        json={"new_email": "new@example.com", "current_password": "Grindcore123!"},
+    )
+    assert response.status_code == 204
+
+    me = client.get("/api/auth/me").json()
+    assert me["email"] == "basti@example.com"  # noch unverändert
+
+
+def test_confirm_email_change_updates_email_with_valid_token(client, db_session, monkeypatch):
+    sent = []
+    monkeypatch.setattr(
+        "app.routers.auth.send_email_change_confirmation",
+        lambda **kwargs: sent.append(kwargs),
+    )
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    client.post(
+        "/api/auth/change-email",
+        json={"new_email": "new@example.com", "current_password": "Grindcore123!"},
+    )
+    assert len(sent) == 1
+    confirm_url = sent[0]["confirm_url"]
+    token = confirm_url.split("token=")[1]
+
+    response = client.get(f"/api/auth/confirm-email-change?token={token}")
+    assert response.status_code == 200
+    assert response.json()["new_email"] == "new@example.com"
+
+    me = client.get("/api/auth/me").json()
+    assert me["email"] == "new@example.com"
+
+
+def test_confirm_email_change_rejects_invalid_token(client, db_session):
+    response = client.get("/api/auth/confirm-email-change?token=garbage")
+    assert response.status_code == 400
+
+
+def test_confirm_email_change_rejects_already_used_token(client, db_session, monkeypatch):
+    sent = []
+    monkeypatch.setattr(
+        "app.routers.auth.send_email_change_confirmation",
+        lambda **kwargs: sent.append(kwargs),
+    )
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    client.post(
+        "/api/auth/change-email",
+        json={"new_email": "new@example.com", "current_password": "Grindcore123!"},
+    )
+    token = sent[0]["confirm_url"].split("token=")[1]
+
+    first = client.get(f"/api/auth/confirm-email-change?token={token}")
+    assert first.status_code == 200
+    second = client.get(f"/api/auth/confirm-email-change?token={token}")
+    assert second.status_code == 400

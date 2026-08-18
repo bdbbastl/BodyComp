@@ -17,7 +17,13 @@ from app.core.rate_limit import RateLimiter
 from app.models.email_token import EmailToken, EmailTokenPurpose
 from app.models.user import AccountType, User
 from app.schemas.auth import LoginRequest, UserOut
-from app.schemas.signup import ChangePasswordRequest, ForgotPasswordRequest, ResetPasswordRequest, SignupRequest
+from app.schemas.signup import (
+    ChangeEmailRequest,
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    SignupRequest,
+)
 from app.services.account import create_account
 from app.services.auth import (
     SESSION_COOKIE_NAME,
@@ -31,6 +37,7 @@ from app.services.auth import (
     verify_session_token,
 )
 from app.services.email import (
+    send_email_change_confirmation,
     send_password_reset_email,
     send_verification_email,
     send_welcome_email,
@@ -56,6 +63,7 @@ forgot_password_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
 verify_email_rate_limit = RateLimiter(max_requests=20, window_seconds=3600)
 reset_password_rate_limit = RateLimiter(max_requests=20, window_seconds=3600)
 change_password_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
+change_email_rate_limit = RateLimiter(max_requests=5, window_seconds=3600)
 
 
 class DeleteAccountRequest(BaseModel):
@@ -398,6 +406,77 @@ def change_password(
         samesite="lax",
         secure=True,
     )
+
+
+@router.post("/change-email", status_code=204)
+def change_email(
+    payload: ChangeEmailRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _rate_limit: None = Depends(change_email_rate_limit),
+):
+    if current_user.password_hash is None:
+        # Google-only-Account - Frontend blendet diesen Bereich bereits
+        # aus, das hier ist nur die serverseitige Absicherung.
+        raise HTTPException(400, "This account has no password set")
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(401, "Current password is incorrect")
+
+    existing = (
+        db.query(User)
+        .filter(User.email == payload.new_email, User.id != current_user.id)
+        .first()
+    )
+    if existing is not None:
+        raise HTTPException(409, "This email address is already in use")
+
+    # Vorherige offene CHANGE_EMAIL-Tokens dieses Nutzers invalidieren -
+    # nur der neueste angeforderte Link soll gültig sein.
+    db.query(EmailToken).filter(
+        EmailToken.user_id == current_user.id,
+        EmailToken.purpose == EmailTokenPurpose.CHANGE_EMAIL,
+        EmailToken.used_at.is_(None),
+    ).update({"used_at": datetime.now(timezone.utc)})
+
+    raw_token = create_email_token(user_id=current_user.id, purpose=EmailTokenPurpose.CHANGE_EMAIL.value)
+    db.add(EmailToken(
+        user_id=current_user.id,
+        token_hash=hash_email_token(raw_token),
+        purpose=EmailTokenPurpose.CHANGE_EMAIL,
+        new_email=payload.new_email,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+    ))
+    db.commit()
+
+    confirm_url = f"{settings.frontend_base_url.rstrip('/')}/confirm-email-change?token={raw_token}"
+    send_email_change_confirmation(to=payload.new_email, confirm_url=confirm_url)
+
+
+@router.get("/confirm-email-change")
+def confirm_email_change(token: str, db: Session = Depends(get_db)):
+    payload = verify_email_token_signature(token, max_age_seconds=60 * 60 * 24)
+    if payload is None or payload.get("purpose") != EmailTokenPurpose.CHANGE_EMAIL.value:
+        raise HTTPException(400, "Link is invalid or expired")
+
+    token_row = (
+        db.query(EmailToken)
+        .filter(
+            EmailToken.user_id == payload["user_id"],
+            EmailToken.token_hash == hash_email_token(token),
+            EmailToken.purpose == EmailTokenPurpose.CHANGE_EMAIL,
+            EmailToken.used_at.is_(None),
+        )
+        .first()
+    )
+    if token_row is None:
+        raise HTTPException(400, "Link is invalid, expired, or already used")
+
+    user = db.get(User, payload["user_id"])
+    user.email = token_row.new_email
+    token_row.used_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {"changed": True, "new_email": user.email}
 
 
 @router.delete("/me", status_code=204)
