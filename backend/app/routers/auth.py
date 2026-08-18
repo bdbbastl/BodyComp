@@ -9,6 +9,7 @@ from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -436,7 +437,7 @@ def change_email(
         EmailToken.user_id == current_user.id,
         EmailToken.purpose == EmailTokenPurpose.CHANGE_EMAIL,
         EmailToken.used_at.is_(None),
-    ).update({"used_at": datetime.now(timezone.utc)})
+    ).update({"used_at": datetime.now(timezone.utc)}, synchronize_session=False)
 
     raw_token = create_email_token(user_id=current_user.id, purpose=EmailTokenPurpose.CHANGE_EMAIL.value)
     db.add(EmailToken(
@@ -472,9 +473,15 @@ def confirm_email_change(token: str, db: Session = Depends(get_db)):
         raise HTTPException(400, "Link is invalid, expired, or already used")
 
     user = db.get(User, payload["user_id"])
+    if user is None:
+        raise HTTPException(400, "Link is invalid or expired")
     user.email = token_row.new_email
     token_row.used_at = datetime.now(timezone.utc)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "This email address is already in use")
 
     return {"changed": True, "new_email": user.email}
 

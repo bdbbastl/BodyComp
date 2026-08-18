@@ -354,3 +354,41 @@ def test_confirm_email_change_rejects_already_used_token(client, db_session, mon
     assert first.status_code == 200
     second = client.get(f"/api/auth/confirm-email-change?token={token}")
     assert second.status_code == 400
+
+
+def test_change_email_invalidates_previous_pending_token(client, db_session, monkeypatch):
+    sent = []
+    monkeypatch.setattr(
+        "app.routers.auth.send_email_change_confirmation",
+        lambda **kwargs: sent.append(kwargs),
+    )
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+
+    client.post(
+        "/api/auth/change-email",
+        json={"new_email": "first@example.com", "current_password": "Grindcore123!"},
+    )
+    first_token = sent[0]["confirm_url"].split("token=")[1]
+
+    # create_email_token signs {user_id, purpose} with second-resolution
+    # itsdangerous timestamps and no other entropy, so two requests within
+    # the same wall-clock second for the same user/purpose would otherwise
+    # produce byte-identical tokens - sleep past the second boundary so the
+    # two tokens in this test are actually distinct.
+    import time
+    time.sleep(1.1)
+
+    client.post(
+        "/api/auth/change-email",
+        json={"new_email": "second@example.com", "current_password": "Grindcore123!"},
+    )
+    second_token = sent[1]["confirm_url"].split("token=")[1]
+    assert first_token != second_token
+
+    stale_response = client.get(f"/api/auth/confirm-email-change?token={first_token}")
+    assert stale_response.status_code == 400
+
+    fresh_response = client.get(f"/api/auth/confirm-email-change?token={second_token}")
+    assert fresh_response.status_code == 200
+    assert fresh_response.json()["new_email"] == "second@example.com"
