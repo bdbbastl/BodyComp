@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 
 export default function Login() {
@@ -8,6 +8,12 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  // Wird von backend/app/routers/auth.py's google_callback gesetzt, wenn
+  // authorize_access_token() fehlschlägt (z.B. abgelaufener/doppelt
+  // gestarteter Login-Versuch) - statt eines rohen 500 landet der Nutzer
+  // hier mit einer verständlichen Meldung statt eines stillen Fehlschlags.
+  const googleOAuthFailed = searchParams.get("error") === "google_oauth_failed";
 
   const loginMutation = useMutation({
     mutationFn: () => api.auth.login(email, password),
@@ -60,6 +66,11 @@ export default function Login() {
             className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
           />
         </label>
+        {googleOAuthFailed && (
+          <p className="text-sm text-red-400">
+            Google sign-in didn't complete - please try again.
+          </p>
+        )}
         {isUnverifiedError ? (
           <div className="text-sm text-red-400">
             <p>Please confirm your email address first.</p>

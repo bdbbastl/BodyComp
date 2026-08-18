@@ -4,6 +4,7 @@ import logging
 import shutil
 from datetime import datetime, timedelta, timezone
 
+from authlib.integrations.base_client.errors import OAuthError
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
@@ -257,7 +258,20 @@ async def google_login(request: Request):
 
 @router.get("/google/callback")
 async def google_callback(request: Request, db: Session = Depends(get_db)):
-    token = await oauth.google.authorize_access_token(request)
+    try:
+        token = await oauth.google.authorize_access_token(request)
+    except OAuthError:
+        # z.B. MismatchingStateError - der oauth_state_session-Cookie mit dem
+        # ursprünglichen State kam beim Callback nicht (mehr) beim Server an
+        # (abgelaufen, Nutzer hat den Login-Versuch doppelt/parallel gestartet,
+        # oder eine Browser-Erweiterung/ein Zwischenspeicher hat den Redirect
+        # verzögert). Statt eines rohen 500 landet der Nutzer mit einer
+        # verständlichen Fehlermeldung zurück auf der Login-Seite und kann es
+        # erneut versuchen - Details fürs Debugging gehen ins Server-Log.
+        logger.warning("Google OAuth callback failed (state mismatch or expired)", exc_info=True)
+        return RedirectResponse(
+            url=f"{settings.frontend_base_url.rstrip('/')}/login?error=google_oauth_failed"
+        )
     userinfo = token["userinfo"]
     google_sub = userinfo["sub"]
     email = userinfo["email"]
