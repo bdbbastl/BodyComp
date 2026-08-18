@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import SignupSuccess from "./pages/SignupSuccess";
 import VerifyEmail from "./pages/VerifyEmail";
+import ConfirmEmailChange from "./pages/ConfirmEmailChange";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
@@ -45,6 +46,7 @@ export default function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/signup-success" element={<SignupSuccess />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/confirm-email-change" element={<ConfirmEmailChange />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/checkin/:token" element={<CheckinSubmit />} />
