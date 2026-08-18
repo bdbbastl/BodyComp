@@ -13,9 +13,13 @@ export interface CurrentUser {
   email: string;
   display_name: string;
   account_type: AccountType;
+  created_at: string;
   // false bei Google-only-Accounts (kein eigenes Passwort gesetzt) -
   // steuert z.B. ob bei der Konto-Löschung ein Passwortfeld angezeigt wird.
   has_password: boolean;
+  // true bei Accounts, die sich über Google einloggen - steuert, ob der
+  // E-Mail-Änderungsbereich in Account.tsx angezeigt wird.
+  has_google_account: boolean;
   subscription_status: string | null;
   subscription_tier: string | null;
   trial_ends_at: string | null;
@@ -55,6 +59,22 @@ export const api = {
       client.post("/auth/reset-password", { token, new_password }),
     deleteAccount: (password?: string) =>
       client.delete("/auth/me", { data: { password } }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      client.post("/auth/change-password", {
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    changeEmail: (newEmail: string, currentPassword: string) =>
+      client.post("/auth/change-email", {
+        new_email: newEmail,
+        current_password: currentPassword,
+      }),
+    confirmEmailChange: (token: string) =>
+      client
+        .get<{ changed: boolean; new_email: string }>("/auth/confirm-email-change", {
+          params: { token },
+        })
+        .then((r) => r.data),
     exportData: () => client.get("/auth/me/export").then((r) => r.data),
   },
   clients: {
