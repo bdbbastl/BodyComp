@@ -17,6 +17,17 @@ def _make_user(db_session, email="basti@example.com", password="Grindcore123!"):
     return user
 
 
+def _login_as(client, user):
+    """Setzt das Session-Cookie direkt für den gegebenen User, ohne den
+    /api/auth/login-Endpunkt zu nutzen. Nötig für Fälle wie Google-only-
+    Accounts, die sich nicht per Passwort einloggen können."""
+    from app.services.auth import SESSION_COOKIE_NAME, create_session_token
+
+    token = create_session_token(user.id)
+    client.cookies.set(SESSION_COOKIE_NAME, token)
+    return token
+
+
 def test_login_with_correct_credentials_sets_cookie(client, db_session):
     _make_user(db_session)
     response = client.post(
@@ -218,20 +229,34 @@ def test_change_password_rejects_google_only_account(client, db_session):
     )
     db_session.add(user)
     db_session.commit()
-
-    # Google-only-Accounts können sich nicht per Passwort einloggen - die
-    # Session wird hier direkt über den Login-Endpunkt simuliert, indem wir
-    # stattdessen die Session-Cookie-Mechanik nutzen: einfacher ist es, den
-    # bestehenden Login-mit-Passwort-Weg für Google-Accounts NICHT zu
-    # testen (den gibt's nicht) und stattdessen direkt zu prüfen, dass der
-    # Endpunkt bei fehlendem Passwort-Hash ablehnt, sobald ein Cookie da
-    # ist. Dazu erzeugen wir die Session wie login() es tun würde.
-    from app.services.auth import create_session_token, SESSION_COOKIE_NAME
-    token = create_session_token(user.id)
-    client.cookies.set(SESSION_COOKIE_NAME, token)
+    _login_as(client, user)
 
     response = client.post(
         "/api/auth/change-password",
         json={"current_password": "anything", "new_password": "NewPass123!"},
     )
     assert response.status_code == 400
+
+
+def test_change_password_invalidates_other_sessions_but_keeps_caller_logged_in(client, db_session):
+    _make_user(db_session)
+    client.post("/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"})
+    old_session_cookie = client.cookies.get("session")
+
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "Grindcore123!", "new_password": "NewPass123!"},
+    )
+    assert response.status_code == 204
+
+    # Die alte Session (z.B. ein gekapertes Gerät) muss jetzt tot sein.
+    client.cookies.set("session", old_session_cookie)
+    old_session_response = client.get("/api/auth/me")
+    assert old_session_response.status_code == 401
+
+    # Das neue, vom change-password-Response gesetzte Cookie soll aber
+    # weiterhin funktionieren - der aufrufende Browser bleibt eingeloggt.
+    new_session_cookie = response.cookies.get("session")
+    client.cookies.set("session", new_session_cookie)
+    new_session_response = client.get("/api/auth/me")
+    assert new_session_response.status_code == 200

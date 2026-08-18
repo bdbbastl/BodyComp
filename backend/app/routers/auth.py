@@ -125,24 +125,6 @@ def me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-@router.post("/change-password", status_code=204)
-def change_password(
-    payload: ChangePasswordRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    _rate_limit: None = Depends(change_password_rate_limit),
-):
-    if current_user.password_hash is None:
-        # Google-only-Account - hat kein Passwort zum Ändern. Das Frontend
-        # blendet diesen Bereich bereits aus (has_password=false), das
-        # hier ist nur die serverseitige Absicherung.
-        raise HTTPException(400, "This account has no password set")
-    if not verify_password(payload.current_password, current_user.password_hash):
-        raise HTTPException(401, "Current password is incorrect")
-    current_user.password_hash = hash_password(payload.new_password)
-    db.commit()
-
-
 @router.post("/switch-to-coach", response_model=UserOut)
 def switch_to_coach(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
@@ -382,6 +364,40 @@ def reset_password(
     user.sessions_invalidated_at = datetime.now(timezone.utc)
     token_row.used_at = datetime.now(timezone.utc)
     db.commit()
+
+
+@router.post("/change-password", status_code=204)
+def change_password(
+    payload: ChangePasswordRequest,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _rate_limit: None = Depends(change_password_rate_limit),
+):
+    if current_user.password_hash is None:
+        # Google-only-Account - hat kein Passwort zum Ändern. Das Frontend
+        # blendet diesen Bereich bereits aus (has_password=false), das
+        # hier ist nur die serverseitige Absicherung.
+        raise HTTPException(400, "This account has no password set")
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(401, "Current password is incorrect")
+    current_user.password_hash = hash_password(payload.new_password)
+    # Alle anderen Sessions invalidieren (gekaperte/geleakte Session soll
+    # nach Passwortwechsel nicht weiter gültig sein) - aber die aufrufende
+    # Session hier direkt erneuern, damit der Browser, der den Wechsel
+    # ausgelöst hat, eingeloggt bleibt.
+    current_user.sessions_invalidated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    token = create_session_token(current_user.id)
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        max_age=SESSION_MAX_AGE_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=True,
+    )
 
 
 @router.delete("/me", status_code=204)
