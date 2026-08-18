@@ -17,6 +17,7 @@ from app.core.database import Base
 class EmailTokenPurpose(str, enum.Enum):
     VERIFY_EMAIL = "verify_email"
     RESET_PASSWORD = "reset_password"
+    CHANGE_EMAIL = "change_email"
 
 
 class EmailToken(Base):
@@ -27,6 +28,11 @@ class EmailToken(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # Nur für purpose=CHANGE_EMAIL gesetzt - trägt die angefragte neue
+    # Adresse, bis der Bestätigungslink geklickt wird (siehe
+    # routers/auth.py change_email/confirm_email_change). Für alle
+    # anderen Purposes bleibt das Feld NULL.
+    new_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     purpose: Mapped[EmailTokenPurpose] = mapped_column(Enum(EmailTokenPurpose), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
