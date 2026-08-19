@@ -1,11 +1,11 @@
 // frontend/src/components/BusyOverlay.tsx
-import { useBusyOverlay } from "../contexts/BusyOverlayContext";
+import { useBusyOverlayState } from "../contexts/BusyOverlayContext";
 
 /** Rendert nichts, solange kein Vorgang aktiv ist. Vollbild, blockiert
  * komplett (kein pointer-events durch, kein Escape) - siehe Design-Spec
  * "Usability-Fixes Runde 2" Abschnitt 3+4. */
 export function BusyOverlay() {
-  const { active, label, progressPercent } = useBusyOverlay();
+  const { active, label, progressPercent } = useBusyOverlayState();
   if (!active) return null;
 
   return (
