@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { formatDateShortWithWeek } from "../utils/date";
 import PageHeader from "../components/PageHeader";
+import { useTimelineVisibleDates } from "../hooks/useTimelineVisibleDates";
 
 type RangeKey = "1m" | "3m" | "6m" | "1y" | "all";
 
@@ -28,10 +29,15 @@ export default function Statistics() {
     queryKey: ["day-logs", clientIdNum],
     queryFn: () => api.dayLogs.list(clientIdNum),
   });
+  const { visibleDates, isLoading: photosLoading } = useTimelineVisibleDates(clientIdNum);
 
   const points = useMemo(() => {
+    // Nur Gewichte von Tagen mit mindestens einem Timeline-sichtbaren Foto
+    // (siehe useTimelineVisibleDates) - ein gelöschter/noch nicht
+    // freigegebener Check-in soll sein Gewicht hier verschwinden lassen,
+    // auch wenn der DayLog-Eintrag selbst unverändert bleibt.
     const withWeight = (dayLogsQuery.data ?? [])
-      .filter((d) => d.weight_kg != null)
+      .filter((d) => d.weight_kg != null && visibleDates.has(d.date))
       .map((d) => ({ date: d.date, weight: d.weight_kg as number }))
       .sort((a, b) => (a.date < b.date ? -1 : 1));
 
@@ -43,9 +49,9 @@ export default function Statistics() {
     cutoff.setDate(cutoff.getDate() - days);
     const cutoffIso = cutoff.toISOString().slice(0, 10);
     return withWeight.filter((p) => p.date >= cutoffIso);
-  }, [dayLogsQuery.data, range]);
+  }, [dayLogsQuery.data, range, visibleDates]);
 
-  if (dayLogsQuery.isLoading) {
+  if (dayLogsQuery.isLoading || photosLoading) {
     return (
       <>
         <PageHeader title="Statistics" />
@@ -62,7 +68,9 @@ export default function Statistics() {
     );
   }
 
-  const totalWeighed = (dayLogsQuery.data ?? []).filter((d) => d.weight_kg != null).length;
+  const totalWeighed = (dayLogsQuery.data ?? []).filter(
+    (d) => d.weight_kg != null && visibleDates.has(d.date)
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -214,19 +222,11 @@ function WeightChart({ points }: { points: { date: string; weight: number }[] })
         {/* Linie */}
         <path d={linePath} fill="none" stroke="#22d3ee" strokeWidth={2} />
 
-        {/* Datenpunkte + Hover-Ziele */}
+        {/* Datenpunkte + X-Achsenbeschriftung (kein eigenes Hover-Handling
+            mehr pro Punkt - siehe die durchgehende Hover-Fläche unten). */}
         {points.map((p, i) => (
           <g key={p.date}>
             <circle cx={x(i)} cy={y(p.weight)} r={hoverIndex === i ? 5 : 3} fill="#22d3ee" />
-            <rect
-              x={x(i) - plotWidth / points.length / 2}
-              y={PADDING.top}
-              width={plotWidth / points.length || plotWidth}
-              height={plotHeight}
-              fill="transparent"
-              onMouseEnter={() => setHoverIndex(i)}
-              onMouseLeave={() => setHoverIndex(null)}
-            />
             {i % labelStep === 0 && (
               <text
                 x={x(i)}
@@ -240,9 +240,43 @@ function WeightChart({ points }: { points: { date: string; weight: number }[] })
           </g>
         ))}
 
-        {/* Tooltip */}
+        {/* Eine einzige durchgehende Hover-Fläche über der ganzen Plot-
+            Fläche statt vieler schmaler Einzel-Rechtecke pro Punkt (siehe
+            Bugreport "Mouseover funktioniert nur sporadisch"): bei eng
+            beieinanderliegenden Punkten überlappte das eingeblendete
+            Tooltip (foreignObject) teilweise die Hover-Fläche des
+            Nachbarpunkts und fing dessen Mausereignisse ab, was das Hover
+            wechselweise abbrechen ließ. onMouseMove bestimmt stattdessen
+            fortlaufend den nächstgelegenen Punkt zur Mausposition -
+            robust unabhängig vom Punktabstand, keine Lücken/Überlappung. */}
+        <rect
+          x={PADDING.left}
+          y={PADDING.top}
+          width={plotWidth}
+          height={plotHeight}
+          fill="transparent"
+          onMouseMove={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const relativeX = ((e.clientX - rect.left) / rect.width) * plotWidth;
+            const svgX = PADDING.left + relativeX;
+            let closest = 0;
+            let closestDist = Infinity;
+            points.forEach((_, i) => {
+              const dist = Math.abs(x(i) - svgX);
+              if (dist < closestDist) {
+                closestDist = dist;
+                closest = i;
+              }
+            });
+            setHoverIndex(closest);
+          }}
+          onMouseLeave={() => setHoverIndex(null)}
+        />
+
+        {/* Tooltip - pointer-events: none, damit es selbst niemals die
+            durchgehende Hover-Fläche darunter blockiert. */}
         {hoverIndex != null && (
-          <g>
+          <g style={{ pointerEvents: "none" }}>
             <line
               x1={x(hoverIndex)}
               x2={x(hoverIndex)}

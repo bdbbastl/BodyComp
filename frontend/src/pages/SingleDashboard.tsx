@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { Card } from "../components/Card";
+import { useTimelineVisibleDates } from "../hooks/useTimelineVisibleDates";
 
 type RangeKey = "1m" | "3m" | "6m" | "1y" | "all";
 
@@ -25,21 +26,26 @@ export default function SingleDashboard() {
     queryFn: () => api.dayLogs.list(clientIdNum),
     enabled: !!clientId,
   });
+  const { visibleDates, isLoading: photosLoading } = useTimelineVisibleDates(clientIdNum);
 
   const weighedPoints = useMemo(() => {
+    // Nur Gewichte von Tagen mit mindestens einem Timeline-sichtbaren Foto
+    // (siehe useTimelineVisibleDates) - konsistent mit Statistics.tsx.
     return (dayLogsQuery.data ?? [])
-      .filter((d) => d.weight_kg != null)
+      .filter((d) => d.weight_kg != null && visibleDates.has(d.date))
       .map((d) => ({ date: d.date, weight: d.weight_kg as number }))
       .sort((a, b) => (a.date < b.date ? -1 : 1));
-  }, [dayLogsQuery.data]);
+  }, [dayLogsQuery.data, visibleDates]);
+
+  const isLoading = dayLogsQuery.isLoading || photosLoading;
 
   return (
     <div>
       <PageHeader title="Dashboard" />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <WeightTrendWidget points={weighedPoints} isLoading={dayLogsQuery.isLoading} />
-        <RecentEntriesWidget points={weighedPoints} isLoading={dayLogsQuery.isLoading} />
-        <ProgressWidget points={weighedPoints} isLoading={dayLogsQuery.isLoading} />
+        <WeightTrendWidget points={weighedPoints} isLoading={isLoading} />
+        <RecentEntriesWidget points={weighedPoints} isLoading={isLoading} />
+        <ProgressWidget points={weighedPoints} isLoading={isLoading} />
         <QuickActionsWidget clientId={clientIdNum} />
       </div>
     </div>
