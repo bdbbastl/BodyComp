@@ -358,13 +358,28 @@ function ProfileSection() {
             </p>
           )}
           {passwordSuccess && <p className="text-sm text-accent">Password changed.</p>}
-          <button
-            type="submit"
-            disabled={changePasswordMutation.isPending || passwordsMismatch}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
-          >
-            {changePasswordMutation.isPending ? "Saving…" : "Change password"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={changePasswordMutation.isPending || passwordsMismatch}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
+            >
+              {changePasswordMutation.isPending ? "Saving…" : "Change password"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveAction(null);
+                setCurrentPassword("");
+                setNewPassword("");
+                setNewPasswordConfirm("");
+                setPasswordSuccess(false);
+              }}
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
+            >
+              Cancel
+            </button>
+          </div>
         </form>
       )}
 
@@ -412,13 +427,26 @@ function ProfileSection() {
                       : "Could not change email."}
                 </p>
               )}
-              <button
-                type="submit"
-                disabled={changeEmailMutation.isPending}
-                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
-              >
-                {changeEmailMutation.isPending ? "Sending…" : "Change email"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={changeEmailMutation.isPending}
+                  className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
+                >
+                  {changeEmailMutation.isPending ? "Sending…" : "Change email"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveAction(null);
+                    setNewEmail("");
+                    setEmailPassword("");
+                  }}
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
           )}
         </div>
