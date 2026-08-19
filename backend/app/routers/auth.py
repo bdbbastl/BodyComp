@@ -122,6 +122,8 @@ def login(
         raise HTTPException(401, "Email or password incorrect")
     if user.email_verified_at is None:
         raise HTTPException(403, "Please verify your email address first")
+    if not user.is_active:
+        raise HTTPException(403, "This account has been disabled. Contact support.")
 
     token = create_session_token(user.id)
     response.set_cookie(
@@ -321,6 +323,11 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         user.email_verified_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(user)
+
+    if not user.is_active:
+        return RedirectResponse(
+            url=f"{settings.frontend_base_url.rstrip('/')}/login?error=account_disabled"
+        )
 
     session_token = create_session_token(user.id)
     response = RedirectResponse(url=f"{settings.frontend_base_url}/")

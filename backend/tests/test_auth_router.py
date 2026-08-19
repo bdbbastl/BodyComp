@@ -56,6 +56,18 @@ def test_login_with_unknown_email_fails(client, db_session):
     assert response.status_code == 401
 
 
+def test_login_rejects_deactivated_account(client, db_session):
+    user = _make_user(db_session)
+    user.is_active = False
+    db_session.commit()
+
+    response = client.post(
+        "/api/auth/login", json={"email": "basti@example.com", "password": "Grindcore123!"}
+    )
+    assert response.status_code == 403
+    assert "session" not in response.cookies
+
+
 def test_me_requires_session(client, db_session):
     response = client.get("/api/auth/me")
     assert response.status_code == 401

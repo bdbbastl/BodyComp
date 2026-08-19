@@ -73,10 +73,10 @@ class User(Base):
     # den /admin-Frontend-Bereich. Siehe Design-Spec
     # "Master-Admin-Dashboard".
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    # Deaktivierte Accounts können sich nicht mehr einloggen (siehe
-    # get_current_user-Aufrufer in auth.py `login`/`google_callback`) -
-    # bestehende Sessions bleiben bis zum nächsten Login-Versuch gültig
-    # (kein aktives Invalidieren in v1).
+    # Deaktivierte Accounts können sich nicht mehr einloggen (siehe die
+    # is_active-Prüfung in auth.py `login`/`google_callback`) - bestehende
+    # Sessions bleiben bis zum nächsten Login-Versuch gültig (kein aktives
+    # Invalidieren in v1).
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     clients: Mapped[list["Client"]] = relationship(  # noqa: F821
