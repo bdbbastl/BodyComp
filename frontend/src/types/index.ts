@@ -85,3 +85,29 @@ export interface PublicCheckinPage {
   client_name: string;
   submissions: Omit<CheckinSubmission, "reviewed_at">[];
 }
+
+export interface PendingCheckinSummary {
+  id: number;
+  client_id: number;
+  client_name: string;
+  submitted_at: string;
+  weight_kg: number | null;
+}
+
+export interface NeedsAttentionClient {
+  client_id: number;
+  client_name: string;
+  days_since_activity: number | null;
+}
+
+export interface WeekStats {
+  checkins: number;
+  photos: number;
+  active_clients: number;
+}
+
+export interface CoachDashboardSummary {
+  pending_checkins: PendingCheckinSummary[];
+  needs_attention: NeedsAttentionClient[];
+  week_stats: WeekStats;
+}

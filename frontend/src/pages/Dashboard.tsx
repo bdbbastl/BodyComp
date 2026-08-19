@@ -4,19 +4,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
-import { EmptyState } from "../components/EmptyState";
-import { SkeletonGrid } from "../components/Skeleton";
+import { Card } from "../components/Card";
 import { UpgradeBanner } from "../components/UpgradeBanner";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useOnboarding } from "../contexts/OnboardingContext";
-import type { Client } from "../types";
-
-function ageFromBirthDate(birthDate: string | null): number | null {
-  if (!birthDate) return null;
-  return Math.floor(
-    (Date.now() - new Date(birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)
-  );
-}
+import type {
+  Client,
+  CoachDashboardSummary,
+  NeedsAttentionClient,
+  PendingCheckinSummary,
+} from "../types";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
@@ -30,10 +27,11 @@ export default function Dashboard() {
   const [gender, setGender] = useState("");
   const [startDate, setStartDate] = useState("");
 
-  const [search, setSearch] = useState("");
-  const [genderFilter, setGenderFilter] = useState("");
-
   const clientsQuery = useQuery({ queryKey: ["clients"], queryFn: api.clients.list });
+  const summaryQuery = useQuery({
+    queryKey: ["dashboard", "coach-summary"],
+    queryFn: api.dashboard.coachSummary,
+  });
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -61,19 +59,6 @@ export default function Dashboard() {
   });
 
   const clients = clientsQuery.data ?? [];
-
-  const availableGenders = useMemo(
-    () => Array.from(new Set(clients.map((c) => c.gender).filter((g): g is string => !!g))),
-    [clients]
-  );
-
-  const filteredClients = useMemo(() => {
-    return clients.filter((c) => {
-      const matchesSearch = c.name.toLowerCase().includes(search.trim().toLowerCase());
-      const matchesGender = !genderFilter || c.gender === genderFilter;
-      return matchesSearch && matchesGender;
-    });
-  }, [clients, search, genderFilter]);
 
   return (
     <div>
@@ -171,94 +156,172 @@ export default function Dashboard() {
         </form>
       )}
 
-      {clients.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-3">
-          <input
-            type="search"
-            placeholder="Search clients…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="min-w-[200px] flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
-          />
-          {availableGenders.length > 0 && (
-            <select
-              value={genderFilter}
-              onChange={(e) => setGenderFilter(e.target.value)}
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
-            >
-              <option value="">All Genders</option>
-              {availableGenders.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
-
-      {clientsQuery.isLoading && <SkeletonGrid />}
-
-      {!clientsQuery.isLoading && clients.length === 0 && (
-        <EmptyState
-          icon="🚀"
-          title="No clients on board yet"
-          description="Add your first client and start the check-in flow."
-          action={
-            <button
-              onClick={() => setShowForm(true)}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90"
-            >
-              Add First Client
-            </button>
-          }
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <ClientsWidget clients={clients} isLoading={clientsQuery.isLoading} />
+        <PendingCheckinsWidget
+          items={summaryQuery.data?.pending_checkins ?? []}
+          isLoading={summaryQuery.isLoading}
         />
-      )}
-
-      {!clientsQuery.isLoading && clients.length > 0 && filteredClients.length === 0 && (
-        <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-slate-500">
-          No clients found.
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredClients.map((c) => (
-          <DashboardClientCard key={c.id} client={c} />
-        ))}
+        <NeedsAttentionWidget
+          items={summaryQuery.data?.needs_attention ?? []}
+          isLoading={summaryQuery.isLoading}
+        />
+        <WeekStatsWidget stats={summaryQuery.data?.week_stats} isLoading={summaryQuery.isLoading} />
       </div>
     </div>
   );
 }
 
-function DashboardClientCard({ client: c }: { client: Client }) {
-  const age = ageFromBirthDate(c.birth_date);
-  const metaLine = [age ? `${age} years` : null, c.height_cm ? `${c.height_cm} cm` : null]
-    .filter(Boolean)
-    .join(" · ");
+function ClientsWidget({ clients, isLoading }: { clients: Client[]; isLoading: boolean }) {
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(
+    () => clients.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase())),
+    [clients, search]
+  );
 
   return (
-    <Link
-      to={`/clients/${c.id}/timeline`}
-      className="rounded-xl border border-white/5 bg-surface p-4 transition-colors hover:border-accent/40"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-base font-semibold text-white">{c.name}</p>
-        {c.pending_checkins_count > 0 && (
-          <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-400">
-            {c.pending_checkins_count} pending check-in
-            {c.pending_checkins_count === 1 ? "" : "s"}
-          </span>
-        )}
+    <Card title="Clients">
+      <input
+        type="search"
+        placeholder="Search clients…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="mb-3 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
+      />
+      {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
+      {!isLoading && filtered.length === 0 && (
+        <p className="text-sm text-slate-500">No clients found.</p>
+      )}
+      <div className="max-h-64 space-y-1 overflow-y-auto">
+        {filtered.map((c) => (
+          <Link
+            key={c.id}
+            to={`/clients/${c.id}/timeline`}
+            className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm text-slate-300 hover:bg-white/5"
+          >
+            <span>{c.name}</span>
+            {c.pending_checkins_count > 0 && (
+              <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-400">
+                {c.pending_checkins_count} pending
+              </span>
+            )}
+          </Link>
+        ))}
       </div>
-      <p className="mt-1 text-xs text-slate-500">{metaLine || "No metrics on file"}</p>
-      <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-        <span>{c.photo_count} photos</span>
-        <span>
-          {c.last_activity
-            ? `Last: ${new Date(c.last_activity).toLocaleDateString("en-US")}`
-            : "No photos"}
-        </span>
+    </Card>
+  );
+}
+
+function PendingCheckinsWidget({
+  items,
+  isLoading,
+}: {
+  items: PendingCheckinSummary[];
+  isLoading: boolean;
+}) {
+  const queryClient = useQueryClient();
+
+  const markSeenMutation = useMutation({
+    mutationFn: (item: PendingCheckinSummary) =>
+      api.checkins.update(item.client_id, item.id, { mark_reviewed: true }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "coach-summary"] });
+    },
+  });
+
+  return (
+    <Card title="Unseen check-ins">
+      {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
+      {!isLoading && items.length === 0 && (
+        <p className="text-sm text-slate-500">No pending check-ins.</p>
+      )}
+      <div className="max-h-64 space-y-2 overflow-y-auto">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            className="flex items-center justify-between gap-2 rounded-lg bg-amber-500/5 px-3 py-2"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm text-slate-200">{item.client_name}</p>
+              <p className="text-xs text-slate-500">
+                {new Date(item.submitted_at).toLocaleDateString("en-US")}
+                {item.weight_kg != null ? ` · ${item.weight_kg} kg` : ""}
+              </p>
+            </div>
+            <button
+              onClick={() => markSeenMutation.mutate(item)}
+              disabled={markSeenMutation.isPending}
+              className="shrink-0 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/10 disabled:opacity-50"
+            >
+              Mark seen
+            </button>
+          </div>
+        ))}
       </div>
-    </Link>
+    </Card>
+  );
+}
+
+function NeedsAttentionWidget({
+  items,
+  isLoading,
+}: {
+  items: NeedsAttentionClient[];
+  isLoading: boolean;
+}) {
+  return (
+    <Card title="Needs attention">
+      {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
+      {!isLoading && items.length === 0 && (
+        <p className="text-sm text-slate-500">Everyone's on track.</p>
+      )}
+      <div className="max-h-64 space-y-1 overflow-y-auto">
+        {items.map((entry) => (
+          <Link
+            key={entry.client_id}
+            to={`/clients/${entry.client_id}/timeline`}
+            className="flex items-center justify-between rounded-lg bg-red-500/5 px-3 py-2 text-sm hover:bg-red-500/10"
+          >
+            <span className="text-slate-200">{entry.client_name}</span>
+            <span className="text-xs text-red-400">
+              {entry.days_since_activity === null
+                ? "Never active"
+                : `${entry.days_since_activity} days quiet`}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function WeekStatsWidget({
+  stats,
+  isLoading,
+}: {
+  stats: CoachDashboardSummary["week_stats"] | undefined;
+  isLoading: boolean;
+}) {
+  return (
+    <Card title="This week">
+      {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
+      {!isLoading && stats && (
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <p className="text-xl font-medium text-accent">{stats.checkins}</p>
+            <p className="text-xs text-slate-500">check-ins</p>
+          </div>
+          <div>
+            <p className="text-xl font-medium text-accent">{stats.photos}</p>
+            <p className="text-xs text-slate-500">photos</p>
+          </div>
+          <div>
+            <p className="text-xl font-medium text-accent">{stats.active_clients}</p>
+            <p className="text-xs text-slate-500">active clients</p>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }

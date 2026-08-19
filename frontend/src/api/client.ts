@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { CheckinSubmission, Client, DayLog, Photo, Pose, PublicCheckinPage, UnprocessedPhoto } from "../types";
+import type { CheckinSubmission, Client, CoachDashboardSummary, DayLog, NeedsAttentionClient, Photo, Pose, PendingCheckinSummary, PublicCheckinPage, UnprocessedPhoto, WeekStats } from "../types";
 
 export interface DisplaySettings {
   timeline_columns_max: number;
@@ -25,32 +25,6 @@ export interface CurrentUser {
   trial_ends_at: string | null;
   free_checkins_used: number;
   onboarding_completed_at: string | null;
-}
-
-export interface PendingCheckinSummary {
-  id: number;
-  client_id: number;
-  client_name: string;
-  submitted_at: string;
-  weight_kg: number | null;
-}
-
-export interface NeedsAttentionClient {
-  client_id: number;
-  client_name: string;
-  days_since_activity: number | null;
-}
-
-export interface WeekStats {
-  checkins: number;
-  photos: number;
-  active_clients: number;
-}
-
-export interface CoachDashboardSummary {
-  pending_checkins: PendingCheckinSummary[];
-  needs_attention: NeedsAttentionClient[];
-  week_stats: WeekStats;
 }
 
 const client = axios.create({ baseURL: "/api", withCredentials: true });
