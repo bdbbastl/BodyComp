@@ -12,6 +12,7 @@ import { PositionSlider } from "../components/PositionSlider";
 import { SliderControl } from "../components/SliderControl";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
+import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 
 type Mode = "side-by-side" | "slider";
 // "all" = Sonderauswahl "Alle Posen" - zeigt alle Posen (in Settings-
@@ -27,6 +28,7 @@ export default function Compare() {
   const { clientId } = useParams<{ clientId: string }>();
   const clientIdNum = Number(clientId);
   const [poseSelection, setPoseSelection] = useState<PoseSelection>("");
+  const { show, hide } = useBusyOverlay();
   const [dateX, setDateX] = useState("");
   const [dateY, setDateY] = useState("");
   const [mode, setMode] = useState<Mode>("side-by-side");
@@ -165,9 +167,13 @@ export default function Compare() {
         date_x: dateX,
         date_y: dateY,
       }),
+    onSuccess: () => hide(),
+    onError: () => hide(),
   });
   const aiAnalysisAllMutation = useMutation({
     mutationFn: () => api.comparisons.aiAnalysisAll(clientIdNum, { date_x: dateX, date_y: dateY }),
+    onSuccess: () => hide(),
+    onError: () => hide(),
   });
   const activeAiMutation = isAllPoses ? aiAnalysisAllMutation : aiAnalysisMutation;
 
@@ -336,7 +342,10 @@ export default function Compare() {
       {((isAllPoses && allPosePairs.length > 0) || (!isAllPoses && result)) && (
         <div className="flex flex-col items-center gap-2">
           <button
-            onClick={() => activeAiMutation.mutate()}
+            onClick={() => {
+              show("Judge analyzing…");
+              activeAiMutation.mutate();
+            }}
             disabled={activeAiMutation.isPending}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
