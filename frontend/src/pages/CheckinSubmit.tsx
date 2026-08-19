@@ -96,7 +96,7 @@ export default function CheckinSubmit() {
     mutationFn: () => {
       const parsed = parseWeightInput(weightKg);
       return api.publicCheckin.submit(token!, {
-        weight_kg: parsed === null || Number.isNaN(parsed) ? null : parsed,
+        weight_kg: parsed,
         client_note: note.trim() === "" ? undefined : note.trim(),
         files,
         poseIds: files.map((_, i) => photoPoses[i] as number),
@@ -132,9 +132,19 @@ export default function CheckinSubmit() {
 
   const page = pageQuery.data;
 
+  // Gewicht und mindestens ein Foto sind Pflicht für einen sinnvollen
+  // Check-in - siehe Live-Feedback ("Muss mindestens ein Foto sein, sonst
+  // ist das ja lachhaft"). parseWeightInput liefert null/NaN, wenn das
+  // Feld leer ist oder keine gültige Zahl enthält.
+  const parsedWeight = parseWeightInput(weightKg);
+  const weightIsValid = parsedWeight !== null && !Number.isNaN(parsedWeight);
+  const hasPhotos = files.length > 0;
+  const allPhotosHavePoses = files.every((_, i) => !!photoPoses[i]);
+  const canSubmit = weightIsValid && hasPhotos && allPhotosHavePoses;
+
   return (
     <div className="min-h-screen bg-background px-4 py-8 text-slate-100">
-      <div className="mx-auto max-w-2xl space-y-6">
+      <div className="mx-auto max-w-5xl space-y-6">
         <div>
           <p className="text-xs text-slate-500">Check-in for</p>
           <h1 className="text-xl font-semibold text-white">{page.client_name}</h1>
@@ -164,12 +174,7 @@ export default function CheckinSubmit() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (
-              submitMutation.isPending ||
-              (files.length > 0 && files.some((_, i) => !photoPoses[i]))
-            ) {
-              return;
-            }
+            if (submitMutation.isPending || !canSubmit) return;
             show("Submitting check-in…");
             submitMutation.mutate();
           }}
@@ -180,10 +185,14 @@ export default function CheckinSubmit() {
             <input
               type="text"
               inputMode="decimal"
+              required
               value={weightKg}
               onChange={(e) => setWeightKg(e.target.value)}
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
             />
+            {weightKg.trim() !== "" && !weightIsValid && (
+              <span className="text-xs text-red-400">Enter a valid weight.</span>
+            )}
           </label>
           <label className="flex flex-col gap-1 text-sm text-slate-400">
             Note (optional)
@@ -195,10 +204,11 @@ export default function CheckinSubmit() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Photos (optional)
+            Photos (at least 1 required)
             <input
               type="file"
               multiple
+              required
               accept="image/jpeg,image/png,image/heic,.heic"
               onChange={(e) => {
                 setFiles(e.target.files ? Array.from(e.target.files) : []);
@@ -209,36 +219,38 @@ export default function CheckinSubmit() {
             />
           </label>
           {files.length > 0 && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {files.map((file, i) => (
                 <div
                   key={`${file.name}-${i}`}
-                  className="space-y-2 rounded-lg border border-white/10 bg-black/20 p-2"
+                  className="overflow-hidden rounded-xl border border-white/5 bg-surface"
                 >
                   <img
                     src={previewUrls[i]}
                     alt={file.name}
-                    className="h-64 w-full rounded-md bg-black/40 object-contain"
+                    className="aspect-[3/4] w-full object-cover"
                   />
-                  <select
-                    required
-                    aria-label={`Pose for photo ${i + 1}`}
-                    value={photoPoses[i] ?? ""}
-                    onChange={(e) =>
-                      setPhotoPoses((prev) => ({
-                        ...prev,
-                        [i]: e.target.value === "" ? "" : Number(e.target.value),
-                      }))
-                    }
-                    className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white focus:border-accent focus:outline-none"
-                  >
-                    <option value="">Choose pose…</option>
-                    {page.poses.map((pose, index) => (
-                      <option key={pose.id} value={pose.id}>
-                        {numberedPoseOptionLabel(index, pose.name)}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="p-3">
+                    <select
+                      required
+                      aria-label={`Pose for photo ${i + 1}`}
+                      value={photoPoses[i] ?? ""}
+                      onChange={(e) =>
+                        setPhotoPoses((prev) => ({
+                          ...prev,
+                          [i]: e.target.value === "" ? "" : Number(e.target.value),
+                        }))
+                      }
+                      className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
+                    >
+                      <option value="">Choose pose…</option>
+                      {page.poses.map((pose, index) => (
+                        <option key={pose.id} value={pose.id}>
+                          {numberedPoseOptionLabel(index, pose.name)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               ))}
             </div>
@@ -248,9 +260,15 @@ export default function CheckinSubmit() {
           )}
           <button
             type="submit"
-            disabled={
-              submitMutation.isPending ||
-              (files.length > 0 && files.some((_, i) => !photoPoses[i]))
+            disabled={submitMutation.isPending || !canSubmit}
+            title={
+              !hasPhotos
+                ? "Add at least one photo"
+                : !weightIsValid
+                  ? "Enter your weight"
+                  : !allPhotosHavePoses
+                    ? "Choose a pose for every photo"
+                    : undefined
             }
             className="sticky bottom-4 w-full rounded-lg bg-accent px-4 py-3 text-sm font-medium text-slate-900 shadow-lg shadow-black/40 hover:opacity-90 disabled:opacity-50 sm:static sm:py-2 sm:shadow-none"
           >
