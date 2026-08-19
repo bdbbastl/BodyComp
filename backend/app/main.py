@@ -24,7 +24,7 @@ from app.models import app_setting  # noqa: F401 - Import registriert Table bei 
 from app.models import user  # noqa: F401 - Import registriert Table bei create_all
 from app.models import client  # noqa: F401 - Import registriert Table bei create_all
 from app.models import email_token  # noqa: F401 - Import registriert Table bei create_all
-from app.routers import auth, billing, checkins, clients, comparisons, day_logs, photos, poses, public_checkin, settings as settings_router
+from app.routers import auth, billing, checkins, clients, comparisons, dashboard, day_logs, photos, poses, public_checkin, settings as settings_router
 from app.services.storage_sync import ensure_local
 
 if settings.sentry_dsn:
@@ -100,6 +100,7 @@ def serve_media(rel_path: str):
 
 app.include_router(auth.router)
 app.include_router(clients.router)
+app.include_router(dashboard.router)
 app.include_router(poses.router)
 app.include_router(day_logs.router)
 app.include_router(photos.router)
