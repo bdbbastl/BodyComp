@@ -118,6 +118,11 @@ export default function ClientShell() {
         >
           <Icon size={17} aria-hidden="true" />
           {!options.collapsed && item.label}
+          {item.to === "checkins" && (clientQuery.data?.pending_checkins_count ?? 0) > 0 && (
+            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+              {clientQuery.data!.pending_checkins_count}
+            </span>
+          )}
         </NavLink>
       </div>
     );
