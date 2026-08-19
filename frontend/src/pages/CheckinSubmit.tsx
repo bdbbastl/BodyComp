@@ -30,6 +30,10 @@ export default function CheckinSubmit() {
   const [note, setNote] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [photoPoses, setPhotoPoses] = useState<Record<number, number | "">>({});
+  // Große, gut sichtbare Bestätigung nach erfolgreichem Absenden - bleibt
+  // stehen (Formular bleibt gleichzeitig sofort wieder nutzbar), bis der
+  // User sie wegklickt oder eine neue Dateiauswahl trifft.
+  const [confirmation, setConfirmation] = useState<string | null>(null);
 
   // Object-URLs fuer die Foto-Vorschau nur einmal pro Datei-Auswahl anlegen
   // (nicht bei jedem Render, z.B. jeder Eingabe im Gewichts-/Notizfeld) und
@@ -100,6 +104,7 @@ export default function CheckinSubmit() {
     },
     onSuccess: () => {
       hide();
+      setConfirmation(photoDateLabel ?? formatDateWithWeek(new Date().toISOString()));
       setWeightKg("");
       setNote("");
       setFiles([]);
@@ -135,6 +140,26 @@ export default function CheckinSubmit() {
           <h1 className="text-xl font-semibold text-white">{page.client_name}</h1>
           {photoDateLabel && <p className="mt-1 text-sm text-slate-400">{photoDateLabel}</p>}
         </div>
+
+        {confirmation && (
+          <div className="flex items-start gap-3 rounded-xl border border-accent/40 bg-accent/10 p-4">
+            <span className="text-2xl">✅</span>
+            <div className="flex-1">
+              <p className="font-semibold text-white">Check-in submitted!</p>
+              <p className="mt-0.5 text-sm text-slate-300">
+                {confirmation} — your coach will review it soon.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfirmation(null)}
+              aria-label="Dismiss"
+              className="text-slate-400 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <form
           onSubmit={(e) => {
@@ -178,6 +203,7 @@ export default function CheckinSubmit() {
               onChange={(e) => {
                 setFiles(e.target.files ? Array.from(e.target.files) : []);
                 setPhotoPoses({});
+                setConfirmation(null);
               }}
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-900"
             />
