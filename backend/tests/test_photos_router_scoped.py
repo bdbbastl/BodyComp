@@ -111,6 +111,44 @@ def test_assign_photo_blocked_for_single_account_after_free_quota(client, db_ses
     assert r3.status_code == 402
 
 
+def test_assign_photo_sets_processed_status_and_day_log(client, db_session):
+    from app.models.photo import Photo, ProcessingStatus
+    from app.models.pose import Pose
+
+    client_id = _login_and_get_client(client, db_session)
+
+    pose = Pose(client_id=client_id, name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+
+    photo = Photo(
+        client_id=client_id,
+        filename="p1.jpg",
+        original_path=f"photos_incoming/{client_id}/p1.jpg",
+        taken_at=datetime(2026, 1, 1, 12, 0, 0),
+        status=ProcessingStatus.UNPROCESSED,
+    )
+    db_session.add(photo)
+    db_session.commit()
+    db_session.refresh(photo)
+
+    response = client.post(
+        f"/api/clients/{client_id}/photos/{photo.id}/assign",
+        json={"pose_id": pose.id},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    # Kein echtes Bild auf Platte in diesem Test -> MediaPipe findet nichts,
+    # Normalisierung schlägt fehl, aber die Zuordnung selbst muss trotzdem
+    # durchgehen (bestehendes "best effort"-Verhalten, siehe Design-Spec).
+    assert body["status"] == "normalization_failed"
+    assert body["pose_id"] == pose.id
+
+    day_logs = client.get(f"/api/clients/{client_id}/day-logs").json()
+    assert len(day_logs) == 1
+    assert day_logs[0]["date"] == "2026-01-01"
+
+
 def test_assign_photo_accepts_comma_decimal_weight(client, db_session):
     from app.models.photo import Photo, ProcessingStatus
     from app.models.pose import Pose

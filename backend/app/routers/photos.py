@@ -3,6 +3,8 @@ Foto-Workflow pro Kunde: Ordner-Sync, Unprocessed-Queue, manuelle
 Zuordnung, Timeline-Dashboard-Daten.
 """
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import date as date_
 from datetime import datetime
 from pathlib import Path
@@ -38,6 +40,12 @@ from app.services.storage_sync import delete_remote, ensure_local, push
 from app.services.thumbnails import generate_thumbnail, thumbnail_path_for
 
 router = APIRouter(prefix="/api/clients/{client_id}/photos", tags=["photos"])
+
+# Begrenzt gleichzeitige Foto-Verarbeitung (Datei-I/O + MediaPipe-
+# Inferenz) - verhindert CPU-Überlastung durch zu viele parallele
+# Inferenzen auf dem begrenzten Railway-Container. Siehe Design-Spec
+# "Foto-Upload/Speicher-Performance".
+PHOTO_PROCESSING_MAX_WORKERS = 4
 
 
 @router.post("/sync", response_model=list[PhotoOut])
@@ -195,96 +203,171 @@ def backfill_thumbnails(
     return {"total_candidates": len(photos), "generated": generated}
 
 
-def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None, owner: User) -> Photo:
-    """
-    Ordnet ein Unprocessed-Bild einer Pose zu:
-    1. DayLog für das EXIF-Datum holen/anlegen, optional Gewicht setzen.
-    2. Datei von photos_incoming/<client_id>/ nach
-       photos_processed/<client_id>/<date>/ verschieben.
-    3. MediaPipe-Normalisierung anstoßen (best effort - Fehler blockieren
-       die Zuordnung nicht, siehe ProcessingStatus.NORMALIZATION_FAILED).
-    Von /assign (Einzelfoto) und /assign-bulk (Massenzuordnung) gemeinsam
-    genutzt, damit beide exakt dieselbe Logik durchlaufen.
-    """
-    day_date = photo.taken_at.date()
+def _get_or_create_day_log(db: Session, client_id: int, day_date, owner: User) -> DayLog:
+    """Holt den DayLog für ein Datum oder legt ihn an (inkl. Freikontingent-
+    Prüfung für neue Tage). Extrahiert aus der früheren _assign_photo, damit
+    sowohl die Einzel- als auch die Bulk-Zuordnung dieselbe Logik nutzen -
+    wichtig für Bulk: muss VOR dem Parallel-Dispatch pro Item aufgelöst
+    werden, da mehrere Fotos desselben Tages sich sonst beim parallelen
+    Anlegen desselben DayLog in die Quere kommen könnten (Race Condition).
+    `db.flush()` (nicht nur `db.add`) ist nötig, damit ein direkt
+    anschließender Aufruf für ein ANDERES Foto desselben Tages im selben
+    Batch den gerade erst angelegten (noch nicht committeten) DayLog per
+    Query bereits findet - die Test-Session läuft mit autoflush=False."""
     day_log = (
         db.query(DayLog)
-        .filter(DayLog.client_id == photo.client_id, DayLog.date == day_date)
+        .filter(DayLog.client_id == client_id, DayLog.date == day_date)
         .first()
     )
     if day_log is None:
         check_and_consume_free_checkin(owner, db)
-        day_log = DayLog(client_id=photo.client_id, date=day_date)
+        day_log = DayLog(client_id=client_id, date=day_date)
         db.add(day_log)
         db.flush()
-    if weight_kg is not None:
-        day_log.weight_kg = weight_kg
+    return day_log
 
-    # Datei physisch verschieben: photos_processed/<client_id>/<YYYY-MM-DD>/<filename>
-    ensure_local(photo.original_path)
-    src = settings.data_dir / photo.original_path
-    dest_dir = processed_dir_for_client_date(photo.client_id, day_date.isoformat())
+
+@dataclass
+class _ProcessedPhotoFiles:
+    """Ergebnis der reinen Datei-/Bildverarbeitung eines Fotos - enthält
+    absichtlich KEINE SQLAlchemy-Objekte (Sessions sind nicht thread-safe),
+    nur primitive Werte, damit diese Funktion sicher aus einem
+    ThreadPoolExecutor-Worker heraus aufgerufen werden kann."""
+    original_path: str
+    preview_path: str | None
+    thumbnail_path: str | None
+    normalization_succeeded: bool
+    normalized_path: str | None
+    landmarks_json: str | None
+
+
+def _process_photo_files(
+    *,
+    client_id: int,
+    filename: str,
+    original_path: str,
+    preview_path: str | None,
+    thumbnail_path: str | None,
+    day_date_iso: str,
+    pose_id: int,
+    photo_id: int,
+) -> _ProcessedPhotoFiles:
+    """Alles außer DB-Schreiben: Datei-Move nach photos_processed/,
+    Thumbnail-Erzeugung falls fehlend, MediaPipe-Normalisierung, alle
+    R2-Uploads. Nimmt und liefert nur primitive Werte (keine ORM-Objekte) -
+    sicher aus einem Thread-Pool-Worker aufrufbar. Siehe Design-Spec
+    "Foto-Upload/Speicher-Performance" Abschnitt "/photos/assign-bulk"."""
+    dest_dir = processed_dir_for_client_date(client_id, day_date_iso)
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / photo.filename
-    if src.exists():
-        shutil.move(str(src), str(dest))
-        photo.original_path = dest.relative_to(settings.data_dir).as_posix()
-        push(photo.original_path)
 
-    # HEIC-Vorschau (falls vorhanden) zusammen mit dem Original verschieben,
-    # damit preview_path danach noch auf eine existierende Datei zeigt.
-    if photo.preview_path:
-        ensure_local(photo.preview_path)
-        preview_src = settings.data_dir / photo.preview_path
+    result_original_path = original_path
+    result_preview_path = preview_path
+    result_thumbnail_path = thumbnail_path
+
+    ensure_local(original_path)
+    src = settings.data_dir / original_path
+    if src.exists():
+        dest = dest_dir / filename
+        shutil.move(str(src), str(dest))
+        result_original_path = dest.relative_to(settings.data_dir).as_posix()
+        push(result_original_path)
+
+    if preview_path:
+        ensure_local(preview_path)
+        preview_src = settings.data_dir / preview_path
         if preview_src.exists():
             preview_dest = dest_dir / preview_src.name
             shutil.move(str(preview_src), str(preview_dest))
-            photo.preview_path = preview_dest.relative_to(settings.data_dir).as_posix()
-            push(photo.preview_path)
+            result_preview_path = preview_dest.relative_to(settings.data_dir).as_posix()
+            push(result_preview_path)
 
-    # Thumbnail ebenso mitverschieben (analog zur HEIC-Vorschau); fehlt es
-    # noch (z.B. Foto aus einer Zeit vor Einführung der Thumbnails), wird
-    # es hier direkt am neuen Ort nachgeneriert statt verschoben.
-    if photo.thumbnail_path:
-        ensure_local(photo.thumbnail_path)
-        thumb_src = settings.data_dir / photo.thumbnail_path
+    if thumbnail_path:
+        ensure_local(thumbnail_path)
+        thumb_src = settings.data_dir / thumbnail_path
         if thumb_src.exists():
             thumb_dest = dest_dir / thumb_src.name
             shutil.move(str(thumb_src), str(thumb_dest))
-            photo.thumbnail_path = thumb_dest.relative_to(settings.data_dir).as_posix()
-            push(photo.thumbnail_path)
-    if not photo.thumbnail_path:
-        thumb_source = settings.data_dir / (photo.preview_path or photo.original_path)
+            result_thumbnail_path = thumb_dest.relative_to(settings.data_dir).as_posix()
+            push(result_thumbnail_path)
+    if not result_thumbnail_path:
+        thumb_source = settings.data_dir / (result_preview_path or result_original_path)
         thumb_dest = dest_dir / thumbnail_path_for(thumb_source).name
         if generate_thumbnail(thumb_source, thumb_dest):
-            photo.thumbnail_path = thumb_dest.relative_to(settings.data_dir).as_posix()
-            push(photo.thumbnail_path)
+            result_thumbnail_path = thumb_dest.relative_to(settings.data_dir).as_posix()
+            push(result_thumbnail_path)
 
+    # MediaPipe-Normalisierung (best effort - siehe Design-Spec).
+    # HEIC-Originale kann OpenCV nicht lesen -> Vorschau als Quelle nutzen.
+    ensure_local(result_preview_path or result_original_path)
+    normalize_source = settings.data_dir / (result_preview_path or result_original_path)
+    normalized_dest = normalized_dir_for_client_pose(client_id, pose_id) / f"{photo_id}.jpg"
+    norm_result = normalize_photo(normalize_source, normalized_dest)
+
+    normalized_path = None
+    landmarks_json = None
+    if norm_result.success and norm_result.normalized_path:
+        normalized_path = norm_result.normalized_path.relative_to(settings.data_dir).as_posix()
+        push(normalized_path)
+        landmarks_json = norm_result.landmarks_json
+
+    return _ProcessedPhotoFiles(
+        original_path=result_original_path,
+        preview_path=result_preview_path,
+        thumbnail_path=result_thumbnail_path,
+        normalization_succeeded=norm_result.success and norm_result.normalized_path is not None,
+        normalized_path=normalized_path,
+        landmarks_json=landmarks_json,
+    )
+
+
+def _apply_processed_result(
+    db: Session, photo: Photo, day_log: DayLog, pose: Pose, weight_kg: float | None,
+    result: _ProcessedPhotoFiles,
+) -> Photo:
+    """Überträgt das Ergebnis von _process_photo_files auf die ORM-Objekte
+    und committet - läuft IMMER im Hauptthread (Sessions sind nicht
+    thread-safe). Siehe Design-Spec."""
+    if weight_kg is not None:
+        day_log.weight_kg = weight_kg
+
+    photo.original_path = result.original_path
+    photo.preview_path = result.preview_path
+    photo.thumbnail_path = result.thumbnail_path
     photo.pose_id = pose.id
     photo.day_log_id = day_log.id
-    photo.status = ProcessingStatus.PROCESSED
     photo.updated_at = datetime.utcnow()
 
-    db.commit()
-
-    # MediaPipe-Normalisierung synchron anstoßen (POC-Entscheidung).
-    # Fehler blockieren die Zuordnung nicht - Pose/DayLog bleiben gesetzt,
-    # nur der Overlay-Vergleich ist für dieses Bild dann nicht verfügbar.
-    # HEIC-Originale kann OpenCV nicht lesen -> Vorschau als Quelle nutzen.
-    ensure_local(photo.preview_path or photo.original_path)
-    normalize_source = settings.data_dir / (photo.preview_path or photo.original_path)
-    normalized_dest = normalized_dir_for_client_pose(photo.client_id, pose.id) / f"{photo.id}.jpg"
-    result = normalize_photo(normalize_source, normalized_dest)
-    if result.success and result.normalized_path:
-        photo.normalized_path = result.normalized_path.relative_to(settings.data_dir).as_posix()
-        push(photo.normalized_path)
+    if result.normalization_succeeded:
+        photo.normalized_path = result.normalized_path
         photo.landmarks_json = result.landmarks_json
+        photo.status = ProcessingStatus.PROCESSED
     else:
         photo.status = ProcessingStatus.NORMALIZATION_FAILED
 
     db.commit()
     db.refresh(photo)
     return photo
+
+
+def _assign_photo(db: Session, photo: Photo, pose: Pose, weight_kg: float | None, owner: User) -> Photo:
+    """Ordnet EIN Foto zu (Einzel-Endpunkt /assign) - ruft dieselben
+    Bausteine wie die Bulk-Zuordnung auf, aber synchron im Hauptthread
+    (ein einzelnes Foto profitiert nicht von Parallelisierung). Siehe
+    Design-Spec Abschnitt "Einzel-Zuordnung"."""
+    day_date = photo.taken_at.date()
+    day_log = _get_or_create_day_log(db, photo.client_id, day_date, owner)
+
+    result = _process_photo_files(
+        client_id=photo.client_id,
+        filename=photo.filename,
+        original_path=photo.original_path,
+        preview_path=photo.preview_path,
+        thumbnail_path=photo.thumbnail_path,
+        day_date_iso=day_date.isoformat(),
+        pose_id=pose.id,
+        photo_id=photo.id,
+    )
+    return _apply_processed_result(db, photo, day_log, pose, weight_kg, result)
 
 
 @router.post("/assign-bulk", response_model=list[PhotoOut])
