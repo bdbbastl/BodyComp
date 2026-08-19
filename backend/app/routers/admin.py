@@ -211,6 +211,12 @@ def set_account_active(
     user_id: int,
     payload: AdminSetActiveRequest,
     db: Session = Depends(get_db),
+    # require_admin läuft hier bewusst ZUSÄTZLICH zur router-weiten
+    # dependencies=[Depends(require_admin)] oben - nicht um nochmal zu
+    # prüfen (das passiert schon), sondern um den aufgelösten User für
+    # den Selbst-Deaktivierungs-Check unten zu bekommen. Nicht durch
+    # get_current_user ersetzen, das würde die Admin-Prüfung für diese
+    # Route implizit von der Router-Ebene abkoppeln.
     current_admin: User = Depends(require_admin),
 ):
     if user_id == current_admin.id:
