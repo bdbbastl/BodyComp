@@ -179,27 +179,38 @@ export default function ClientCheckins() {
                     )}
                   </div>
                   {confirmDeleteId === checkin.id ? (
-                    <div className="flex items-center gap-2 rounded-lg border border-red-900/50 bg-red-950/20 p-3">
-                      <p className="flex-1 text-xs text-red-300">
-                        Delete this check-in and its photos permanently?
-                      </p>
-                      <button
-                        onClick={() => deleteMutation.mutate(checkin.id)}
-                        disabled={deleteMutation.isPending}
-                        className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
-                      >
-                        {deleteMutation.isPending ? "Deleting…" : "Delete"}
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
-                      >
-                        Cancel
-                      </button>
+                    <div className="space-y-2 rounded-lg border border-red-900/50 bg-red-950/20 p-3">
+                      <div className="flex items-center gap-2">
+                        <p className="flex-1 text-xs text-red-300">
+                          Delete this check-in and its photos permanently?
+                        </p>
+                        <button
+                          onClick={() => deleteMutation.mutate(checkin.id)}
+                          disabled={deleteMutation.isPending}
+                          className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
+                        >
+                          {deleteMutation.isPending ? "Deleting…" : "Delete"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            deleteMutation.reset();
+                            setConfirmDeleteId(null);
+                          }}
+                          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      {deleteMutation.isError && (
+                        <p className="text-xs text-red-400">Delete failed - please try again.</p>
+                      )}
                     </div>
                   ) : (
                     <button
-                      onClick={() => setConfirmDeleteId(checkin.id)}
+                      onClick={() => {
+                        deleteMutation.reset();
+                        setConfirmDeleteId(checkin.id);
+                      }}
                       className="text-xs text-red-400 hover:underline"
                     >
                       Delete check-in
