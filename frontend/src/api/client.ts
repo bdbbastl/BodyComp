@@ -197,6 +197,8 @@ export const api = {
       client
         .patch<CheckinSubmission>(`/clients/${clientId}/checkins/${checkinId}`, payload)
         .then((r) => r.data),
+    delete: (clientId: number, checkinId: number) =>
+      client.delete(`/clients/${clientId}/checkins/${checkinId}`),
   },
   publicCheckin: {
     get: (token: string) =>
