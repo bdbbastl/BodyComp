@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import type { Photo, Pose } from "../types";
@@ -29,6 +29,7 @@ export default function Compare() {
   const clientIdNum = Number(clientId);
   const [poseSelection, setPoseSelection] = useState<PoseSelection>("");
   const { show, hide } = useBusyOverlay();
+  const queryClient = useQueryClient();
   const [dateX, setDateX] = useState("");
   const [dateY, setDateY] = useState("");
   const [mode, setMode] = useState<Mode>("side-by-side");
@@ -95,6 +96,7 @@ export default function Compare() {
     queryFn: () =>
       api.comparisons.get(clientIdNum, { pose_id: Number(poseSelection), date_x: dateX, date_y: dateY }),
     enabled: typeof poseSelection === "number" && dateX !== "" && dateY !== "",
+    placeholderData: keepPreviousData,
     retry: false,
   });
 
@@ -155,6 +157,57 @@ export default function Compare() {
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poseSelection, poses]);
+
+  // Nachbar-Posen im Hintergrund vorladen (Vergleichsdaten + Bilddateien),
+  // damit ein Klick auf ‹/› meist schon auf warme Daten trifft, statt
+  // jedes Mal neu zu laden - siehe Live-Feedback "ruckelfreies Wechseln".
+  // Nur bei einer einzelnen gewählten Pose (nicht "Alle Posen", wo es
+  // keine Nachbar-Navigation gibt) und nur wenn beide Termine gewählt sind.
+  useEffect(() => {
+    if (typeof poseSelection !== "number" || dateX === "" || dateY === "" || poses.length < 2) {
+      return;
+    }
+    const currentIndex = poses.findIndex((p) => p.id === poseSelection);
+    if (currentIndex === -1) return;
+    const prevPose = poses[(currentIndex - 1 + poses.length) % poses.length];
+    const nextPose = poses[(currentIndex + 1) % poses.length];
+
+    [prevPose, nextPose].forEach((neighborPose) => {
+      queryClient
+        .prefetchQuery({
+          queryKey: ["comparison", clientIdNum, neighborPose.id, dateX, dateY],
+          queryFn: () =>
+            api.comparisons.get(clientIdNum, {
+              pose_id: neighborPose.id,
+              date_x: dateX,
+              date_y: dateY,
+            }),
+        })
+        .then(() => {
+          const cached = queryClient.getQueryData<{
+            photo_x: Photo;
+            photo_y: Photo;
+          }>(["comparison", clientIdNum, neighborPose.id, dateX, dateY]);
+          if (!cached) return;
+          // Bild-Bytes selbst vorwärmen (Browser-HTTP-Cache + serverseitiger
+          // ensure_local()-Cache über den normalen /media-Request) - die
+          // Vergleichsdaten allein enthalten nur Pfade, keine Bilddaten.
+          [cached.photo_x, cached.photo_y].forEach((photo) => {
+            const src = mediaUrl(
+              normalize && photo.normalized_path ? photo.normalized_path : photo.display_path
+            );
+            new Image().src = src;
+          });
+        })
+        .catch(() => {
+          // Best effort - ein fehlgeschlagenes Prefetch (z.B. Nachbar-Pose
+          // hat für dieses Datumspaar kein Foto) soll nichts sichtbar
+          // beeinträchtigen, das eigentliche Umschalten zeigt den Fehler
+          // ggf. ganz normal über comparisonQuery.isError an.
+        });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poseSelection, dateX, dateY, poses, clientIdNum, normalize]);
 
   // KI-Judge-Analyse: läuft ausschließlich per Knopfdruck (siehe Button
   // unten), nie automatisch beim Auswählen von Pose/Datum - jeder Aufruf
@@ -335,7 +388,7 @@ export default function Compare() {
         </p>
       )}
 
-      {poses.length > 0 && (
+      {poses.length > 0 && dateX !== "" && dateY !== "" && (
         <PoseNavBar poses={poses} currentPoseId={poseSelection} onNavigate={goToPose} disabled={isAllPoses} />
       )}
 
