@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router-dom";
 import AppShell from "./components/AppShell";
 import ClientShell from "./components/ClientShell";
 import RequireAuth from "./components/RequireAuth";
+import AdminGuard from "./components/AdminGuard";
 import ClientRedirect from "./components/ClientRedirect";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
@@ -24,6 +25,8 @@ import Datenschutz from "./pages/legal/Datenschutz";
 import Impressum from "./pages/legal/Impressum";
 import Agb from "./pages/legal/Agb";
 import CheckinSubmit from "./pages/CheckinSubmit";
+import Admin from "./pages/Admin";
+import AdminAccountDetail from "./pages/AdminAccountDetail";
 import { OnboardingProvider, useOnboarding } from "./contexts/OnboardingContext";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { OnboardingTooltip } from "./components/OnboardingTooltip";
@@ -69,6 +72,10 @@ export default function App() {
             <Route path="settings" element={<Settings />} />
           </Route>
         </Route>
+      </Route>
+      <Route element={<AdminGuard />}>
+        <Route path="admin" element={<Admin />} />
+        <Route path="admin/accounts/:userId" element={<AdminAccountDetail />} />
       </Route>
       </Routes>
       <OnboardingModalGate />
