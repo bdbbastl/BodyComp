@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
@@ -17,6 +17,18 @@ export default function CheckinSubmit() {
   const [note, setNote] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [photoPoses, setPhotoPoses] = useState<Record<number, number | "">>({});
+
+  // Object-URLs fuer die Foto-Vorschau nur einmal pro Datei-Auswahl anlegen
+  // (nicht bei jedem Render, z.B. jeder Eingabe im Gewichts-/Notizfeld) und
+  // beim Wechsel der Auswahl wieder freigeben, sonst leaken die Blob-URLs.
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  useEffect(() => {
+    const urls = files.map((file) => URL.createObjectURL(file));
+    setPreviewUrls(urls);
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [files]);
 
   const pageQuery = useQuery({
     queryKey: ["public-checkin", token],
@@ -122,12 +134,13 @@ export default function CheckinSubmit() {
                   className="space-y-2 rounded-lg border border-white/10 bg-black/20 p-2"
                 >
                   <img
-                    src={URL.createObjectURL(file)}
+                    src={previewUrls[i]}
                     alt={file.name}
                     className="h-32 w-full rounded-md object-cover"
                   />
                   <select
                     required
+                    aria-label={`Pose for photo ${i + 1}`}
                     value={photoPoses[i] ?? ""}
                     onChange={(e) =>
                       setPhotoPoses((prev) => ({
