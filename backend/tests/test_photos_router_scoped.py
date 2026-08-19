@@ -18,6 +18,75 @@ def _login_and_get_client(client, db_session, email="a@b.com", password="pw12345
     return created["id"]
 
 
+def test_list_photos_hides_unreviewed_checkin_photos(client, db_session):
+    from app.models.checkin_submission import CheckinStatus, CheckinSubmission
+    from app.models.photo import Photo, ProcessingStatus
+    from app.models.pose import Pose
+
+    client_id = _login_and_get_client(client, db_session)
+
+    pose = Pose(client_id=client_id, name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+    db_session.refresh(pose)
+
+    submission = CheckinSubmission(client_id=client_id, status=CheckinStatus.PENDING)
+    db_session.add(submission)
+    db_session.commit()
+    db_session.refresh(submission)
+
+    photo = Photo(
+        client_id=client_id,
+        filename="p1.jpg",
+        original_path=f"photos_processed/{client_id}/p1.jpg",
+        taken_at=datetime(2026, 1, 1, 12, 0, 0),
+        status=ProcessingStatus.PROCESSED,
+        pose_id=pose.id,
+        checkin_submission_id=submission.id,
+    )
+    db_session.add(photo)
+    db_session.commit()
+
+    response = client.get(f"/api/clients/{client_id}/photos")
+    assert response.status_code == 200
+    assert response.json() == []
+
+    submission.status = CheckinStatus.REVIEWED
+    db_session.commit()
+
+    response = client.get(f"/api/clients/{client_id}/photos")
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
+def test_list_photos_shows_non_checkin_photos_unaffected(client, db_session):
+    from app.models.photo import Photo, ProcessingStatus
+    from app.models.pose import Pose
+
+    client_id = _login_and_get_client(client, db_session)
+
+    pose = Pose(client_id=client_id, name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+    db_session.refresh(pose)
+
+    photo = Photo(
+        client_id=client_id,
+        filename="p1.jpg",
+        original_path=f"photos_processed/{client_id}/p1.jpg",
+        taken_at=datetime(2026, 1, 1, 12, 0, 0),
+        status=ProcessingStatus.PROCESSED,
+        pose_id=pose.id,
+        checkin_submission_id=None,
+    )
+    db_session.add(photo)
+    db_session.commit()
+
+    response = client.get(f"/api/clients/{client_id}/photos")
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
 def test_photos_list_scoped_to_client(client, db_session):
     client_id_a = _login_and_get_client(client, db_session, email="a@b.com", password="pw12345")
     response = client.get(f"/api/clients/{client_id_a}/photos")

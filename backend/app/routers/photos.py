@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.models.checkin_submission import CheckinStatus, CheckinSubmission
 from app.models.client import Client
 from app.models.day_log import DayLog
 from app.models.photo import Photo, ProcessingStatus
@@ -133,8 +134,22 @@ def list_photos(
     client_row: Client = Depends(get_owned_client),
     db: Session = Depends(get_db),
 ):
-    """Für Timeline-Dashboard und Comparison-Mode (Filter nach Pose)."""
-    q = db.query(Photo).filter(Photo.client_id == client_row.id)
+    """Für Timeline-Dashboard und Comparison-Mode (Filter nach Pose).
+
+    Fotos, die zu einem noch nicht 'reviewed' Check-in gehören, werden
+    ausgeblendet - siehe Design-Spec "Check-in: Client-Pose-Zuordnung +
+    Review-gesteuerte Timeline". Fotos ohne checkin_submission_id (normale
+    Coach-Uploads) sind davon unberührt.
+    """
+    q = (
+        db.query(Photo)
+        .filter(Photo.client_id == client_row.id)
+        .outerjoin(CheckinSubmission, Photo.checkin_submission_id == CheckinSubmission.id)
+        .filter(
+            (Photo.checkin_submission_id.is_(None))
+            | (CheckinSubmission.status == CheckinStatus.REVIEWED)
+        )
+    )
     if pose_id is not None:
         q = q.filter(Photo.pose_id == pose_id)
     if status is not None:
