@@ -75,3 +75,89 @@ def test_update_checkin_not_found_returns_404(client, db_session):
         f"/api/clients/{created['id']}/checkins/9999", json={"mark_reviewed": True}
     )
     assert response.status_code == 404
+
+
+def test_delete_checkin_removes_submission_and_photos(client, db_session):
+    from app.models.photo import Photo, ProcessingStatus
+    from app.models.pose import Pose
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    client_id = created["id"]
+
+    pose = Pose(client_id=client_id, name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+
+    submission = CheckinSubmission(client_id=client_id, status=CheckinStatus.REVIEWED)
+    db_session.add(submission)
+    db_session.commit()
+    db_session.refresh(submission)
+
+    photo = Photo(
+        client_id=client_id,
+        filename="p1.jpg",
+        original_path=f"photos_processed/{client_id}/p1_delete_test.jpg",
+        taken_at=datetime(2026, 1, 1, 12, 0, 0),
+        status=ProcessingStatus.PROCESSED,
+        pose_id=pose.id,
+        checkin_submission_id=submission.id,
+    )
+    db_session.add(photo)
+    db_session.commit()
+    photo_id = photo.id
+    submission_id = submission.id
+
+    response = client.delete(f"/api/clients/{client_id}/checkins/{submission_id}")
+    assert response.status_code == 204
+
+    assert db_session.query(CheckinSubmission).filter_by(id=submission_id).first() is None
+    assert db_session.query(Photo).filter_by(id=photo_id).first() is None
+
+
+def test_delete_checkin_leaves_day_log_untouched(client, db_session):
+    from datetime import date as date_
+
+    from app.models.day_log import DayLog
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    client_id = created["id"]
+
+    day_log = DayLog(client_id=client_id, date=date_(2026, 1, 1), weight_kg=80.0)
+    db_session.add(day_log)
+    submission = CheckinSubmission(
+        client_id=client_id, status=CheckinStatus.REVIEWED, weight_kg=80.0
+    )
+    db_session.add(submission)
+    db_session.commit()
+    day_log_id = day_log.id
+    submission_id = submission.id
+
+    response = client.delete(f"/api/clients/{client_id}/checkins/{submission_id}")
+    assert response.status_code == 204
+
+    day_log_after = db_session.query(DayLog).filter_by(id=day_log_id).first()
+    assert day_log_after is not None
+    assert day_log_after.weight_kg == 80.0
+
+
+def test_delete_checkin_404_for_unknown_id(client, db_session):
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    response = client.delete(f"/api/clients/{created['id']}/checkins/999999")
+    assert response.status_code == 404
+
+
+def test_delete_checkin_404_for_foreign_client(client, db_session):
+    _login(client, db_session, email="a@b.com")
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    submission = CheckinSubmission(client_id=created["id"], status=CheckinStatus.PENDING)
+    db_session.add(submission)
+    db_session.commit()
+    submission_id = submission.id
+    client.post("/api/auth/logout")
+
+    _login(client, db_session, email="c@d.com")
+    response = client.delete(f"/api/clients/{created['id']}/checkins/{submission_id}")
+    assert response.status_code == 404
