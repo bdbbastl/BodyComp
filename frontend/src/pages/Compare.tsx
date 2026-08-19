@@ -13,7 +13,7 @@ import { SliderControl } from "../components/SliderControl";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
 
-type Mode = "side-by-side" | "overlay" | "slider";
+type Mode = "side-by-side" | "slider";
 // "all" = Sonderauswahl "Alle Posen" - zeigt alle Posen (in Settings-
 // Reihenfolge) für die zwei gewählten Termine untereinander an.
 type PoseSelection = number | "" | "all";
@@ -30,7 +30,6 @@ export default function Compare() {
   const [dateX, setDateX] = useState("");
   const [dateY, setDateY] = useState("");
   const [mode, setMode] = useState<Mode>("side-by-side");
-  const [opacity, setOpacity] = useState(50);
   // Default: unverändert (Rohbilder). Checkbox aktiviert die
   // KI-Normalisierung (MediaPipe-Ausrichtung auf Körperhöhe/-neigung) für
   // beide Modi.
@@ -274,7 +273,7 @@ export default function Compare() {
         </label>
         {!isAllPoses && (
           <div className="flex gap-1 rounded-full bg-black/30 p-1">
-            {(["side-by-side", "overlay", "slider"] as Mode[]).map((m) => (
+            {(["side-by-side", "slider"] as Mode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
@@ -282,7 +281,7 @@ export default function Compare() {
                   mode === m ? "bg-accent text-slate-900" : "text-slate-400 hover:text-white"
                 }`}
               >
-                {m === "side-by-side" ? "Side-by-Side" : m === "overlay" ? "Overlay" : "Slider"}
+                {m === "side-by-side" ? "Side-by-Side" : "Slider"}
               </button>
             ))}
           </div>
@@ -388,54 +387,6 @@ export default function Compare() {
             gridLines={gridLines}
             onGridLineChange={updateGridLine}
           />
-        </div>
-      )}
-
-      {!isAllPoses && result && mode === "overlay" && (
-        <div className="space-y-4">
-          {!normalize && (
-            <p className="rounded-lg bg-yellow-500/10 px-3 py-2 text-sm text-yellow-400">
-              Without AI normalization, camera distance/tilt usually won't match between the
-              photos — enable the checkbox above for a meaningful overlay.
-            </p>
-          )}
-          <OverlayPane
-            key={`${result.photo_x.id}-${result.photo_y.id}`}
-            srcX={resolveSrc(result.photo_x)}
-            srcY={resolveSrc(result.photo_y)}
-            filterX={filterFor(brightnessX)}
-            filterY={filterFor(brightnessY)}
-            opacity={opacity}
-            altX={formatDate(dateX)}
-            altY={formatDate(dateY)}
-            showGrid={showGrid}
-            gridLines={gridLines}
-            onGridLineChange={updateGridLine}
-          />
-
-          <div className="mx-auto max-w-md rounded-xl border border-white/5 bg-surface p-4">
-            <SliderControl
-              icon="◐"
-              label={`Opacity ${formatDate(dateY)}`}
-              value={opacity}
-              min={0}
-              max={100}
-              step={1}
-              onChange={setOpacity}
-              suffix="%"
-            />
-          </div>
-
-          <div className="mx-auto grid max-w-md grid-cols-1 gap-x-6 gap-y-4 rounded-xl border border-white/5 bg-surface p-4 sm:grid-cols-2">
-            <BrightnessSlider
-              value={brightnessX}
-              onChange={setBrightnessX}
-            />
-            <BrightnessSlider
-              value={brightnessY}
-              onChange={setBrightnessY}
-            />
-          </div>
         </div>
       )}
 
@@ -779,85 +730,6 @@ function ZoomPane({
         {showBrightnessSlider && brightness !== undefined && onBrightnessChange && (
           <BrightnessSlider value={brightness} onChange={onBrightnessChange} />
         )}
-      </div>
-    </div>
-  );
-}
-
-/** Overlay-Variante: beide Bilder liegen übereinander und werden beim
- * Zoomen/Verschieben gemeinsam transformiert (sonst würden sie
- * auseinanderdriften). Neigung bleibt pro Bild eigenständig einstellbar
- * (Kamera-Tilt ist eine Eigenschaft der jeweiligen Aufnahme, kein
- * gemeinsamer Wert). */
-function OverlayPane({
-  srcX,
-  srcY,
-  filterX,
-  filterY,
-  opacity,
-  altX,
-  altY,
-  showGrid,
-  gridLines,
-  onGridLineChange,
-}: {
-  srcX: string;
-  srcY: string;
-  filterX: string | undefined;
-  filterY: string | undefined;
-  opacity: number;
-  altX: string;
-  altY: string;
-  showGrid?: boolean;
-  gridLines?: number[];
-  onGridLineChange?: (index: number, value: number) => void;
-}) {
-  const { scale, translate, containerRef, isDragging, reset, setScaleFromSlider } = usePanZoom();
-  const [rotationX, setRotationX] = useState(0);
-  const [rotationY, setRotationY] = useState(0);
-
-  return (
-    <div className="space-y-3">
-      <div
-        ref={containerRef}
-        className="relative mx-auto aspect-[3/4] max-w-md overflow-hidden rounded-xl border border-white/5 bg-black/40"
-        style={{ cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "zoom-in" }}
-        onDoubleClick={reset}
-        title="Scroll to zoom, click+drag to pan while zoomed, double-click to reset"
-      >
-        <div className="absolute inset-0" style={transformStyle(translate, scale)}>
-          <img
-            src={srcX}
-            alt={altX}
-            draggable={false}
-            className="h-full w-full object-cover"
-            style={{ filter: filterX, transform: `rotate(${rotationX}deg)` }}
-          />
-        </div>
-        <div className="absolute inset-0" style={transformStyle(translate, scale)}>
-          <img
-            src={srcY}
-            alt={altY}
-            draggable={false}
-            className="h-full w-full object-cover"
-            style={{ opacity: opacity / 100, filter: filterY, transform: `rotate(${rotationY}deg)` }}
-          />
-        </div>
-        {showGrid && gridLines && onGridLineChange && (
-          <AlignmentGridOverlay lines={gridLines} onChange={onGridLineChange} />
-        )}
-        {scale > 1 && (
-          <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-slate-200">
-            {scale.toFixed(2)}×
-          </span>
-        )}
-      </div>
-      <div className="mx-auto max-w-md space-y-4 rounded-xl border border-white/5 bg-surface p-4">
-        <ZoomSlider scale={scale} onChange={setScaleFromSlider} />
-        <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-          <RotationSlider label={`Tilt ${altX}`} degrees={rotationX} onChange={setRotationX} />
-          <RotationSlider label={`Tilt ${altY}`} degrees={rotationY} onChange={setRotationY} />
-        </div>
       </div>
     </div>
   );
