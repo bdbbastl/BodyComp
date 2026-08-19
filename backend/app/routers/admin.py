@@ -51,6 +51,16 @@ def _last_activity_for_client_ids(db: Session, client_ids: list[int]) -> dict[in
         for client_id, ts in rows:
             if ts is None:
                 continue
+            # Postgres liefert TIMESTAMP-Spalten (Photo.taken_at,
+            # CheckinSubmission.submitted_at) ohne tzinfo zurück, obwohl sie
+            # als UTC gemeint sind - im Gegensatz zu den oben schon manuell
+            # tz-aware gemachten DayLog-Werten. Ohne diese Normalisierung
+            # crasht der Vergleich unten mit "can't compare offset-naive
+            # and offset-aware datetimes" (auf SQLite in Tests nicht
+            # aufgefallen, da dort beide Seiten konsistent behandelt
+            # wurden - Bug erst in Produktion/Postgres sichtbar geworden).
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
             if client_id not in result or ts > result[client_id]:
                 result[client_id] = ts
 

@@ -94,6 +94,44 @@ def test_accounts_list_includes_client_count_and_activity_status(client, db_sess
     assert by_email["never@example.com"]["last_activity_at"] is None
 
 
+def test_accounts_list_handles_naive_and_aware_timestamps_together(client, db_session):
+    """Regressionstest für einen Produktionsfehler: Postgres liefert
+    Photo.taken_at/CheckinSubmission.submitted_at ohne tzinfo zurück,
+    während der DayLog-Zweig in _last_activity_for_client_ids selbst
+    tz-aware Werte baut - der Vergleich der beiden crashte mit
+    "can't compare offset-naive and offset-aware datetimes", sobald ein
+    Client sowohl einen DayLog- als auch einen Photo-Eintrag hatte. Auf
+    SQLite fiel das in den bisherigen Tests nicht auf, weil kein Test
+    einen Client mit BEIDEN Quellen gleichzeitig hatte."""
+    admin = _make_user(db_session, email="admin@example.com", is_admin=True)
+    target_user = _make_user(db_session, email="target@example.com")
+    _login_as(client, admin)
+
+    target_client = Client(owner_id=target_user.id, name="Target Client")
+    db_session.add(target_client)
+    db_session.commit()
+
+    # DayLog macht den Vergleichswert tz-aware (siehe _last_activity_for_client_ids).
+    db_session.add(DayLog(client_id=target_client.id, date=date.today()))
+    # Photo absichtlich mit einem NAIVEN Zeitstempel - genau das Verhalten,
+    # das Postgres in Produktion für DateTime-Spalten ohne timezone=True liefert.
+    db_session.add(
+        Photo(
+            client_id=target_client.id,
+            filename="p1.jpg",
+            original_path=f"photos_processed/{target_client.id}/p1.jpg",
+            taken_at=datetime(2026, 1, 1, 12, 0, 0),  # bewusst ohne tzinfo
+            status=ProcessingStatus.PROCESSED,
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/api/admin/accounts")
+    assert response.status_code == 200
+    by_email = {row["email"]: row for row in response.json()}
+    assert by_email["target@example.com"]["activity_status"] == "active"
+
+
 def test_account_detail_includes_clients(client, db_session):
     admin = _make_user(db_session, email="admin@example.com", is_admin=True)
     target = _make_user(db_session, email="target@example.com")
