@@ -4,9 +4,10 @@ import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
+import { PhotoLightbox } from "../components/PhotoLightbox";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 import { formatDateShortWithWeek } from "../utils/date";
-import type { CheckinSubmission } from "../types";
+import type { CheckinSubmission, Photo } from "../types";
 
 function complianceRate(submissions: CheckinSubmission[]): string {
   const fourWeeksAgo = Date.now() - 28 * 24 * 60 * 60 * 1000;
@@ -22,6 +23,7 @@ export default function ClientCheckins() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<number, { text: string; videoUrl: string }>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null);
 
   const checkinsQuery = useQuery({
     queryKey: ["checkins", clientIdNum],
@@ -113,14 +115,20 @@ export default function ClientCheckins() {
                       <p className="mb-1 text-xs text-slate-500">
                         {formatDateShortWithWeek(checkin.submitted_at)}
                       </p>
-                      <div className="flex gap-2 overflow-x-auto">
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
                         {checkin.photos.map((p) => (
-                          <img
+                          <button
                             key={p.id}
-                            src={mediaUrl(p.thumb_path)}
-                            alt=""
-                            className="h-20 w-20 shrink-0 rounded-lg object-cover"
-                          />
+                            type="button"
+                            onClick={() => setLightboxPhoto(p)}
+                            className="aspect-[3/4] overflow-hidden rounded-lg bg-black/20"
+                          >
+                            <img
+                              src={mediaUrl(p.thumb_path)}
+                              alt=""
+                              className="h-full w-full cursor-zoom-in object-cover"
+                            />
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -235,6 +243,14 @@ export default function ClientCheckins() {
           );
         })}
       </div>
+
+      {lightboxPhoto && (
+        <PhotoLightbox
+          photo={lightboxPhoto}
+          label={lightboxPhoto.filename}
+          onClose={() => setLightboxPhoto(null)}
+        />
+      )}
     </div>
   );
 }
