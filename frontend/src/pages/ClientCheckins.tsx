@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
+import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 import type { CheckinSubmission } from "../types";
 
 function complianceRate(submissions: CheckinSubmission[]): string {
@@ -16,6 +17,7 @@ export default function ClientCheckins() {
   const { clientId } = useParams<{ clientId: string }>();
   const clientIdNum = Number(clientId);
   const queryClient = useQueryClient();
+  const { show, hide } = useBusyOverlay();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<number, { text: string; videoUrl: string }>>({});
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
@@ -39,6 +41,7 @@ export default function ClientCheckins() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.checkins.delete(clientIdNum, id),
     onSuccess: () => {
+      hide();
       setConfirmDeleteId(null);
       queryClient.invalidateQueries({ queryKey: ["checkins", clientIdNum] });
       // Falls die gelöschten Fotos bereits (weil reviewed) in
@@ -46,6 +49,7 @@ export default function ClientCheckins() {
       // Foto-Listen ebenfalls neu geladen werden.
       queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] });
     },
+    onError: () => hide(),
   });
 
   const checkins = checkinsQuery.data ?? [];
@@ -185,7 +189,10 @@ export default function ClientCheckins() {
                           Delete this check-in and its photos permanently?
                         </p>
                         <button
-                          onClick={() => deleteMutation.mutate(checkin.id)}
+                          onClick={() => {
+                            show("Deleting check-in…");
+                            deleteMutation.mutate(checkin.id);
+                          }}
                           disabled={deleteMutation.isPending}
                           className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
                         >

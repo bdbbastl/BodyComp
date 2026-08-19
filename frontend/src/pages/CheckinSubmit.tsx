@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import { parseWeightInput } from "../utils/weight";
+import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 
 /**
  * Öffentliche, passwortlose Seite für Klienten - siehe Design-Spec
@@ -13,6 +14,7 @@ import { parseWeightInput } from "../utils/weight";
 export default function CheckinSubmit() {
   const { token } = useParams<{ token: string }>();
   const queryClient = useQueryClient();
+  const { show, hide } = useBusyOverlay();
   const [weightKg, setWeightKg] = useState("");
   const [note, setNote] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -47,12 +49,14 @@ export default function CheckinSubmit() {
       });
     },
     onSuccess: () => {
+      hide();
       setWeightKg("");
       setNote("");
       setFiles([]);
       setPhotoPoses({});
       queryClient.invalidateQueries({ queryKey: ["public-checkin", token] });
     },
+    onError: () => hide(),
   });
 
   if (pageQuery.isLoading) {
@@ -90,6 +94,7 @@ export default function CheckinSubmit() {
             ) {
               return;
             }
+            show("Submitting check-in…");
             submitMutation.mutate();
           }}
           className="space-y-4 rounded-xl border border-white/5 bg-surface p-4"
