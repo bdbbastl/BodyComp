@@ -220,27 +220,29 @@ function PendingCheckinsWidget({
   items: PendingCheckinSummary[];
   isLoading: boolean;
 }) {
-  const queryClient = useQueryClient();
-
-  const markSeenMutation = useMutation({
-    mutationFn: (item: PendingCheckinSummary) =>
-      api.checkins.update(item.client_id, item.id, { mark_reviewed: true }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "coach-summary"] });
-    },
-  });
-
   return (
-    <Card title="Unseen check-ins">
+    <Card
+      title={
+        <span className="flex items-center gap-2">
+          Unseen check-ins
+          {items.length > 0 && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-semibold text-white">
+              {items.length}
+            </span>
+          )}
+        </span>
+      }
+    >
       {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
       {!isLoading && items.length === 0 && (
         <p className="text-sm text-slate-500">No pending check-ins.</p>
       )}
       <div className="max-h-64 space-y-2 overflow-y-auto">
         {items.map((item) => (
-          <div
+          <Link
             key={item.id}
-            className="flex items-center justify-between gap-2 rounded-lg bg-amber-500/5 px-3 py-2"
+            to={`/clients/${item.client_id}/checkins`}
+            className="flex items-center justify-between gap-2 rounded-lg bg-amber-500/5 px-3 py-2 hover:bg-amber-500/10"
           >
             <div className="min-w-0">
               <p className="truncate text-sm text-slate-200">{item.client_name}</p>
@@ -249,14 +251,7 @@ function PendingCheckinsWidget({
                 {item.weight_kg != null ? ` · ${item.weight_kg} kg` : ""}
               </p>
             </div>
-            <button
-              onClick={() => markSeenMutation.mutate(item)}
-              disabled={markSeenMutation.isPending}
-              className="shrink-0 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/10 disabled:opacity-50"
-            >
-              Mark seen
-            </button>
-          </div>
+          </Link>
         ))}
       </div>
     </Card>
