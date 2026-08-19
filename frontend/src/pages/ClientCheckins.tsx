@@ -5,6 +5,7 @@ import { api, mediaUrl } from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
+import { formatDateShortWithWeek } from "../utils/date";
 import type { CheckinSubmission } from "../types";
 
 function complianceRate(submissions: CheckinSubmission[]): string {
@@ -108,15 +109,20 @@ export default function ClientCheckins() {
                     <p className="text-sm text-slate-300">&ldquo;{checkin.client_note}&rdquo;</p>
                   )}
                   {checkin.photos.length > 0 && (
-                    <div className="flex gap-2 overflow-x-auto">
-                      {checkin.photos.map((p) => (
-                        <img
-                          key={p.id}
-                          src={mediaUrl(p.thumb_path)}
-                          alt=""
-                          className="h-20 w-20 shrink-0 rounded-lg object-cover"
-                        />
-                      ))}
+                    <div>
+                      <p className="mb-1 text-xs text-slate-500">
+                        {formatDateShortWithWeek(checkin.submitted_at)}
+                      </p>
+                      <div className="flex gap-2 overflow-x-auto">
+                        {checkin.photos.map((p) => (
+                          <img
+                            key={p.id}
+                            src={mediaUrl(p.thumb_path)}
+                            alt=""
+                            className="h-20 w-20 shrink-0 rounded-lg object-cover"
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
                   <label className="flex flex-col gap-1 text-sm text-slate-400">

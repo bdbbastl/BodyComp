@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import { parseWeightInput } from "../utils/weight";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
+import { formatDateWithWeek } from "../utils/date";
 
 /**
  * Öffentliche, passwortlose Seite für Klienten - siehe Design-Spec
@@ -83,6 +84,9 @@ export default function CheckinSubmit() {
         <div>
           <p className="text-xs text-slate-500">Check-in for</p>
           <h1 className="text-xl font-semibold text-white">{page.client_name}</h1>
+          <p className="mt-1 text-sm text-slate-400">
+            {formatDateWithWeek(new Date().toISOString())}
+          </p>
         </div>
 
         <form
