@@ -395,3 +395,53 @@ def test_upload_pushes_files_concurrently(client, db_session, monkeypatch, tmp_p
 
     assert response.status_code == 200
     assert elapsed < SLOW_PUSH_SECONDS * 3
+
+
+def test_list_photos_prefetches_missing_thumbnails_in_parallel(client, db_session, monkeypatch):
+    """Beweist tatsächliche Parallelität (nicht nur Code-Struktur): macht
+    ensure_local() künstlich langsam und prüft, dass eine Liste mit 4
+    fehlenden Thumbnails deutlich schneller durchläuft als 4x die
+    künstliche Einzeldauer - bei sequenzieller Verarbeitung (z.B. weiter
+    ein Download pro /media-Request statt Prefetch) wäre das unmöglich."""
+    import time
+    from app.models.photo import Photo, ProcessingStatus
+    from app.models.pose import Pose
+    from app.routers import photos as photos_router
+
+    SLOW_ENSURE_LOCAL_SECONDS = 0.3
+
+    calls = []
+
+    def _slow_ensure_local(rel_path):
+        calls.append(rel_path)
+        time.sleep(SLOW_ENSURE_LOCAL_SECONDS)
+
+    monkeypatch.setattr(photos_router, "ensure_local", _slow_ensure_local)
+
+    client_id = _login_and_get_client(client, db_session)
+
+    pose = Pose(client_id=client_id, name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+
+    for i in range(4):
+        photo = Photo(
+            client_id=client_id,
+            filename=f"p{i}.jpg",
+            original_path=f"photos_processed/{client_id}/p{i}.jpg",
+            thumbnail_path=f"photos_processed/{client_id}/thumb_p{i}.jpg",
+            taken_at=datetime(2026, 1, 1, 12 + i, 0, 0),
+            status=ProcessingStatus.PROCESSED,
+            pose_id=pose.id,
+        )
+        db_session.add(photo)
+    db_session.commit()
+
+    started = time.monotonic()
+    response = client.get(f"/api/clients/{client_id}/photos")
+    elapsed = time.monotonic() - started
+
+    assert response.status_code == 200
+    assert len(calls) == 4
+    # Sequenziell wären das 4 * 0.3s = 1.2s - parallel deutlich darunter.
+    assert elapsed < 4 * SLOW_ENSURE_LOCAL_SECONDS

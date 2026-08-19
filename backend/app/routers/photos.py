@@ -48,6 +48,11 @@ router = APIRouter(prefix="/api/clients/{client_id}/photos", tags=["photos"])
 # "Foto-Upload/Speicher-Performance".
 PHOTO_PROCESSING_MAX_WORKERS = 4
 
+# Begrenzt gleichzeitige Thumbnail-Downloads von R2 beim Prefetch in
+# list_photos - reines I/O (kein CPU-Bottleneck wie bei der Foto-
+# Verarbeitung), daher ein höherer Wert als PHOTO_PROCESSING_MAX_WORKERS.
+THUMBNAIL_PREFETCH_MAX_WORKERS = 8
+
 
 @router.post("/sync", response_model=list[PhotoOut])
 def sync_photos(client_row: Client = Depends(get_owned_client), db: Session = Depends(get_db)):
@@ -127,6 +132,34 @@ def list_unprocessed(client_row: Client = Depends(get_owned_client), db: Session
     return result
 
 
+def _prefetch_thumbnails(photos: list[Photo]) -> None:
+    """Lädt fehlende Thumbnails parallel von R2 nach, BEVOR die Foto-Liste
+    zurückgegeben wird - ensure_local() ist idempotent (No-Op wenn schon
+    lokal vorhanden), hier betrifft es nur die tatsächlich fehlenden
+    Dateien. Ohne dieses Prefetch würde jeder einzelne /media-Request sein
+    eigenes R2-Download auslösen, was nach jedem Redeploy (ephemeres
+    Railway-Dateisystem) zu langsam wirkendem, scheinbar seriellem
+    Thumbnail-Laden auf der Timeline führt - siehe Design-Spec
+    "Thumbnail-Prefetch + Check-in-Löschen".
+
+    Nutzt denselben Pfad, den das Frontend tatsächlich für <img>-Tags
+    anfragt (siehe PhotoOut.thumb_path in schemas/photo.py): thumbnail_path,
+    mit Fallback auf preview_path oder original_path, falls noch kein
+    Thumbnail generiert wurde."""
+    thumb_paths = {
+        p.thumbnail_path or p.preview_path or p.original_path for p in photos
+    }
+    missing = [
+        rel_path
+        for rel_path in thumb_paths
+        if rel_path and not (settings.data_dir / rel_path).exists()
+    ]
+    if not missing:
+        return
+    with ThreadPoolExecutor(max_workers=THUMBNAIL_PREFETCH_MAX_WORKERS) as executor:
+        list(executor.map(ensure_local, missing))
+
+
 @router.get("", response_model=list[PhotoOut])
 def list_photos(
     pose_id: int | None = None,
@@ -154,7 +187,9 @@ def list_photos(
         q = q.filter(Photo.pose_id == pose_id)
     if status is not None:
         q = q.filter(Photo.status == status)
-    return q.order_by(Photo.taken_at.desc()).all()
+    results = q.order_by(Photo.taken_at.desc()).all()
+    _prefetch_thumbnails(results)
+    return results
 
 
 @router.post("/renormalize-all", response_model=list[PhotoOut])
