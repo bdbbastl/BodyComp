@@ -67,6 +67,122 @@ def test_update_checkin_sets_feedback_and_marks_reviewed(client, db_session):
     assert body["reviewed_at"] is not None
 
 
+def test_update_checkin_marking_reviewed_notifies_client_by_email(client, db_session, monkeypatch):
+    sent = {}
+
+    def fake_send(*, to, coach_feedback_text, coach_feedback_video_url, checkin_url):
+        sent["to"] = to
+        sent["coach_feedback_text"] = coach_feedback_text
+        sent["coach_feedback_video_url"] = coach_feedback_video_url
+        sent["checkin_url"] = checkin_url
+
+    monkeypatch.setattr("app.routers.checkins.send_checkin_reviewed_email", fake_send)
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    # ClientCreate akzeptiert kein email-Feld (nur ClientUpdate) - direkt
+    # über die DB setzen, analog zu anderen Test-Setups in dieser Datei.
+    client.patch(f"/api/clients/{created['id']}", json={"email": "max@example.com"})
+
+    submission = CheckinSubmission(client_id=created["id"])
+    db_session.add(submission)
+    db_session.commit()
+    db_session.refresh(submission)
+
+    response = client.patch(
+        f"/api/clients/{created['id']}/checkins/{submission.id}",
+        json={
+            "coach_feedback_text": "Sieht gut aus!",
+            "coach_feedback_video_url": "https://loom.com/share/xyz",
+            "mark_reviewed": True,
+        },
+    )
+    assert response.status_code == 200
+    assert sent["to"] == "max@example.com"
+    assert sent["coach_feedback_text"] == "Sieht gut aus!"
+    assert sent["coach_feedback_video_url"] == "https://loom.com/share/xyz"
+    assert sent["checkin_url"].endswith(f"/checkin/{created['checkin_token']}")
+
+
+def test_update_checkin_without_client_email_skips_notification(client, db_session, monkeypatch):
+    sent = {}
+
+    def fake_send(**kwargs):
+        sent["called"] = True
+
+    monkeypatch.setattr("app.routers.checkins.send_checkin_reviewed_email", fake_send)
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()  # keine E-Mail
+
+    submission = CheckinSubmission(client_id=created["id"])
+    db_session.add(submission)
+    db_session.commit()
+    db_session.refresh(submission)
+
+    response = client.patch(
+        f"/api/clients/{created['id']}/checkins/{submission.id}",
+        json={"mark_reviewed": True},
+    )
+    assert response.status_code == 200
+    assert "called" not in sent
+
+
+def test_update_checkin_feedback_only_does_not_notify_client(client, db_session, monkeypatch):
+    """Nur 'Save feedback' ohne mark_reviewed - keine Benachrichtigung, das
+    ist noch kein abgeschlossenes Review."""
+    sent = {}
+
+    def fake_send(**kwargs):
+        sent["called"] = True
+
+    monkeypatch.setattr("app.routers.checkins.send_checkin_reviewed_email", fake_send)
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    client.patch(f"/api/clients/{created['id']}", json={"email": "max@example.com"})
+
+    submission = CheckinSubmission(client_id=created["id"])
+    db_session.add(submission)
+    db_session.commit()
+    db_session.refresh(submission)
+
+    response = client.patch(
+        f"/api/clients/{created['id']}/checkins/{submission.id}",
+        json={"coach_feedback_text": "Sieht gut aus!"},
+    )
+    assert response.status_code == 200
+    assert "called" not in sent
+
+
+def test_update_checkin_already_reviewed_does_not_renotify(client, db_session, monkeypatch):
+    """Ein bereits reviewter Check-in, dessen Feedback später nochmal
+    bearbeitet wird (erneutes mark_reviewed=True), löst KEINE erneute
+    Benachrichtigung aus - nur der pending->reviewed-Übergang zählt."""
+    sent = {}
+
+    def fake_send(**kwargs):
+        sent["called"] = True
+
+    monkeypatch.setattr("app.routers.checkins.send_checkin_reviewed_email", fake_send)
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    client.patch(f"/api/clients/{created['id']}", json={"email": "max@example.com"})
+
+    submission = CheckinSubmission(client_id=created["id"], status=CheckinStatus.REVIEWED)
+    db_session.add(submission)
+    db_session.commit()
+    db_session.refresh(submission)
+
+    response = client.patch(
+        f"/api/clients/{created['id']}/checkins/{submission.id}",
+        json={"coach_feedback_text": "Update", "mark_reviewed": True},
+    )
+    assert response.status_code == 200
+    assert "called" not in sent
+
+
 def test_update_checkin_not_found_returns_404(client, db_session):
     _login(client, db_session)
     created = client.post("/api/clients", json={"name": "Max"}).json()

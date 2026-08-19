@@ -96,6 +96,40 @@ def send_checkin_submitted_email(*, to: str, client_name: str, checkins_url: str
     })
 
 
+def send_checkin_reviewed_email(
+    *,
+    to: str,
+    coach_feedback_text: str | None,
+    coach_feedback_video_url: str | None,
+    checkin_url: str,
+) -> None:
+    feedback_html = (
+        f'<p style="white-space: pre-wrap;">{coach_feedback_text}</p>'
+        if coach_feedback_text
+        else ""
+    )
+    video_html = (
+        f'<p><a href="{coach_feedback_video_url}">Watch video feedback</a></p>'
+        if coach_feedback_video_url
+        else ""
+    )
+    html = _base_email_html(
+        "Your check-in has feedback",
+        f"""
+        <p>Your coach reviewed your check-in and left feedback.</p>
+        {feedback_html}
+        {video_html}
+        <p><a href="{checkin_url}">Open your check-in</a></p>
+        """,
+    )
+    resend.Emails.send({
+        "from": settings.email_from_address,
+        "to": [to],
+        "subject": "Your coach left feedback on your check-in - BodyComp Tracker",
+        "html": html,
+    })
+
+
 def send_checkin_reminder_email(*, to: str, checkin_url: str) -> None:
     html = _base_email_html(
         "Time for your next check-in",

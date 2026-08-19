@@ -4,11 +4,13 @@ siehe Design-Spec Abschnitt "Coach-Ansicht". Nutzt dieselbe
 `get_owned_client`-Dependency wie alle anderen client-gescopten Router,
 damit ein Coach nie auf fremde Klienten zugreifen kann.
 """
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.checkin_submission import CheckinStatus, CheckinSubmission
 from app.models.client import Client
@@ -16,6 +18,9 @@ from app.models.photo import Photo
 from app.routers.clients import get_owned_client
 from app.routers.photos import _delete_photo_files
 from app.schemas.checkin import CheckinFeedbackUpdate, CheckinSubmissionOut
+from app.services.email import send_checkin_reviewed_email
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/clients/{client_id}/checkins", tags=["checkins"])
 
@@ -49,6 +54,12 @@ def update_checkin(
     if submission is None:
         raise HTTPException(404, "Check-in not found")
 
+    # Vor der Mutation merken - nur beim ÜBERGANG pending -> reviewed soll
+    # der Client benachrichtigt werden (nicht bei jedem "Save feedback",
+    # nicht erneut bei einem späteren Feedback-Edit eines bereits
+    # reviewten Check-ins).
+    was_pending = submission.status == CheckinStatus.PENDING
+
     if payload.coach_feedback_text is not None:
         submission.coach_feedback_text = payload.coach_feedback_text
     if payload.coach_feedback_video_url is not None:
@@ -59,6 +70,23 @@ def update_checkin(
 
     db.commit()
     db.refresh(submission)
+
+    # Client-Benachrichtigung - best effort, ein Mail-Fehler soll das
+    # erfolgreich gespeicherte Review nicht rückgängig machen. Kein
+    # Versand, falls der Klient keine E-Mail-Adresse hinterlegt hat (das
+    # Feld ist optional, siehe Client-Modell).
+    if payload.mark_reviewed and was_pending and client_row.email:
+        try:
+            checkin_url = f"{settings.frontend_base_url.rstrip('/')}/checkin/{client_row.checkin_token}"
+            send_checkin_reviewed_email(
+                to=client_row.email,
+                coach_feedback_text=submission.coach_feedback_text,
+                coach_feedback_video_url=submission.coach_feedback_video_url,
+                checkin_url=checkin_url,
+            )
+        except Exception:
+            logger.warning("Konnte Review-Benachrichtigung nicht senden", exc_info=True)
+
     return submission
 
 
