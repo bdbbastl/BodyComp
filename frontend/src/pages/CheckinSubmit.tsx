@@ -16,6 +16,7 @@ export default function CheckinSubmit() {
   const [weightKg, setWeightKg] = useState("");
   const [note, setNote] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [photoPoses, setPhotoPoses] = useState<Record<number, number | "">>({});
 
   const pageQuery = useQuery({
     queryKey: ["public-checkin", token],
@@ -30,12 +31,14 @@ export default function CheckinSubmit() {
         weight_kg: parsed === null || Number.isNaN(parsed) ? null : parsed,
         client_note: note.trim() === "" ? undefined : note.trim(),
         files,
+        poseIds: files.map((_, i) => photoPoses[i] as number),
       });
     },
     onSuccess: () => {
       setWeightKg("");
       setNote("");
       setFiles([]);
+      setPhotoPoses({});
       queryClient.invalidateQueries({ queryKey: ["public-checkin", token] });
     },
   });
@@ -60,7 +63,7 @@ export default function CheckinSubmit() {
 
   return (
     <div className="min-h-screen bg-background px-4 py-8 text-slate-100">
-      <div className="mx-auto max-w-md space-y-6">
+      <div className="mx-auto max-w-2xl space-y-6">
         <div>
           <p className="text-xs text-slate-500">Check-in for</p>
           <h1 className="text-xl font-semibold text-white">{page.client_name}</h1>
@@ -69,6 +72,12 @@ export default function CheckinSubmit() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (
+              submitMutation.isPending ||
+              (files.length > 0 && files.some((_, i) => !photoPoses[i]))
+            ) {
+              return;
+            }
             submitMutation.mutate();
           }}
           className="space-y-4 rounded-xl border border-white/5 bg-surface p-4"
@@ -98,19 +107,56 @@ export default function CheckinSubmit() {
               type="file"
               multiple
               accept="image/jpeg,image/png,image/heic,.heic"
-              onChange={(e) => setFiles(e.target.files ? Array.from(e.target.files) : [])}
+              onChange={(e) => {
+                setFiles(e.target.files ? Array.from(e.target.files) : []);
+                setPhotoPoses({});
+              }}
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-900"
             />
-            {files.length > 0 && (
-              <span className="text-xs text-slate-500">{files.length} file(s) selected</span>
-            )}
           </label>
+          {files.length > 0 && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+              {files.map((file, i) => (
+                <div
+                  key={`${file.name}-${i}`}
+                  className="space-y-2 rounded-lg border border-white/10 bg-black/20 p-2"
+                >
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt={file.name}
+                    className="h-32 w-full rounded-md object-cover"
+                  />
+                  <select
+                    required
+                    value={photoPoses[i] ?? ""}
+                    onChange={(e) =>
+                      setPhotoPoses((prev) => ({
+                        ...prev,
+                        [i]: e.target.value === "" ? "" : Number(e.target.value),
+                      }))
+                    }
+                    className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white focus:border-accent focus:outline-none"
+                  >
+                    <option value="">Choose pose…</option>
+                    {page.poses.map((pose) => (
+                      <option key={pose.id} value={pose.id}>
+                        {pose.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
           {submitMutation.isError && (
             <p className="text-sm text-red-400">Submission failed - please try again.</p>
           )}
           <button
             type="submit"
-            disabled={submitMutation.isPending}
+            disabled={
+              submitMutation.isPending ||
+              (files.length > 0 && files.some((_, i) => !photoPoses[i]))
+            }
             className="sticky bottom-4 w-full rounded-lg bg-accent px-4 py-3 text-sm font-medium text-slate-900 shadow-lg shadow-black/40 hover:opacity-90 disabled:opacity-50 sm:static sm:py-2 sm:shadow-none"
           >
             {submitMutation.isPending ? "Submitting…" : "Submit check-in"}
