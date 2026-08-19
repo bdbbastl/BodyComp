@@ -30,6 +30,7 @@ class UserOut(BaseModel):
     trial_ends_at: datetime | None
     free_checkins_used: int
     onboarding_completed_at: datetime | None
+    is_admin: bool
 
     class Config:
         from_attributes = True

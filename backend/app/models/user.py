@@ -17,7 +17,7 @@ alle vorher ausgestellten Session-Cookies ungültig zu machen.
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum, Integer, String
+from sqlalchemy import Boolean, DateTime, Enum, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -68,6 +68,16 @@ class User(Base):
     # löst beim nächsten Login den automatischen Start aus (siehe
     # Design-Spec "Onboarding-Flow" Abschnitt 2).
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Manuell in der DB gesetzt - kein Self-Signup-Pfad zu Admin-Rechten.
+    # Steuert Zugriff auf /api/admin/* (siehe app/routers/admin.py) und
+    # den /admin-Frontend-Bereich. Siehe Design-Spec
+    # "Master-Admin-Dashboard".
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Deaktivierte Accounts können sich nicht mehr einloggen (siehe
+    # get_current_user-Aufrufer in auth.py `login`/`google_callback`) -
+    # bestehende Sessions bleiben bis zum nächsten Login-Versuch gültig
+    # (kein aktives Invalidieren in v1).
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     clients: Mapped[list["Client"]] = relationship(  # noqa: F821
         back_populates="owner", cascade="all, delete-orphan"

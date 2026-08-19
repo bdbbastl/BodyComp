@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 
+import pytest
+from fastapi import HTTPException
+
 from app.models.email_token import EmailToken, EmailTokenPurpose
 from app.models.user import User
 from app.services.auth import create_email_token, hash_email_token, hash_password
@@ -354,6 +357,36 @@ def test_confirm_email_change_rejects_already_used_token(client, db_session, mon
     assert first.status_code == 200
     second = client.get(f"/api/auth/confirm-email-change?token={token}")
     assert second.status_code == 400
+
+
+def test_me_includes_is_admin_field(client, db_session):
+    user = _make_user(db_session)
+    _login_as(client, user)
+    response = client.get("/api/auth/me")
+    assert response.status_code == 200
+    assert response.json()["is_admin"] is False
+
+
+def test_require_admin_rejects_non_admin(client, db_session):
+    from app.routers.auth import require_admin
+
+    user = _make_user(db_session)
+    _login_as(client, user)
+
+    with pytest.raises(HTTPException) as exc_info:
+        require_admin(user=user)
+    assert exc_info.value.status_code == 403
+
+
+def test_require_admin_allows_admin(db_session):
+    from app.routers.auth import require_admin
+
+    user = _make_user(db_session, email="admin@example.com")
+    user.is_admin = True
+    db_session.commit()
+
+    result = require_admin(user=user)
+    assert result is user
 
 
 def test_change_email_invalidates_previous_pending_token(client, db_session, monkeypatch):

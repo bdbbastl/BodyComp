@@ -99,6 +99,17 @@ def get_current_user(
     return user
 
 
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    """FastAPI-Dependency für /api/admin/* - baut auf get_current_user auf
+    (muss also erst eingeloggt sein) und prüft zusätzlich is_admin. Wirft
+    403, kein 404 - es gibt keinen Grund, die Existenz des Admin-Bereichs
+    vor einem eingeloggten, aber nicht-privilegierten User zu verstecken,
+    da der Endpunkt-Pfad selbst schon öffentlich im Frontend-Bundle liegt."""
+    if not user.is_admin:
+        raise HTTPException(403, "Admin access required")
+    return user
+
+
 @router.post("/login", response_model=UserOut)
 def login(
     payload: LoginRequest,
