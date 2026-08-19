@@ -1,10 +1,19 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
+import exifr from "exifr";
 import { api, mediaUrl } from "../api/client";
 import { parseWeightInput } from "../utils/weight";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 import { formatDateWithWeek } from "../utils/date";
+
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
 
 /**
  * Öffentliche, passwortlose Seite für Klienten - siehe Design-Spec
@@ -32,6 +41,45 @@ export default function CheckinSubmit() {
       urls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [files]);
+
+  // Aufnahmedatum der ausgewählten Fotos (aus EXIF DateTimeOriginal, sonst
+  // Datei-Änderungsdatum als Fallback - analog zum serverseitigen
+  // get_taken_at() in backend/app/services/exif.py) - rein informativ für
+  // die Anzeige im Header, wird nicht ans Backend mitgeschickt. Reset auf
+  // [] bei jeder neuen Dateiauswahl, damit während des (schnellen, aber
+  // asynchronen) EXIF-Lesens keine veralteten Daten der vorherigen
+  // Auswahl angezeigt werden.
+  const [photoDates, setPhotoDates] = useState<Date[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    setPhotoDates([]);
+    Promise.all(
+      files.map(async (file) => {
+        try {
+          const exifDate = await exifr.parse(file, ["DateTimeOriginal"]);
+          if (exifDate?.DateTimeOriginal instanceof Date) return exifDate.DateTimeOriginal;
+        } catch {
+          // Kein/kaputtes EXIF (z.B. Screenshot) - unten auf mtime zurückfallen.
+        }
+        return new Date(file.lastModified);
+      })
+    ).then((dates) => {
+      if (!cancelled) setPhotoDates(dates);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [files]);
+
+  const photoDateLabel =
+    files.length === 0
+      ? null
+      : photoDates.length === files.length &&
+          photoDates.every((d) => isSameCalendarDay(d, photoDates[0]))
+        ? formatDateWithWeek(photoDates[0].toISOString())
+        : photoDates.length === files.length
+          ? "Mixed dates"
+          : null; // EXIF-Reads noch nicht fertig - noch kein Label anzeigen
 
   const pageQuery = useQuery({
     queryKey: ["public-checkin", token],
@@ -84,9 +132,7 @@ export default function CheckinSubmit() {
         <div>
           <p className="text-xs text-slate-500">Check-in for</p>
           <h1 className="text-xl font-semibold text-white">{page.client_name}</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            {formatDateWithWeek(new Date().toISOString())}
-          </p>
+          {photoDateLabel && <p className="mt-1 text-sm text-slate-400">{photoDateLabel}</p>}
         </div>
 
         <form
