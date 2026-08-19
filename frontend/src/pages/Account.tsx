@@ -231,6 +231,12 @@ function ProfileSection() {
   const { data: user } = useCurrentUser();
   const queryClient = useQueryClient();
 
+  // Nur eine Aktion gleichzeitig offen - Klick auf den jeweils anderen
+  // Button schließt die erste, erneuter Klick auf die aktive Aktion
+  // schließt sie wieder. Siehe Design-Spec "Account-Seite:
+  // Neustrukturierung".
+  const [activeAction, setActiveAction] = useState<"password" | "email" | null>(null);
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
@@ -271,80 +277,99 @@ function ProfileSection() {
   });
 
   return (
-    <>
-      <Card>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-lg font-semibold text-white">{user.email}</p>
-          <p className="text-sm text-slate-500">Member since {memberSince}</p>
-        </div>
-      </Card>
+    <Card>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-lg font-semibold text-white">{user.email}</p>
+        <p className="text-sm text-slate-500">Member since {memberSince}</p>
+      </div>
 
-      {user.has_password && (
-        <Card title="Change password">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setPasswordSuccess(false);
-              if (!passwordsMismatch) changePasswordMutation.mutate();
-            }}
-            className="space-y-3"
-          >
-            <label className="flex flex-col gap-1 text-sm text-slate-400">
-              Current password
-              <input
-                type="password"
-                required
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm text-slate-400">
-              New password
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm text-slate-400">
-              Repeat new password
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={newPasswordConfirm}
-                onChange={(e) => setNewPasswordConfirm(e.target.value)}
-                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-              />
-            </label>
-            {passwordsMismatch && (
-              <p className="text-sm text-red-400">The new passwords don't match.</p>
-            )}
-            {changePasswordMutation.isError && (
-              <p className="text-sm text-red-400">
-                {(changePasswordMutation.error as any)?.response?.status === 401
-                  ? "Current password is incorrect."
-                  : "Could not change password."}
-              </p>
-            )}
-            {passwordSuccess && <p className="text-sm text-accent">Password changed.</p>}
+      {(user.has_password || !user.has_google_account) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {user.has_password && (
             <button
-              type="submit"
-              disabled={changePasswordMutation.isPending || passwordsMismatch}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
+              type="button"
+              onClick={() => setActiveAction((a) => (a === "password" ? null : "password"))}
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
             >
-              {changePasswordMutation.isPending ? "Saving…" : "Change password"}
+              Change password
             </button>
-          </form>
-        </Card>
+          )}
+          {!user.has_google_account && (
+            <button
+              type="button"
+              onClick={() => setActiveAction((a) => (a === "email" ? null : "email"))}
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+            >
+              Change email
+            </button>
+          )}
+        </div>
       )}
 
-      {!user.has_google_account && (
-        <Card title="Change email">
+      {activeAction === "password" && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setPasswordSuccess(false);
+            if (!passwordsMismatch) changePasswordMutation.mutate();
+          }}
+          className="mt-4 space-y-3 border-t border-white/10 pt-4"
+        >
+          <label className="flex flex-col gap-1 text-sm text-slate-400">
+            Current password
+            <input
+              type="password"
+              required
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-slate-400">
+            New password
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-slate-400">
+            Repeat new password
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={newPasswordConfirm}
+              onChange={(e) => setNewPasswordConfirm(e.target.value)}
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+            />
+          </label>
+          {passwordsMismatch && (
+            <p className="text-sm text-red-400">The new passwords don't match.</p>
+          )}
+          {changePasswordMutation.isError && (
+            <p className="text-sm text-red-400">
+              {(changePasswordMutation.error as any)?.response?.status === 401
+                ? "Current password is incorrect."
+                : "Could not change password."}
+            </p>
+          )}
+          {passwordSuccess && <p className="text-sm text-accent">Password changed.</p>}
+          <button
+            type="submit"
+            disabled={changePasswordMutation.isPending || passwordsMismatch}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
+          >
+            {changePasswordMutation.isPending ? "Saving…" : "Change password"}
+          </button>
+        </form>
+      )}
+
+      {activeAction === "email" && (
+        <div className="mt-4 border-t border-white/10 pt-4">
           {emailRequested ? (
             <p className="text-sm text-slate-300">
               Check your inbox at <span className="text-white">{emailRequested}</span> to confirm
@@ -396,9 +421,9 @@ function ProfileSection() {
               </button>
             </form>
           )}
-        </Card>
+        </div>
       )}
-    </>
+    </Card>
   );
 }
 
@@ -647,9 +672,9 @@ export default function Account() {
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader title="Account" />
 
-      <ProfileSection />
-
       <BillingSection />
+
+      <ProfileSection />
 
       <Card title="Need a refresher?">
         <button
