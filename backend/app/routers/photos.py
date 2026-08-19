@@ -382,8 +382,17 @@ def assign_photos_bulk(
     Frontend gar nicht erst mitgeschickt und bleiben unverändert in der
     Queue. Einzelne fehlerhafte Einträge (unbekannte Foto-/Pose-ID) werden
     übersprungen, statt die gesamte Aktion abzubrechen.
+
+    Performance: die teure Datei-/MediaPipe-Arbeit pro Foto läuft über
+    einen Thread-Pool PARALLEL statt sequenziell (siehe Design-Spec
+    "Foto-Upload/Speicher-Performance") - die Antwort wartet trotzdem auf
+    ALLE Ergebnisse, bevor sie zurückgegeben wird (kein Hintergrund-
+    Mechanismus, keine Inkonsistenz-Fenster). DayLog-Auflösung/-Anlage
+    bleibt VOR dem Parallel-Dispatch sequenziell, um Race Conditions bei
+    mehreren Fotos desselben Tages zu vermeiden.
     """
-    results: list[Photo] = []
+    # Phase 1 (sequenziell, günstig): validieren + DayLog auflösen.
+    work_items = []
     for item in payload.items:
         photo = (
             db.query(Photo)
@@ -397,7 +406,40 @@ def assign_photos_bulk(
         )
         if not photo or not pose or photo.status != ProcessingStatus.UNPROCESSED:
             continue
-        results.append(_assign_photo(db, photo, pose, item.weight_kg, client_row.owner))
+        day_date = photo.taken_at.date()
+        day_log = _get_or_create_day_log(db, client_row.id, day_date, client_row.owner)
+        work_items.append((photo, pose, day_log, item.weight_kg))
+
+    if not work_items:
+        return []
+
+    # Phase 2 (parallel, teuer): Datei-Verarbeitung + MediaPipe je Foto.
+    with ThreadPoolExecutor(max_workers=PHOTO_PROCESSING_MAX_WORKERS) as executor:
+        future_to_index = {
+            executor.submit(
+                _process_photo_files,
+                client_id=client_row.id,
+                filename=photo.filename,
+                original_path=photo.original_path,
+                preview_path=photo.preview_path,
+                thumbnail_path=photo.thumbnail_path,
+                day_date_iso=day_log.date.isoformat(),
+                pose_id=pose.id,
+                photo_id=photo.id,
+            ): index
+            for index, (photo, pose, day_log, weight_kg) in enumerate(work_items)
+        }
+        results_by_index: dict[int, _ProcessedPhotoFiles] = {}
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            results_by_index[index] = future.result()
+
+    # Phase 3 (sequenziell, günstig): Ergebnisse in DB übernehmen.
+    results: list[Photo] = []
+    for index, (photo, pose, day_log, weight_kg) in enumerate(work_items):
+        results.append(
+            _apply_processed_result(db, photo, day_log, pose, weight_kg, results_by_index[index])
+        )
     return results
 
 
