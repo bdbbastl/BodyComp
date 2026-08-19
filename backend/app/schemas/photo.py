@@ -17,6 +17,7 @@ class PhotoOut(BaseModel):
     status: ProcessingStatus
     pose_id: int | None
     day_log_id: int | None
+    checkin_submission_id: int | None
     width: int | None
     height: int | None
 

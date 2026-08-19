@@ -87,6 +87,51 @@ def test_list_photos_shows_non_checkin_photos_unaffected(client, db_session):
     assert len(response.json()) == 1
 
 
+def test_list_photos_includes_checkin_submission_id(client, db_session):
+    from app.models.checkin_submission import CheckinStatus, CheckinSubmission
+    from app.models.photo import Photo, ProcessingStatus
+    from app.models.pose import Pose
+
+    client_id = _login_and_get_client(client, db_session)
+
+    pose = Pose(client_id=client_id, name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+
+    submission = CheckinSubmission(client_id=client_id, status=CheckinStatus.REVIEWED)
+    db_session.add(submission)
+    db_session.commit()
+    db_session.refresh(submission)
+
+    checkin_photo = Photo(
+        client_id=client_id,
+        filename="from_checkin.jpg",
+        original_path=f"photos_processed/{client_id}/from_checkin.jpg",
+        taken_at=datetime(2026, 1, 1, 12, 0, 0),
+        status=ProcessingStatus.PROCESSED,
+        pose_id=pose.id,
+        checkin_submission_id=submission.id,
+    )
+    coach_photo = Photo(
+        client_id=client_id,
+        filename="from_coach.jpg",
+        original_path=f"photos_processed/{client_id}/from_coach.jpg",
+        taken_at=datetime(2026, 1, 2, 12, 0, 0),
+        status=ProcessingStatus.PROCESSED,
+        pose_id=pose.id,
+        checkin_submission_id=None,
+    )
+    db_session.add_all([checkin_photo, coach_photo])
+    db_session.commit()
+
+    response = client.get(f"/api/clients/{client_id}/photos")
+    assert response.status_code == 200
+    by_filename = {p["filename"]: p for p in response.json()}
+
+    assert by_filename["from_checkin.jpg"]["checkin_submission_id"] == submission.id
+    assert by_filename["from_coach.jpg"]["checkin_submission_id"] is None
+
+
 def test_photos_list_scoped_to_client(client, db_session):
     client_id_a = _login_and_get_client(client, db_session, email="a@b.com", password="pw12345")
     response = client.get(f"/api/clients/{client_id_a}/photos")
