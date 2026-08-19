@@ -267,7 +267,7 @@ def _process_photo_files(
     ensure_local(original_path)
     src = settings.data_dir / original_path
     if src.exists():
-        dest = dest_dir / filename
+        dest = dest_dir / f"{photo_id}_{filename}"
         shutil.move(str(src), str(dest))
         result_original_path = dest.relative_to(settings.data_dir).as_posix()
         push(result_original_path)

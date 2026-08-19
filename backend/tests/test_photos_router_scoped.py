@@ -235,3 +235,64 @@ def test_assign_bulk_processes_multiple_photos_concurrently(client, db_session, 
     # erhöhen. Wir prüfen konservativ, dass 3 Fotos NICHT 3x so lange wie
     # ein einzelner künstlich verlangsamter Call brauchen.
     assert elapsed < SLOW_PUSH_SECONDS * 3
+
+
+def test_assign_bulk_same_filename_photos_do_not_clobber_each_other(client, db_session):
+    """Regression: zwei UNPROCESSED-Fotos mit IDENTISCHEM Dateinamen (z.B.
+    weil eine Kamera-App wieder bei IMG_0001.jpg anfängt zu zählen, nachdem
+    ein früheres Foto bereits aus incoming_dir herausbewegt wurde) dürfen im
+    selben Bulk-Batch NICHT auf denselben Ziel-Dateinamen abgebildet werden -
+    sonst überschreibt ein paralleler shutil.move()-Aufruf den anderen
+    (stiller Datenverlust). _process_photo_files präfixt den Zieldateinamen
+    daher mit der eindeutigen photo_id."""
+    from app.core.config import settings
+    from app.models.photo import Photo, ProcessingStatus
+    from app.models.pose import Pose
+
+    client_id = _login_and_get_client(client, db_session)
+
+    pose = Pose(client_id=client_id, name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+
+    # `Photo.original_path` trägt eine Unique-Constraint, daher braucht jedes
+    # Foto einen eigenen SOURCE-Pfad (unterschiedliches Unterverzeichnis) -
+    # aber beide teilen sich denselben `filename`-Feldwert, das reicht, um
+    # die Kollision im Zielverzeichnis (dest_dir / filename) zu erzeugen,
+    # um die es hier geht.
+    photos = []
+    contents = [b"content-of-photo-one", b"content-of-photo-two"]
+    for i, content in enumerate(contents):
+        src_rel = f"photos_incoming/{client_id}/src_{i}.jpg"
+        src_path = settings.data_dir / src_rel
+        src_path.parent.mkdir(parents=True, exist_ok=True)
+        src_path.write_bytes(content)
+        photo = Photo(
+            client_id=client_id,
+            filename="IMG_0001.jpg",
+            original_path=src_rel,
+            taken_at=datetime(2026, 1, 1, 12 + i, 0, 0),
+            status=ProcessingStatus.UNPROCESSED,
+        )
+        db_session.add(photo)
+        photos.append(photo)
+    db_session.commit()
+    for p in photos:
+        db_session.refresh(p)
+
+    response = client.post(
+        f"/api/clients/{client_id}/photos/assign-bulk",
+        json={"items": [{"photo_id": p.id, "pose_id": pose.id} for p in photos]},
+    )
+    assert response.status_code == 200
+    results = response.json()
+    assert len(results) == 2
+
+    original_paths = [r["original_path"] for r in results]
+    assert len(set(original_paths)) == 2, "destination paths must be distinct, not clobbered"
+
+    contents_by_id = {photos[0].id: contents[0], photos[1].id: contents[1]}
+    for r in results:
+        dest_file = settings.data_dir / r["original_path"]
+        assert dest_file.exists()
+        assert dest_file.read_bytes() == contents_by_id[r["id"]]
