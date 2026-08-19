@@ -114,15 +114,42 @@ export default function ClientShell() {
             options.onNavigate?.();
           }}
           className={navLinkClass}
-          title={options.collapsed ? item.label : undefined}
+          title={
+            options.collapsed
+              ? item.to === "checkins" && (clientQuery.data?.pending_checkins_count ?? 0) > 0
+                ? `${item.label} (${clientQuery.data?.pending_checkins_count} pending)`
+                : item.label
+              : undefined
+          }
         >
-          <Icon size={17} aria-hidden="true" />
+          <span className="relative flex shrink-0">
+            <Icon size={17} aria-hidden="true" />
+            {/* Eingeklappt: kein Platz für Label+Pille (Sidebar ist nur
+                w-14 breit) - stattdessen ein kleiner Punkt oben rechts am
+                Icon, der nur "es gibt was Offenes" signalisiert statt
+                der genauen Zahl (siehe Code-Review: die volle Pille lief
+                im eingeklappten Zustand über den verfügbaren Platz
+                hinaus). */}
+            {options.collapsed &&
+              item.to === "checkins" &&
+              (clientQuery.data?.pending_checkins_count ?? 0) > 0 && (
+                <span
+                  aria-hidden="true"
+                  className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500"
+                />
+              )}
+          </span>
           {!options.collapsed && item.label}
-          {item.to === "checkins" && (clientQuery.data?.pending_checkins_count ?? 0) > 0 && (
-            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
-              {clientQuery.data!.pending_checkins_count}
-            </span>
-          )}
+          {!options.collapsed &&
+            item.to === "checkins" &&
+            (clientQuery.data?.pending_checkins_count ?? 0) > 0 && (
+              <span
+                aria-label={`${clientQuery.data?.pending_checkins_count} pending check-ins`}
+                className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white"
+              >
+                {clientQuery.data?.pending_checkins_count}
+              </span>
+            )}
         </NavLink>
       </div>
     );
