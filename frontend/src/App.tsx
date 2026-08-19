@@ -14,6 +14,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import Account from "./pages/Account";
 import Timeline from "./pages/Timeline";
+import SingleDashboard from "./pages/SingleDashboard";
 import ClientCheckins from "./pages/ClientCheckins";
 import Unprocessed from "./pages/Unprocessed";
 import Compare from "./pages/Compare";
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="account" element={<Account />} />
           <Route path="clients/:clientId" element={<ClientShell />}>
+            <Route path="dashboard" element={<SingleDashboard />} />
             <Route path="timeline" element={<Timeline />} />
             <Route path="checkins" element={<ClientCheckins />} />
             <Route path="unprocessed" element={<Unprocessed />} />

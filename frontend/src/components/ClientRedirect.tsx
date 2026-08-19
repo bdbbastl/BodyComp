@@ -20,5 +20,5 @@ export default function ClientRedirect() {
   const firstClient = clientsQuery.data?.[0];
   if (!firstClient) return null; // sollte nie passieren - jeder Account hat mind. einen Client
 
-  return <Navigate to={`/clients/${firstClient.id}/timeline`} replace />;
+  return <Navigate to={`/clients/${firstClient.id}/dashboard`} replace />;
 }

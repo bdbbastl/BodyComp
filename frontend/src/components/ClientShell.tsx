@@ -4,6 +4,7 @@ import { NavLink, Outlet, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Menu,
+  LayoutDashboard,
   Calendar,
   ListChecks,
   Upload,
@@ -29,6 +30,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { to: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "timeline", label: "Timeline", icon: Calendar },
   { to: "checkins", label: "Check-ins", icon: ListChecks },
   { to: "unprocessed", label: "Import", icon: Upload },
@@ -50,9 +52,11 @@ export default function ClientShell() {
   // Design-Spec "Usability-Fixes Runde 2" Abschnitt 1. Reine
   // Sichtbarkeits-Filterung, keine Datenlöschung - wechselt ein Account
   // später zum Coach, taucht der Tab sofort wieder auf.
-  const visibleNavItems = NAV_ITEMS.filter(
-    (item) => item.to !== "checkins" || user?.account_type === "coach"
-  );
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.to === "checkins") return user?.account_type === "coach";
+    if (item.to === "dashboard") return user?.account_type === "single";
+    return true;
+  });
   const location = useLocation();
   const activeNavTo = NAV_ITEMS.find((item) =>
     item.to === "timeline"
