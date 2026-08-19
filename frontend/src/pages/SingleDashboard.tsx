@@ -177,7 +177,7 @@ function ProgressWidget({
           <p className="text-xs text-slate-500">current kg</p>
         </div>
         <div>
-          <p className="text-xl font-medium text-accent">
+          <p className={`text-xl font-medium ${delta < 0 ? "text-green-400" : "text-accent"}`}>
             {delta > 0 ? "+" : ""}
             {delta.toFixed(1)}
           </p>
