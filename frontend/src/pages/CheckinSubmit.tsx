@@ -6,6 +6,7 @@ import { api, mediaUrl } from "../api/client";
 import { parseWeightInput } from "../utils/weight";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 import { formatDateWithWeek } from "../utils/date";
+import { numberedPoseOptionLabel } from "../utils/poseLabel";
 
 function isSameCalendarDay(a: Date, b: Date): boolean {
   return (
@@ -191,7 +192,7 @@ export default function CheckinSubmit() {
                   <img
                     src={previewUrls[i]}
                     alt={file.name}
-                    className="h-32 w-full rounded-md object-cover"
+                    className="h-64 w-full rounded-md bg-black/40 object-contain"
                   />
                   <select
                     required
@@ -206,9 +207,9 @@ export default function CheckinSubmit() {
                     className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white focus:border-accent focus:outline-none"
                   >
                     <option value="">Choose pose…</option>
-                    {page.poses.map((pose) => (
+                    {page.poses.map((pose, index) => (
                       <option key={pose.id} value={pose.id}>
-                        {pose.name}
+                        {numberedPoseOptionLabel(index, pose.name)}
                       </option>
                     ))}
                   </select>
