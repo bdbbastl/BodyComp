@@ -150,3 +150,57 @@ def test_google_callback_clears_password_when_linking_unverified_account(client,
         json={"email": "google@example.com", "password": attacker_password},
     )
     assert login_response.status_code == 401
+
+
+def test_google_callback_rejects_deactivated_existing_google_user(client, db_session):
+    from datetime import datetime, timezone
+
+    existing = User(
+        email="google@example.com",
+        display_name="Google User",
+        google_id="google-sub-123",
+        email_verified_at=datetime.now(timezone.utc),
+        is_active=False,
+    )
+    db_session.add(existing)
+    db_session.commit()
+
+    with patch("app.routers.auth.oauth.google.authorize_access_token", new_callable=AsyncMock) as mock_token:
+        mock_token.return_value = {"userinfo": _fake_google_userinfo()}
+        response = client.get("/api/auth/google/callback", follow_redirects=False)
+
+    assert response.status_code in (302, 307)
+    assert "session" not in response.cookies
+    assert "error=account_disabled" in response.headers["location"]
+
+
+def test_google_callback_rejects_deactivated_account_without_mutating_it(client, db_session):
+    """Regressionstest (Code-Review nach Task 2): ein deaktivierter
+    Account, der über E-Mail+Passwort gefunden wird, darf NICHT verlinkt
+    werden (kein google_id, kein entwertetes Passwort) - der Login muss
+    komplett eingefroren bleiben, nicht nur die Session verweigert werden."""
+    attacker_password = "AttackerChosen123!"
+    victim = User(
+        email="google@example.com",
+        display_name="Deactivated Victim",
+        password_hash=hash_password(attacker_password),
+        email_verified_at=None,
+        is_active=False,
+    )
+    db_session.add(victim)
+    db_session.commit()
+    victim_id = victim.id
+
+    with patch("app.routers.auth.oauth.google.authorize_access_token", new_callable=AsyncMock) as mock_token:
+        mock_token.return_value = {"userinfo": _fake_google_userinfo()}
+        response = client.get("/api/auth/google/callback", follow_redirects=False)
+
+    assert response.status_code in (302, 307)
+    assert "session" not in response.cookies
+    assert "error=account_disabled" in response.headers["location"]
+
+    db_session.refresh(victim)
+    assert victim.id == victim_id
+    assert victim.google_id is None  # keine Verknüpfung stattgefunden
+    assert victim.password_hash is not None  # Passwort nicht entwertet
+    assert victim.email_verified_at is None  # keine Mutation stattgefunden

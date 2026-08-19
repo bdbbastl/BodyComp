@@ -303,31 +303,43 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.google_id == google_sub).first()
     if user is None:
         user = db.query(User).filter(User.email == email).first()
-        if user is not None:
-            # bestehender E-Mail+Passwort-Account - automatisch verknüpfen.
-            # Sicherheitshinweis: War der Account noch NICHT verifiziert,
-            # könnte er von einem Angreifer mit der E-Mail-Adresse des
-            # Opfers vorregistriert worden sein (Account-Übernahme via
-            # gesetztem Passwort, das nie verifiziert wurde). Da Google
-            # jetzt als erste Partei den Besitz der E-Mail-Adresse
-            # nachweist, wird das gesetzte Passwort ungültig gemacht -
-            # der Account wird ab hier reiner Google-Login (analog zum
-            # Neu-Signup-Zweig unten).
-            if user.email_verified_at is None:
-                user.password_hash = None
-            user.google_id = google_sub
-        else:
-            user = create_account(db, email=email, password=None, display_name=name)
-            user.google_id = google_sub
-            user.privacy_accepted_at = datetime.now(timezone.utc)
-        user.email_verified_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(user)
 
-    if not user.is_active:
+    # is_active wird VOR jeder Verknüpfungs-/Anlage-Mutation geprüft - ein
+    # deaktivierter Account soll wirklich eingefroren bleiben, nicht nur
+    # keine Session bekommen. Sonst könnte ein unauthentifizierter Aufrufer
+    # per Google-OAuth trotzdem das Passwort ungültig machen und die
+    # Google-Identität verknüpfen, obwohl der Login danach abgelehnt wird
+    # (siehe Code-Review nach Task 2). Ein neu anzulegender Account (user
+    # ist None) ist per Modell-Default immer aktiv, braucht also keine
+    # Prüfung an dieser Stelle.
+    if user is not None and not user.is_active:
         return RedirectResponse(
             url=f"{settings.frontend_base_url.rstrip('/')}/login?error=account_disabled"
         )
+
+    if user is None:
+        user = create_account(db, email=email, password=None, display_name=name)
+        user.google_id = google_sub
+        user.privacy_accepted_at = datetime.now(timezone.utc)
+        user.email_verified_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(user)
+    elif user.google_id != google_sub:
+        # bestehender E-Mail+Passwort-Account - automatisch verknüpfen.
+        # Sicherheitshinweis: War der Account noch NICHT verifiziert,
+        # könnte er von einem Angreifer mit der E-Mail-Adresse des
+        # Opfers vorregistriert worden sein (Account-Übernahme via
+        # gesetztem Passwort, das nie verifiziert wurde). Da Google
+        # jetzt als erste Partei den Besitz der E-Mail-Adresse
+        # nachweist, wird das gesetzte Passwort ungültig gemacht -
+        # der Account wird ab hier reiner Google-Login (analog zum
+        # Neu-Signup-Zweig unten).
+        if user.email_verified_at is None:
+            user.password_hash = None
+        user.google_id = google_sub
+        user.email_verified_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(user)
 
     session_token = create_session_token(user.id)
     response = RedirectResponse(url=f"{settings.frontend_base_url}/")
