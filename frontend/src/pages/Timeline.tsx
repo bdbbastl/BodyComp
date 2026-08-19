@@ -383,6 +383,7 @@ function PhotoCard({
       <div className="relative">
         <span
           title={photo.checkin_submission_id != null ? "From client check-in" : "Uploaded by coach"}
+          aria-label={photo.checkin_submission_id != null ? "From client check-in" : "Uploaded by coach"}
           className="absolute left-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs backdrop-blur"
         >
           {photo.checkin_submission_id != null ? "📨" : "📤"}
