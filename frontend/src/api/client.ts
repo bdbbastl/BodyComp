@@ -27,6 +27,32 @@ export interface CurrentUser {
   onboarding_completed_at: string | null;
 }
 
+export interface PendingCheckinSummary {
+  id: number;
+  client_id: number;
+  client_name: string;
+  submitted_at: string;
+  weight_kg: number | null;
+}
+
+export interface NeedsAttentionClient {
+  client_id: number;
+  client_name: string;
+  days_since_activity: number | null;
+}
+
+export interface WeekStats {
+  checkins: number;
+  photos: number;
+  active_clients: number;
+}
+
+export interface CoachDashboardSummary {
+  pending_checkins: PendingCheckinSummary[];
+  needs_attention: NeedsAttentionClient[];
+  week_stats: WeekStats;
+}
+
 const client = axios.create({ baseURL: "/api", withCredentials: true });
 
 /** Löst einen server-relativen Bildpfad (original_path/normalized_path) zur /media-URL auf. */
@@ -35,6 +61,10 @@ export function mediaUrl(relativePath: string): string {
 }
 
 export const api = {
+  dashboard: {
+    coachSummary: () =>
+      client.get<CoachDashboardSummary>("/dashboard/coach-summary").then((r) => r.data),
+  },
   billing: {
     checkout: (tier: "starter" | "pro" | "business" | "single") =>
       client.post<{ checkout_url: string }>("/billing/checkout", { tier }).then((r) => r.data),
