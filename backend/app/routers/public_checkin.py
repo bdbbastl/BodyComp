@@ -155,8 +155,9 @@ def submit_checkin(
     # Fotos wie beim normalen Upload (routers/photos.py upload_photos)
     # nach photos_incoming/<client_id>/ kopieren und dieselbe
     # Sync-Pipeline nutzen (EXIF/HEIC/Thumbnail-Handling) - dann die neu
-    # entstandenen Photo-Rows dieser Einreichung zuordnen. Pose-Zuordnung
-    # bleibt bewusst Coach-Aufgabe im bestehenden Import-Screen.
+    # entstandenen Photo-Rows dieser Einreichung sofort mit der vom Klienten
+    # gewaehlten Pose verarbeiten (siehe Block weiter unten), statt sie dem
+    # Coach als manuellen Zuordnungs-Task zu ueberlassen.
     if files:
         incoming_dir = incoming_dir_for_client(client_row.id)
         incoming_dir.mkdir(parents=True, exist_ok=True)
