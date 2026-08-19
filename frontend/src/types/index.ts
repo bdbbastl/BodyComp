@@ -55,6 +55,7 @@ export interface Photo {
   status: ProcessingStatus;
   pose_id: number | null;
   day_log_id: number | null;
+  checkin_submission_id: number | null;
   width: number | null;
   height: number | null;
 }
