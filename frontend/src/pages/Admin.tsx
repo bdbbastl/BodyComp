@@ -25,6 +25,10 @@ export default function Admin() {
       <div className="mx-auto max-w-6xl space-y-6">
         <h1 className="text-2xl font-semibold text-white">Admin</h1>
 
+        {overviewQuery.isError && (
+          <p className="text-sm text-red-400">Could not load overview stats. Please try again.</p>
+        )}
+
         {overviewQuery.data && (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <Card title="Total Accounts">
@@ -50,11 +54,16 @@ export default function Admin() {
         <Card title="Accounts">
           <input
             type="text"
+            aria-label="Search by email"
             placeholder="Search by email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="mb-4 w-full max-w-sm rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
           />
+          {accountsQuery.isError && (
+            <p className="mb-4 text-sm text-red-400">Could not load accounts. Please try again.</p>
+          )}
+          {accountsQuery.isLoading && <p className="text-sm text-slate-500">Loading…</p>}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-slate-400">

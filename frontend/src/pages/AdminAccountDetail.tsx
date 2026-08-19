@@ -25,7 +25,17 @@ export default function AdminAccountDetail() {
   if (accountQuery.isLoading) {
     return <div className="min-h-screen bg-background px-6 py-8 text-slate-400">Loading…</div>;
   }
-  if (accountQuery.isError || !accountQuery.data) {
+  if (accountQuery.isError) {
+    // Unterscheidet einen echten Fehler (Netzwerk/500) von "existiert
+    // nicht" (404, siehe unten) - beides mit "Account not found." zu
+    // beschriften wäre irreführend (Code-Review nach Task 5).
+    return (
+      <div className="min-h-screen bg-background px-6 py-8 text-slate-400">
+        Could not load this account. Please try again.
+      </div>
+    );
+  }
+  if (!accountQuery.data) {
     return <div className="min-h-screen bg-background px-6 py-8 text-slate-400">Account not found.</div>;
   }
 
