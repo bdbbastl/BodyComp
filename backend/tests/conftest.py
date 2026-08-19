@@ -26,9 +26,29 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
+from app.core.config import settings
 from app.core.database import Base, get_db
 from app.main import app
 from app.routers import auth as auth_router
+
+
+@pytest.fixture(autouse=True)
+def _isolate_file_storage(monkeypatch, tmp_path):
+    """Zwingt JEDEN Test auf lokalen Storage in einem Temp-Verzeichnis,
+    unabhängig davon, was echte Umgebungsvariablen (z.B. BODYCOMP_
+    STORAGE_BACKEND=r2, BODYCOMP_R2_*) gerade konfigurieren.
+
+    Kritischer Live-Vorfall (gefunden 2026-08-19): der Dockerfile-
+    Deploy-Gate führt `pytest -q` im Railway-Build-Container aus, wo die
+    echten R2-Zugangsdaten als Env-Vars gesetzt sind. Ohne diese Isolation
+    hat test_public_checkin_router.py's Path-Traversal-Test
+    (test_submit_checkin_sanitizes_path_traversal_filename) bei JEDEM
+    Deploy eine echte "evil.jpg"-Fake-Datei nach R2 hochgeladen - landete
+    dort unter photos_incoming/1/, kollidierte mit dem echten Client 1
+    (erster je angelegter Kunde) und tauchte im Import-Screen als
+    Geister-Foto auf. storage_backend war nie auf "local" erzwungen."""
+    monkeypatch.setattr(settings, "storage_backend", "local")
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
 
 
 @pytest.fixture(autouse=True)
