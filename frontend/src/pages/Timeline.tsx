@@ -11,6 +11,7 @@ import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { SkeletonCard } from "../components/Skeleton";
+import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 
 const DEFAULT_COLUMNS_MAX = 5;
 const DEFAULT_WEEKS_PER_PAGE = 8;
@@ -260,6 +261,7 @@ function DayGroupSection({
   columnsMax: number;
 }) {
   const queryClient = useQueryClient();
+  const { show, hide } = useBusyOverlay();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // Ein-/ausklappbar zum Platz sparen (v.a. bei vielen Tagen auf einer
   // Seite) - bewusst nicht persistiert, jede Seite startet aufgeklappt.
@@ -268,9 +270,11 @@ function DayGroupSection({
   const deleteDayMutation = useMutation({
     mutationFn: () => api.photos.removeByDate(clientId, group.date),
     onSuccess: () => {
+      hide();
       queryClient.invalidateQueries({ queryKey: ["photos", clientId] });
       setConfirmingDelete(false);
     },
+    onError: () => hide(),
   });
 
   const cols = balancedColumns(group.photos.length, columnsMax);
@@ -296,7 +300,10 @@ function DayGroupSection({
             <span className="flex items-center gap-1 text-xs">
               <span className="text-slate-400">Delete all {group.photos.length} photos?</span>
               <button
-                onClick={() => deleteDayMutation.mutate()}
+                onClick={() => {
+                  show("Deleting day…");
+                  deleteDayMutation.mutate();
+                }}
                 disabled={deleteDayMutation.isPending}
                 className="rounded-full bg-red-500/80 px-2 py-1 font-medium text-white hover:bg-red-500 disabled:opacity-50"
               >
@@ -355,11 +362,16 @@ function PhotoCard({
   onOpen: (photo: Photo) => void;
 }) {
   const queryClient = useQueryClient();
+  const { show, hide } = useBusyOverlay();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: () => api.photos.remove(clientId, photo.id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["photos", clientId] }),
+    onSuccess: () => {
+      hide();
+      queryClient.invalidateQueries({ queryKey: ["photos", clientId] });
+    },
+    onError: () => hide(),
   });
 
   const changePoseMutation = useMutation({
@@ -382,7 +394,10 @@ function PhotoCard({
             <span className="text-xs text-slate-200">Delete photo?</span>
             <div className="flex gap-1">
               <button
-                onClick={() => deleteMutation.mutate()}
+                onClick={() => {
+                  show("Deleting photo…");
+                  deleteMutation.mutate();
+                }}
                 disabled={deleteMutation.isPending}
                 className="rounded-full bg-red-500/80 px-2 py-0.5 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
               >
