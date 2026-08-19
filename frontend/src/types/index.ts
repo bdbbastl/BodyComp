@@ -117,3 +117,38 @@ export interface CoachDashboardSummary {
   needs_attention: NeedsAttentionClient[];
   week_stats: WeekStats;
 }
+
+export interface AdminOverview {
+  total_accounts: number;
+  single_accounts: number;
+  coach_accounts: number;
+  active_subscriptions: number;
+  signups_this_week: number;
+  signups_this_month: number;
+}
+
+export interface AdminAccount {
+  id: number;
+  email: string;
+  display_name: string;
+  account_type: "single" | "coach";
+  created_at: string;
+  subscription_status: string | null;
+  subscription_tier: string | null;
+  client_count: number;
+  is_active: boolean;
+  is_admin: boolean;
+  last_activity_at: string | null;
+  activity_status: "active" | "inactive" | "never";
+}
+
+export interface AdminClientSummary {
+  id: number;
+  name: string;
+  photo_count: number;
+  last_activity_at: string | null;
+}
+
+export interface AdminAccountDetail extends AdminAccount {
+  clients: AdminClientSummary[];
+}

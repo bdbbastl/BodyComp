@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { CheckinSubmission, Client, CoachDashboardSummary, DayLog, NeedsAttentionClient, Photo, Pose, PendingCheckinSummary, PublicCheckinPage, PublicCheckinPose, UnprocessedPhoto, WeekStats } from "../types";
+import type { AdminAccount, AdminAccountDetail, AdminOverview, CheckinSubmission, Client, CoachDashboardSummary, DayLog, NeedsAttentionClient, Photo, Pose, PendingCheckinSummary, PublicCheckinPage, PublicCheckinPose, UnprocessedPhoto, WeekStats } from "../types";
 
 export interface DisplaySettings {
   timeline_columns_max: number;
@@ -25,6 +25,7 @@ export interface CurrentUser {
   trial_ends_at: string | null;
   free_checkins_used: number;
   onboarding_completed_at: string | null;
+  is_admin: boolean;
 }
 
 const client = axios.create({ baseURL: "/api", withCredentials: true });
@@ -38,6 +39,16 @@ export const api = {
   dashboard: {
     coachSummary: () =>
       client.get<CoachDashboardSummary>("/dashboard/coach-summary").then((r) => r.data),
+  },
+  admin: {
+    overview: () => client.get<AdminOverview>("/admin/overview").then((r) => r.data),
+    listAccounts: () => client.get<AdminAccount[]>("/admin/accounts").then((r) => r.data),
+    getAccount: (userId: number) =>
+      client.get<AdminAccountDetail>(`/admin/accounts/${userId}`).then((r) => r.data),
+    setAccountActive: (userId: number, isActive: boolean) =>
+      client
+        .patch<AdminAccount>(`/admin/accounts/${userId}`, { is_active: isActive })
+        .then((r) => r.data),
   },
   billing: {
     checkout: (tier: "starter" | "pro" | "business" | "single") =>
