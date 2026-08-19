@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 
 interface CardProps {
-  title?: string;
+  title?: ReactNode;
   description?: string;
   children: ReactNode;
   className?: string;
@@ -12,7 +12,9 @@ interface CardProps {
 /** Einheitlicher Abschnitts-Container mit optionaler Überschrift/
  * Beschreibung - siehe Design-Spec "UX-Politur" Abschnitt 2. Ersetzt die
  * bisher pro Sektion wiederholten `rounded-xl border ... bg-surface p-4`
- * + manuelle <h2>-Blöcke in Account.tsx. */
+ * + manuelle <h2>-Blöcke in Account.tsx. `title` akzeptiert seit dem
+ * Check-in-Sichtbarkeits-Paket auch JSX (z.B. Titel + Zähler-Badge),
+ * nicht mehr nur reinen Text. */
 export function Card({ title, description, children, className = "", danger = false }: CardProps) {
   return (
     <div
