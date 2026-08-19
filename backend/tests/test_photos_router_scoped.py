@@ -296,3 +296,33 @@ def test_assign_bulk_same_filename_photos_do_not_clobber_each_other(client, db_s
         dest_file = settings.data_dir / r["original_path"]
         assert dest_file.exists()
         assert dest_file.read_bytes() == contents_by_id[r["id"]]
+
+
+def test_upload_pushes_files_concurrently(client, db_session, monkeypatch, tmp_path):
+    """Analog zum Bulk-Assign-Test: push() künstlich verlangsamen und
+    prüfen, dass mehrere hochgeladene Dateien nicht sequenziell gepusht
+    werden."""
+    import io
+    import time
+    from app.routers import photos as photos_router
+
+    SLOW_PUSH_SECONDS = 0.3
+
+    def _slow_push(rel_path):
+        time.sleep(SLOW_PUSH_SECONDS)
+
+    monkeypatch.setattr(photos_router, "push", _slow_push)
+
+    client_id = _login_and_get_client(client, db_session)
+
+    files = [
+        ("files", (f"upload{i}.jpg", io.BytesIO(b"fake-jpeg-bytes"), "image/jpeg"))
+        for i in range(3)
+    ]
+
+    started = time.monotonic()
+    response = client.post(f"/api/clients/{client_id}/photos/upload", files=files)
+    elapsed = time.monotonic() - started
+
+    assert response.status_code == 200
+    assert elapsed < SLOW_PUSH_SECONDS * 3

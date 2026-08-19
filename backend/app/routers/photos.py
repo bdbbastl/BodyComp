@@ -68,10 +68,15 @@ def upload_photos(
     der User muss also nicht extra einen Ordner auf dem Server-Rechner
     befüllen und anschließend "Sync" klicken, sondern kann Dateien direkt
     aus dem Browser hochladen.
+
+    Performance: alle Dateien werden zuerst schnell lokal geschrieben
+    (reine Disk-I/O, bleibt sequenziell), die R2-Uploads laufen danach
+    PARALLEL über einen Thread-Pool - die Antwort wartet auf alle, bevor
+    sie zurückkommt (siehe Design-Spec "Foto-Upload/Speicher-Performance").
     """
     incoming_dir = incoming_dir_for_client(client_row.id)
     incoming_dir.mkdir(parents=True, exist_ok=True)
-    saved_any = False
+    pending_push_paths: list[str] = []
     for upload in files:
         if not upload.filename:
             continue
@@ -91,11 +96,15 @@ def upload_photos(
             counter += 1
         with dest.open("wb") as f:
             shutil.copyfileobj(upload.file, f)
-        push(dest.relative_to(settings.data_dir).as_posix())
-        saved_any = True
+        pending_push_paths.append(dest.relative_to(settings.data_dir).as_posix())
 
-    if not saved_any:
+    if not pending_push_paths:
         raise HTTPException(400, "No valid image files found in upload")
+
+    with ThreadPoolExecutor(max_workers=PHOTO_PROCESSING_MAX_WORKERS) as executor:
+        futures = [executor.submit(push, rel_path) for rel_path in pending_push_paths]
+        for future in as_completed(futures):
+            future.result()
 
     return sync_incoming_folder(db, client_row.id)
 
