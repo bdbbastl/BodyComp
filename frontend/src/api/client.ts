@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { CheckinSubmission, Client, CoachDashboardSummary, DayLog, NeedsAttentionClient, Photo, Pose, PendingCheckinSummary, PublicCheckinPage, UnprocessedPhoto, WeekStats } from "../types";
+import type { CheckinSubmission, Client, CoachDashboardSummary, DayLog, NeedsAttentionClient, Photo, Pose, PendingCheckinSummary, PublicCheckinPage, PublicCheckinPose, UnprocessedPhoto, WeekStats } from "../types";
 
 export interface DisplaySettings {
   timeline_columns_max: number;
@@ -190,11 +190,22 @@ export const api = {
   publicCheckin: {
     get: (token: string) =>
       client.get<PublicCheckinPage>(`/public/checkin/${token}`).then((r) => r.data),
-    submit: (token: string, payload: { weight_kg?: number | null; client_note?: string; files: File[] }) => {
+    submit: (
+      token: string,
+      payload: {
+        weight_kg?: number | null;
+        client_note?: string;
+        files: File[];
+        poseIds: number[];
+      }
+    ) => {
       const form = new FormData();
       if (payload.weight_kg != null) form.append("weight_kg", String(payload.weight_kg));
       if (payload.client_note) form.append("client_note", payload.client_note);
-      for (const file of payload.files) form.append("files", file);
+      for (let i = 0; i < payload.files.length; i++) {
+        form.append("files", payload.files[i]);
+        form.append("pose_ids", String(payload.poseIds[i]));
+      }
       return client
         .post<CheckinSubmission>(`/public/checkin/${token}/submit`, form, {
           headers: { "Content-Type": "multipart/form-data" },

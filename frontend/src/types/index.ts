@@ -81,9 +81,15 @@ export interface CheckinSubmission {
   photos: Photo[];
 }
 
+export interface PublicCheckinPose {
+  id: number;
+  name: string;
+}
+
 export interface PublicCheckinPage {
   client_name: string;
   submissions: Omit<CheckinSubmission, "reviewed_at">[];
+  poses: PublicCheckinPose[];
 }
 
 export interface PendingCheckinSummary {
