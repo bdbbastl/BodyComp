@@ -51,6 +51,15 @@ class PublicCheckinSubmissionOut(BaseModel):
         from_attributes = True
 
 
+class PublicPoseOut(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
 class PublicCheckinPageOut(BaseModel):
     client_name: str
     submissions: list[PublicCheckinSubmissionOut]
+    poses: list[PublicPoseOut]

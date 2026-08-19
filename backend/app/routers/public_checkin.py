@@ -6,6 +6,7 @@ sondern über den opaken `Client.checkin_token` in der URL.
 """
 import logging
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date as date_
 from pathlib import Path
 
@@ -18,6 +19,14 @@ from app.core.rate_limit import RateLimiter
 from app.models.client import Client
 from app.models.checkin_submission import CheckinSubmission
 from app.models.day_log import DayLog
+from app.models.pose import Pose
+from app.routers.photos import (
+    PHOTO_PROCESSING_MAX_WORKERS,
+    _ProcessedPhotoFiles,
+    _apply_processed_result,
+    _get_or_create_day_log,
+    _process_photo_files,
+)
 from app.schemas.checkin import CheckinSubmissionOut, PublicCheckinPageOut
 from app.services.billing import check_and_consume_free_checkin
 from app.services.email import send_checkin_submitted_email
@@ -63,7 +72,13 @@ def get_checkin_page(
         .order_by(CheckinSubmission.submitted_at.desc())
         .all()
     )
-    return PublicCheckinPageOut(client_name=client_row.name, submissions=submissions)
+    poses = (
+        db.query(Pose)
+        .filter(Pose.client_id == client_row.id)
+        .order_by(Pose.sort_order)
+        .all()
+    )
+    return PublicCheckinPageOut(client_name=client_row.name, submissions=submissions, poses=poses)
 
 
 @router.post("/{token}/submit", response_model=CheckinSubmissionOut, status_code=201)
@@ -71,6 +86,7 @@ def submit_checkin(
     weight_kg: str | None = Form(default=None),
     client_note: str | None = Form(default=None),
     files: list[UploadFile] = File(default=[]),
+    pose_ids: list[int] = Form(default=[]),
     client_row: Client = Depends(get_client_by_checkin_token),
     db: Session = Depends(get_db),
     _rate_limit: None = Depends(checkin_submit_rate_limit),
@@ -83,6 +99,21 @@ def submit_checkin(
     for upload in files:
         if upload.size is not None and upload.size > MAX_FILE_SIZE_BYTES:
             raise HTTPException(400, "File too large (max. 25 MB per photo)")
+
+    # Jedes Foto braucht die Pose, die der Klient selbst ausgewählt hat -
+    # keine Coach-Nacharbeit mehr im Import-Tab (siehe Design-Spec
+    # "Check-in: Client-Pose-Zuordnung").
+    if files and len(pose_ids) != len(files):
+        raise HTTPException(400, "Each photo needs a pose selected")
+    if pose_ids:
+        valid_pose_ids = {
+            pid
+            for (pid,) in db.query(Pose.id).filter(
+                Pose.id.in_(pose_ids), Pose.client_id == client_row.id
+            ).all()
+        }
+        if any(pid not in valid_pose_ids for pid in pose_ids):
+            raise HTTPException(400, "Invalid pose selected")
 
     try:
         parsed_weight_kg = parse_weight_kg(weight_kg)
@@ -129,14 +160,13 @@ def submit_checkin(
     if files:
         incoming_dir = incoming_dir_for_client(client_row.id)
         incoming_dir.mkdir(parents=True, exist_ok=True)
-        # Sammelt die tatsächlich in DIESEM Request geschriebenen Pfade -
-        # `sync_incoming_folder` scannt den GESAMTEN incoming_dir (auch
-        # Dateien, die der Coach manuell dorthin kopiert und noch nicht
-        # synchronisiert hat, siehe folder_sync.py). Ohne diese Liste
-        # würden solche fremden, älteren Dateien fälschlich dieser
-        # Einreichung zugeordnet (gefunden im finalen Review).
-        written_paths: set[str] = set()
-        for upload in files:
+        # Bildet den TATSAECHLICH geschriebenen relativen Pfad auf die vom
+        # Klienten gewaehlte pose_id ab (Reihenfolge von files/pose_ids
+        # entspricht sich 1:1) - der Dateiname kann sich beim Schreiben
+        # durch Kollisions-Zaehler aendern, daher erst NACH dem Schreiben
+        # den finalen Pfad als Schluessel verwenden.
+        path_to_pose_id: dict[str, int] = {}
+        for upload, pose_id in zip(files, pose_ids):
             if not upload.filename:
                 continue
             # Nur den Dateinamen übernehmen, keine Pfad-Komponenten - dieser
@@ -154,14 +184,62 @@ def submit_checkin(
                 counter += 1
             with dest.open("wb") as f:
                 shutil.copyfileobj(upload.file, f)
-            written_paths.add(dest.relative_to(settings.data_dir).as_posix())
-            push(dest.relative_to(settings.data_dir).as_posix())
+            rel_path = dest.relative_to(settings.data_dir).as_posix()
+            path_to_pose_id[rel_path] = pose_id
+            push(rel_path)
 
         new_photos = sync_incoming_folder(db, client_row.id)
-        for photo in new_photos:
-            if photo.original_path in written_paths:
-                photo.checkin_submission_id = submission.id
+        photos_to_process = [
+            (photo, path_to_pose_id[photo.original_path])
+            for photo in new_photos
+            if photo.original_path in path_to_pose_id
+        ]
+        for photo, _pose_id in photos_to_process:
+            photo.checkin_submission_id = submission.id
         db.commit()
+
+        # Sofort vollständig verarbeiten (Pose ist ja schon bekannt) -
+        # dieselbe parallelisierte Pipeline wie beim Coach-Bulk-Import
+        # (siehe Design-Spec "Check-in: Client-Pose-Zuordnung"). Der Coach
+        # muss danach nichts mehr im Import-Tab tun.
+        pose_by_id = {p.id: p for p in db.query(Pose).filter(Pose.client_id == client_row.id).all()}
+        day_logs_by_photo_id: dict[int, DayLog] = {}
+        for photo, pose_id in photos_to_process:
+            day_date = photo.taken_at.date()
+            day_logs_by_photo_id[photo.id] = _get_or_create_day_log(
+                db, client_row.id, day_date, client_row.owner
+            )
+        db.commit()
+
+        with ThreadPoolExecutor(max_workers=PHOTO_PROCESSING_MAX_WORKERS) as executor:
+            future_to_photo_id = {
+                executor.submit(
+                    _process_photo_files,
+                    client_id=client_row.id,
+                    filename=photo.filename,
+                    original_path=photo.original_path,
+                    preview_path=photo.preview_path,
+                    thumbnail_path=photo.thumbnail_path,
+                    day_date_iso=photo.taken_at.date().isoformat(),
+                    pose_id=pose_id,
+                    photo_id=photo.id,
+                ): photo.id
+                for photo, pose_id in photos_to_process
+            }
+            results_by_photo_id: dict[int, _ProcessedPhotoFiles] = {}
+            for future in as_completed(future_to_photo_id):
+                photo_id = future_to_photo_id[future]
+                results_by_photo_id[photo_id] = future.result()
+
+        for photo, pose_id in photos_to_process:
+            _apply_processed_result(
+                db,
+                photo,
+                day_logs_by_photo_id[photo.id],
+                pose_by_id[pose_id],
+                None,
+                results_by_photo_id[photo.id],
+            )
 
     db.refresh(submission)
 

@@ -60,20 +60,26 @@ def test_get_checkin_page_with_invalid_token_returns_404(client, db_session):
 
 def test_submit_checkin_sanitizes_path_traversal_filename(client, db_session):
     """Ein Dateiname wie "../../evil.jpg" darf niemals außerhalb von
-    incoming_dir landen - siehe Sicherheits-Fix nach Code-Review von
-    Task 5 (dieser Endpunkt ist unauthentifiziert). Nur der reine
-    Dateiname ("evil.jpg") darf übrig bleiben, innerhalb von incoming_dir."""
+    data_dir landen - siehe Sicherheits-Fix nach Code-Review von Task 5
+    (dieser Endpunkt ist unauthentifiziert). Nur der reine Dateiname
+    ("evil.jpg") darf übrig bleiben, verarbeitet landet er in
+    photos_processed/ (Pose ist jetzt Pflicht, siehe Design-Spec)."""
     from app.core.config import settings
-    from app.services.storage_paths import incoming_dir_for_client
+    from app.models.pose import Pose
 
     _login(client, db_session)
     created = client.post("/api/clients", json={"name": "Max"}).json()
     token = created["checkin_token"]
+    pose = Pose(client_id=created["id"], name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+    db_session.refresh(pose)
 
     malicious_name = "../../../../evil.jpg"
     response = client.post(
         f"/api/public/checkin/{token}/submit",
         files={"files": (malicious_name, b"fake-image-bytes", "image/jpeg")},
+        data={"pose_ids": str(pose.id)},
     )
     assert response.status_code == 201
 
@@ -82,10 +88,90 @@ def test_submit_checkin_sanitizes_path_traversal_filename(client, db_session):
     for candidate in settings.data_dir.parent.glob("evil.jpg"):
         assert False, f"Path-Traversal: Datei außerhalb data_dir geschrieben: {candidate}"
 
-    # Der sanitierte Dateiname landet stattdessen sicher innerhalb von
-    # incoming_dir für diesen Client.
-    incoming_dir = incoming_dir_for_client(created["id"])
-    assert (incoming_dir / "evil.jpg").exists()
+
+def test_get_checkin_page_includes_client_poses(client, db_session):
+    from app.models.pose import Pose
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    # Client-Anlage seedet bereits Standard-Posen (seed_default_poses_for_client)
+    # - hier zusätzlich eine eigene Pose anlegen und prüfen, dass sie mit
+    # dabei ist, statt eine exakte Gesamtliste zu erwarten.
+    pose = Pose(client_id=created["id"], name="Custom Pose XYZ", sort_order=99)
+    db_session.add(pose)
+    db_session.commit()
+    db_session.refresh(pose)
+
+    response = client.get(f"/api/public/checkin/{token}")
+    body = response.json()
+    assert {"id": pose.id, "name": "Custom Pose XYZ"} in body["poses"]
+
+
+def test_submit_checkin_with_photo_requires_matching_pose_id(client, db_session):
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    response = client.post(
+        f"/api/public/checkin/{token}/submit",
+        files={"files": ("p1.jpg", b"fake-image-bytes", "image/jpeg")},
+        # kein pose_ids mitgeschickt -> Laenge stimmt nicht (0 != 1 Datei)
+    )
+    assert response.status_code == 400
+
+
+def test_submit_checkin_rejects_pose_id_of_foreign_client(client, db_session):
+    from app.models.pose import Pose
+
+    _login(client, db_session, email="a@b.com")
+    created_a = client.post("/api/clients", json={"name": "Max"}).json()
+    token_a = created_a["checkin_token"]
+
+    client.post("/api/auth/logout")
+    _login(client, db_session, email="c@d.com")
+    created_c = client.post("/api/clients", json={"name": "Other"}).json()
+    foreign_pose = Pose(client_id=created_c["id"], name="Front", sort_order=0)
+    db_session.add(foreign_pose)
+    db_session.commit()
+    db_session.refresh(foreign_pose)
+
+    response = client.post(
+        f"/api/public/checkin/{token_a}/submit",
+        files={"files": ("p1.jpg", b"fake-image-bytes", "image/jpeg")},
+        data={"pose_ids": str(foreign_pose.id)},
+    )
+    assert response.status_code == 400
+
+
+def test_submit_checkin_with_valid_pose_processes_photo_immediately(client, db_session):
+    from app.models.photo import ProcessingStatus
+    from app.models.pose import Pose
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    pose = Pose(client_id=created["id"], name="Front Relaxed", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+    db_session.refresh(pose)
+
+    response = client.post(
+        f"/api/public/checkin/{token}/submit",
+        files={"files": ("p1.jpg", b"fake-image-bytes", "image/jpeg")},
+        data={"pose_ids": str(pose.id)},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert len(body["photos"]) == 1
+    photo = body["photos"][0]
+    assert photo["pose_id"] == pose.id
+    # Kein echtes Bild in diesem Test -> MediaPipe findet nichts,
+    # Normalisierung schlaegt fehl, aber Pose-Zuordnung/Verschieben
+    # laeuft trotzdem durch (best-effort, siehe Design-Spec).
+    assert photo["status"] == ProcessingStatus.NORMALIZATION_FAILED.value
 
 
 def test_submit_checkin_blocked_for_single_account_after_free_quota(client, db_session, monkeypatch):
@@ -175,6 +261,7 @@ def test_submit_checkin_does_not_attribute_unrelated_incoming_photo(client, db_s
     (gefunden im finalen Holistic-Review)."""
     from app.core.config import settings
     from app.models.photo import Photo
+    from app.models.pose import Pose
     from app.services.storage_paths import incoming_dir_for_client
 
     # Isoliert von backend/data/ - ohne das würden wiederholte Testläufe
@@ -185,6 +272,10 @@ def test_submit_checkin_does_not_attribute_unrelated_incoming_photo(client, db_s
     _login(client, db_session)
     created = client.post("/api/clients", json={"name": "Max"}).json()
     token = created["checkin_token"]
+    pose = Pose(client_id=created["id"], name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+    db_session.refresh(pose)
 
     # Simuliert eine bereits im incoming_dir liegende, noch nicht
     # synchronisierte Datei, wie sie z.B. beim manuellen Server-seitigen
@@ -195,7 +286,7 @@ def test_submit_checkin_does_not_attribute_unrelated_incoming_photo(client, db_s
 
     response = client.post(
         f"/api/public/checkin/{token}/submit",
-        data={"weight_kg": "80"},
+        data={"weight_kg": "80", "pose_ids": str(pose.id)},
         files={"files": ("client_upload.jpg", b"client-photo-bytes", "image/jpeg")},
     )
     assert response.status_code == 201
