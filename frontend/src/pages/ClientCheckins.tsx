@@ -18,6 +18,7 @@ export default function ClientCheckins() {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<number, { text: string; videoUrl: string }>>({});
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const checkinsQuery = useQuery({
     queryKey: ["checkins", clientIdNum],
@@ -33,6 +34,18 @@ export default function ClientCheckins() {
       payload: { coach_feedback_text?: string; coach_feedback_video_url?: string; mark_reviewed?: boolean };
     }) => api.checkins.update(clientIdNum, id, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["checkins", clientIdNum] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.checkins.delete(clientIdNum, id),
+    onSuccess: () => {
+      setConfirmDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ["checkins", clientIdNum] });
+      // Falls die gelöschten Fotos bereits (weil reviewed) in
+      // Timeline/Compare sichtbar waren, müssen die dortigen
+      // Foto-Listen ebenfalls neu geladen werden.
+      queryClient.invalidateQueries({ queryKey: ["photos", clientIdNum] });
+    },
   });
 
   const checkins = checkinsQuery.data ?? [];
@@ -165,6 +178,33 @@ export default function ClientCheckins() {
                       </button>
                     )}
                   </div>
+                  {confirmDeleteId === checkin.id ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-red-900/50 bg-red-950/20 p-3">
+                      <p className="flex-1 text-xs text-red-300">
+                        Delete this check-in and its photos permanently?
+                      </p>
+                      <button
+                        onClick={() => deleteMutation.mutate(checkin.id)}
+                        disabled={deleteMutation.isPending}
+                        className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
+                      >
+                        {deleteMutation.isPending ? "Deleting…" : "Delete"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(checkin.id)}
+                      className="text-xs text-red-400 hover:underline"
+                    >
+                      Delete check-in
+                    </button>
+                  )}
                 </div>
               )}
             </div>
