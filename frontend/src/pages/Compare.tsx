@@ -818,7 +818,14 @@ function AlignmentGridOverlay({
  * Bild" auf einen Blick klar ist.
  */
 export interface ZoomPaneHandle {
-  getExportState: () => { scale: number; translateX: number; translateY: number; rotation: number };
+  getExportState: () => {
+    scale: number;
+    translateX: number;
+    translateY: number;
+    rotation: number;
+    containerWidth: number;
+    containerHeight: number;
+  };
 }
 
 const ZoomPane = forwardRef<ZoomPaneHandle, {
@@ -851,7 +858,23 @@ const ZoomPane = forwardRef<ZoomPaneHandle, {
   const [rotation, setRotation] = useState(0);
 
   useImperativeHandle(ref, () => ({
-    getExportState: () => ({ scale, translateX: translate.x, translateY: translate.y, rotation }),
+    // Container-Pixelgröße wird live mitgeliefert, damit der Export
+    // translateX/Y (in Live-CSS-Pixeln) korrekt in die - meist deutlich
+    // größere - Export-Canvas-Auflösung umrechnen kann (siehe
+    // compareExport.ts drawPhotoIntoRegion). Fallback 1x1 nur zur
+    // Division-durch-0-Vermeidung, falls containerRef noch nicht
+    // gemountet ist.
+    getExportState: () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      return {
+        scale,
+        translateX: translate.x,
+        translateY: translate.y,
+        rotation,
+        containerWidth: rect?.width || 1,
+        containerHeight: rect?.height || 1,
+      };
+    },
   }));
 
   return (
@@ -906,6 +929,8 @@ export interface SliderPaneHandle {
     translateX: number;
     translateY: number;
     dividerPct: number;
+    containerWidth: number;
+    containerHeight: number;
     x: { offsetX: number; offsetY: number; fineZoom: number; rotation: number };
     y: { offsetX: number; offsetY: number; fineZoom: number; rotation: number };
   };
@@ -946,14 +971,19 @@ const SliderComparePane = forwardRef<SliderPaneHandle, {
   const draggingDividerRef = useRef(false);
 
   useImperativeHandle(ref, () => ({
-    getExportState: () => ({
-      scale,
-      translateX: translate.x,
-      translateY: translate.y,
-      dividerPct,
-      x: { offsetX: offsetX.x, offsetY: offsetX.y, fineZoom: fineZoomX, rotation: rotationX },
-      y: { offsetX: offsetY.x, offsetY: offsetY.y, fineZoom: fineZoomY, rotation: rotationY },
-    }),
+    getExportState: () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      return {
+        scale,
+        translateX: translate.x,
+        translateY: translate.y,
+        dividerPct,
+        containerWidth: rect?.width || 1,
+        containerHeight: rect?.height || 1,
+        x: { offsetX: offsetX.x, offsetY: offsetX.y, fineZoom: fineZoomX, rotation: rotationX },
+        y: { offsetX: offsetY.x, offsetY: offsetY.y, fineZoom: fineZoomY, rotation: rotationY },
+      };
+    },
   }));
 
   useEffect(() => {

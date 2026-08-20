@@ -7,6 +7,8 @@ export interface PaneExportState {
   translateY: number;
   rotation: number;
   brightness: number;
+  containerWidth: number;
+  containerHeight: number;
 }
 
 export interface SliderExportState {
@@ -14,6 +16,8 @@ export interface SliderExportState {
   translateX: number;
   translateY: number;
   dividerPct: number;
+  containerWidth: number;
+  containerHeight: number;
   x: { offsetX: number; offsetY: number; fineZoom: number; rotation: number; brightness: number };
   y: { offsetX: number; offsetY: number; fineZoom: number; rotation: number; brightness: number };
 }
@@ -45,27 +49,39 @@ export function dimensionsFor(aspect: ExportAspect) {
   return EXPORT_DIMENSIONS[aspect];
 }
 
-// Seitenverhältnis der Live-Vorschau-Container (aspect-[3/4] in ZoomPane/
-// SliderComparePane) - der Export muss ERST auf dieses Verhältnis croppen
-// (object-cover, wie live), bevor dieser Crop in die tatsächliche Export-
-// Region eingepasst wird. Vorher wurde direkt gegen die (davon meist
-// abweichende) Export-Region-Form gecovert, was einen völlig anderen
-// Ausschnitt als in der Live-Vorschau erzeugte (Bug-Report vom User).
-const LIVE_CONTAINER_ASPECT = 3 / 4; // Breite/Höhe
-
 /** Zeichnet ein einzelnes Foto mit seinem aktuellen Zoom/Pan/Rotation/
  * Belichtung-Zustand in eine rechteckige Zielregion des Canvas -
- * gemeinsam genutzt von renderSideBySide und renderSlider. Repliziert
- * zuerst den 3:4-Crop der Live-Vorschau (object-cover in eine so groß wie
- * möglich in die Region passende, zentrierte 3:4-Box - ggf. mit
- * Letterboxing, falls die Region eine andere Form hat), erst DANN wird
- * das per Zoom/Pan/Rotation verschobene/gedrehte Foto hineingezeichnet -
- * exakt wie es der User live sieht. */
+ * gemeinsam genutzt von renderSideBySide und renderSlider.
+ *
+ * Repliziert den exakten Crop der Live-Vorschau in zwei Schritten:
+ * 1. Eine Box mit demselben Seitenverhältnis wie der TATSÄCHLICHE
+ *    Live-Container (state.containerWidth/Height, live per
+ *    getBoundingClientRect() gemessen - nicht angenommen) wird so groß
+ *    wie nötig berechnet, um die Export-Region vollständig abzudecken
+ *    ("cover", übersteht sie die Region in einer Richtung wird das vom
+ *    Clip oben abgeschnitten - kein Letterboxing).
+ * 2. state.translateX/Y sind Live-CSS-Pixel-Offsets aus dem tatsächlich
+ *    gerenderten Container - da dieser Container fast immer eine andere
+ *    Pixelgröße hat als die Export-Box (z.B. 320px live vs. 1000px+
+ *    Export), werden sie mit demselben Skalierungsfaktor k
+ *    (Export-Box-Breite / Live-Container-Breite) multipliziert, den
+ *    auch die Bild-Skalierung selbst nutzt - sonst wäre der Pan im
+ *    Export unproportional schwach/stark im Vergleich zur Live-Ansicht
+ *    (Bug-Report vom User: Export zeigte einen komplett anderen, viel
+ *    weniger gezoomten Ausschnitt als live sichtbar). */
 function drawPhotoIntoRegion(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   region: { x: number; y: number; width: number; height: number },
-  state: { scale: number; translateX: number; translateY: number; rotation: number; brightness: number }
+  state: {
+    scale: number;
+    translateX: number;
+    translateY: number;
+    rotation: number;
+    brightness: number;
+    containerWidth: number;
+    containerHeight: number;
+  }
 ): void {
   ctx.save();
   ctx.beginPath();
@@ -74,28 +90,26 @@ function drawPhotoIntoRegion(
 
   ctx.filter = state.brightness === 100 ? "none" : `brightness(${state.brightness}%)`;
 
-  // 3:4-Box so groß wie möglich zentriert in die Region einpassen
-  // ("contain"), NICHT die Region selbst als Crop-Ziel nehmen.
+  const containerAspect = state.containerWidth / state.containerHeight;
   let boxWidth = region.width;
-  let boxHeight = boxWidth / LIVE_CONTAINER_ASPECT;
-  if (boxHeight > region.height) {
+  let boxHeight = boxWidth / containerAspect;
+  if (boxHeight < region.height) {
     boxHeight = region.height;
-    boxWidth = boxHeight * LIVE_CONTAINER_ASPECT;
+    boxWidth = boxHeight * containerAspect;
   }
   const boxX = region.x + (region.width - boxWidth) / 2;
   const boxY = region.y + (region.height - boxHeight) / 2;
 
-  // object-cover-Skalierung GEGEN DIE 3:4-BOX (nicht gegen die Region) -
-  // entspricht exakt dem "object-cover" der Live-Vorschau in ihrem
-  // aspect-[3/4]-Container. translateX/translateY kommen 1:1 aus dem
-  // Live-Pan (in CSS-Pixeln des Live-Containers) und werden hier direkt
-  // übernommen, da boxWidth/boxHeight bewusst so berechnet sind, dass sie
-  // denselben "gefühlten" Bildausschnitt wie die Live-Ansicht ergeben.
+  // Skalierungsfaktor von Live-Container-Pixeln auf Export-Box-Pixel -
+  // macht Pan-Offsets proportional korrekt, unabhängig davon, wie groß
+  // der Live-Container gerade auf dem Bildschirm des Users war.
+  const k = boxWidth / state.containerWidth;
+
   const coverScale = Math.max(boxWidth / img.naturalWidth, boxHeight / img.naturalHeight);
   const drawWidth = img.naturalWidth * coverScale * state.scale;
   const drawHeight = img.naturalHeight * coverScale * state.scale;
-  const centerX = boxX + boxWidth / 2 + state.translateX;
-  const centerY = boxY + boxHeight / 2 + state.translateY;
+  const centerX = boxX + boxWidth / 2 + state.translateX * k;
+  const centerY = boxY + boxHeight / 2 + state.translateY * k;
 
   ctx.translate(centerX, centerY);
   ctx.rotate((state.rotation * Math.PI) / 180);
@@ -202,6 +216,8 @@ export function renderSliderToCanvas(
     translateY: state.translateY + state.y.offsetY,
     rotation: state.y.rotation,
     brightness: state.y.brightness,
+    containerWidth: state.containerWidth,
+    containerHeight: state.containerHeight,
   });
 
   // Bild X darüber, auf den linken Divider-Anteil begrenzt.
@@ -216,6 +232,8 @@ export function renderSliderToCanvas(
     translateY: state.translateY + state.x.offsetY,
     rotation: state.x.rotation,
     brightness: state.x.brightness,
+    containerWidth: state.containerWidth,
+    containerHeight: state.containerHeight,
   });
   ctx.restore();
 
