@@ -39,7 +39,6 @@ from app.services.auth import (
 )
 from app.services.email import (
     send_email_change_confirmation,
-    send_password_reset_email,
     send_verification_email,
     send_welcome_email,
 )
