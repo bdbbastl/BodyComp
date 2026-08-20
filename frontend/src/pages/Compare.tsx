@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
@@ -14,6 +14,7 @@ import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 import { CompareExportModal } from "../components/CompareExportModal";
+import type { ExportAspect } from "../utils/compareExport";
 import {
   exportFilename,
   renderSideBySideToCanvas,
@@ -281,6 +282,55 @@ export default function Compare() {
 
   const filterFor = (brightness: number) =>
     brightness === BRIGHTNESS_DEFAULT ? undefined : `brightness(${brightness}%)`;
+
+  const handleExportRender = useCallback(
+    (canvas: HTMLCanvasElement, aspect: ExportAspect) => {
+      if (!result) return;
+      const imgX = new Image();
+      const imgY = new Image();
+      imgX.crossOrigin = "anonymous";
+      imgY.crossOrigin = "anonymous";
+      imgX.src = resolveSrc(result.photo_x);
+      imgY.src = resolveSrc(result.photo_y);
+      const draw = () => {
+        if (!imgX.complete || !imgY.complete) return;
+        const watermark = shouldShowWatermark(currentUser);
+        if (mode === "side-by-side") {
+          const stateX = paneXRef.current?.getExportState();
+          const stateY = paneYRef.current?.getExportState();
+          if (!stateX || !stateY) return;
+          renderSideBySideToCanvas(
+            canvas,
+            aspect,
+            imgX,
+            { ...stateX, brightness: brightnessX },
+            imgY,
+            { ...stateY, brightness: brightnessY },
+            watermark
+          );
+        } else {
+          const sliderState = sliderPaneRef.current?.getExportState();
+          if (!sliderState) return;
+          renderSliderToCanvas(
+            canvas,
+            aspect,
+            imgX,
+            imgY,
+            {
+              ...sliderState,
+              x: { ...sliderState.x, brightness: brightnessX },
+              y: { ...sliderState.y, brightness: brightnessY },
+            },
+            watermark
+          );
+        }
+      };
+      imgX.onload = draw;
+      imgY.onload = draw;
+      draw();
+    },
+    [result, mode, brightnessX, brightnessY, currentUser]
+  );
 
   return (
     <div className="space-y-6">
@@ -556,50 +606,7 @@ export default function Compare() {
         <CompareExportModal
           onClose={() => setShowExportModal(false)}
           filename={exportFilename(`client-${clientIdNum}`, dateX, dateY)}
-          render={(canvas, aspect) => {
-            const imgX = new Image();
-            const imgY = new Image();
-            imgX.crossOrigin = "anonymous";
-            imgY.crossOrigin = "anonymous";
-            imgX.src = resolveSrc(result.photo_x);
-            imgY.src = resolveSrc(result.photo_y);
-            const draw = () => {
-              if (!imgX.complete || !imgY.complete) return;
-              const watermark = shouldShowWatermark(currentUser);
-              if (mode === "side-by-side") {
-                const stateX = paneXRef.current?.getExportState();
-                const stateY = paneYRef.current?.getExportState();
-                if (!stateX || !stateY) return;
-                renderSideBySideToCanvas(
-                  canvas,
-                  aspect,
-                  imgX,
-                  { ...stateX, brightness: brightnessX },
-                  imgY,
-                  { ...stateY, brightness: brightnessY },
-                  watermark
-                );
-              } else {
-                const sliderState = sliderPaneRef.current?.getExportState();
-                if (!sliderState) return;
-                renderSliderToCanvas(
-                  canvas,
-                  aspect,
-                  imgX,
-                  imgY,
-                  {
-                    ...sliderState,
-                    x: { ...sliderState.x, brightness: brightnessX },
-                    y: { ...sliderState.y, brightness: brightnessY },
-                  },
-                  watermark
-                );
-              }
-            };
-            imgX.onload = draw;
-            imgY.onload = draw;
-            draw();
-          }}
+          render={handleExportRender}
         />
       )}
     </div>
