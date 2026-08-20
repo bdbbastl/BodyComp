@@ -6,14 +6,23 @@ import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { Card } from "../components/Card";
 import { UpgradeBanner } from "../components/UpgradeBanner";
+import { Avatar } from "../components/Avatar";
+import { Sparkline } from "../components/Sparkline";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useOnboarding } from "../contexts/OnboardingContext";
 import type {
+  ActivityItem,
   Client,
   CoachDashboardSummary,
   NeedsAttentionClient,
   PendingCheckinSummary,
 } from "../types";
+
+function greetingForHour(hour: number): string {
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
@@ -60,10 +69,19 @@ export default function Dashboard() {
 
   const clients = clientsQuery.data ?? [];
 
+  const greeting = greetingForHour(new Date().getHours());
+  const activeClientsCount = summaryQuery.data?.week_stats.active_clients ?? 0;
+  const checkinsThisWeek = summaryQuery.data?.week_stats.checkins ?? 0;
+
   return (
     <div>
       <PageHeader
-        title="My Clients"
+        title={user ? `${greeting}, ${user.display_name}` : "My Clients"}
+        description={
+          summaryQuery.data
+            ? `${activeClientsCount} active client${activeClientsCount === 1 ? "" : "s"} · ${checkinsThisWeek} check-in${checkinsThisWeek === 1 ? "" : "s"} this week`
+            : undefined
+        }
         actions={
           <button
             data-tour="dashboard-new-client"
@@ -166,7 +184,16 @@ export default function Dashboard() {
           items={summaryQuery.data?.needs_attention ?? []}
           isLoading={summaryQuery.isLoading}
         />
-        <WeekStatsWidget stats={summaryQuery.data?.week_stats} isLoading={summaryQuery.isLoading} />
+        <WeekStatsWidget
+          stats={summaryQuery.data?.week_stats}
+          activeClientsLast7Days={(summaryQuery.data?.active_clients_last_7_days ?? []).map((d) => d.count)}
+          isLoading={summaryQuery.isLoading}
+        />
+        <ActivityFeedWidget items={summaryQuery.data?.activity_feed ?? []} isLoading={summaryQuery.isLoading} />
+        <WeeklyCheckinsChartWidget
+          weeks={summaryQuery.data?.checkins_per_week ?? []}
+          isLoading={summaryQuery.isLoading}
+        />
       </div>
     </div>
   );
@@ -198,9 +225,12 @@ function ClientsWidget({ clients, isLoading }: { clients: Client[]; isLoading: b
           <Link
             key={c.id}
             to={`/clients/${c.id}/timeline`}
-            className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm text-slate-300 hover:bg-white/5"
+            className="flex items-center gap-2 justify-between rounded-lg px-2 py-1.5 text-sm text-slate-300 hover:bg-white/5"
           >
-            <span>{c.name}</span>
+            <span className="flex items-center gap-2 min-w-0">
+              <Avatar name={c.name} />
+              <span className="truncate">{c.name}</span>
+            </span>
             {c.pending_checkins_count > 0 && (
               <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-400">
                 {c.pending_checkins_count} pending
@@ -242,9 +272,10 @@ function PendingCheckinsWidget({
           <Link
             key={item.id}
             to={`/clients/${item.client_id}/checkins`}
-            className="flex items-center justify-between gap-2 rounded-lg bg-amber-500/5 px-3 py-2 hover:bg-amber-500/10"
+            className="flex items-center gap-2 rounded-lg bg-amber-500/5 px-3 py-2 hover:bg-amber-500/10"
           >
-            <div className="min-w-0">
+            <Avatar name={item.client_name} />
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm text-slate-200">{item.client_name}</p>
               <p className="text-xs text-slate-500">
                 {new Date(item.submitted_at).toLocaleDateString("en-US")}
@@ -269,7 +300,9 @@ function NeedsAttentionWidget({
     <Card title="Needs attention">
       {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
       {!isLoading && items.length === 0 && (
-        <p className="text-sm text-slate-500">Everyone's on track.</p>
+        <p className="flex items-center gap-1.5 text-sm text-emerald-400">
+          <span aria-hidden="true">✓</span> Everyone's on track — no client overdue.
+        </p>
       )}
       <div className="max-h-64 space-y-1 overflow-y-auto">
         {items.map((entry) => (
@@ -293,9 +326,11 @@ function NeedsAttentionWidget({
 
 function WeekStatsWidget({
   stats,
+  activeClientsLast7Days,
   isLoading,
 }: {
   stats: CoachDashboardSummary["week_stats"] | undefined;
+  activeClientsLast7Days: number[];
   isLoading: boolean;
 }) {
   return (
@@ -314,7 +349,82 @@ function WeekStatsWidget({
           <div>
             <p className="text-xl font-medium text-accent">{stats.active_clients}</p>
             <p className="text-xs text-slate-500">active clients</p>
+            <div className="mt-1">
+              <Sparkline values={activeClientsLast7Days} />
+            </div>
           </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ACTIVITY_LABEL(item: ActivityItem): string {
+  switch (item.type) {
+    case "checkin_submitted":
+      return `${item.client_name} submitted a check-in`;
+    case "checkin_reviewed":
+      return `Feedback sent to ${item.client_name}`;
+    case "client_added":
+      return `${item.client_name} was added as a client`;
+  }
+}
+
+function relativeTime(isoTimestamp: string): string {
+  const diffMs = Date.now() - new Date(isoTimestamp).getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  if (diffHours < 1) return "just now";
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return "yesterday";
+  return `${diffDays}d ago`;
+}
+
+function ActivityFeedWidget({ items, isLoading }: { items: ActivityItem[]; isLoading: boolean }) {
+  return (
+    <Card title="Recent activity" className="md:col-span-2">
+      {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
+      {!isLoading && items.length === 0 && (
+        <p className="text-sm text-slate-500">Nothing yet — activity will show up here.</p>
+      )}
+      <div className="space-y-1">
+        {items.map((item, i) => (
+          <div key={i} className="flex items-center gap-2 border-b border-white/5 py-1.5 last:border-0">
+            <Avatar name={item.client_name} />
+            <p className="flex-1 text-sm text-slate-300">{ACTIVITY_LABEL(item)}</p>
+            <p className="shrink-0 text-xs text-slate-500">{relativeTime(item.timestamp)}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function WeeklyCheckinsChartWidget({
+  weeks,
+  isLoading,
+}: {
+  weeks: { week_start: string; count: number }[];
+  isLoading: boolean;
+}) {
+  const max = Math.max(1, ...weeks.map((w) => w.count));
+  return (
+    <Card title="Check-ins per week" className="md:col-span-2">
+      {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
+      {!isLoading && (
+        <div className="flex h-24 items-end gap-3">
+          {weeks.map((w) => (
+            <div key={w.week_start} className="flex flex-1 flex-col items-center gap-1">
+              <div
+                className="w-full rounded-t bg-accent/60"
+                style={{ height: `${Math.max(4, (w.count / max) * 100)}%` }}
+                title={`${w.count} check-ins`}
+              />
+              <p className="text-[10px] text-slate-500">
+                {new Date(w.week_start).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              </p>
+            </div>
+          ))}
         </div>
       )}
     </Card>
