@@ -344,3 +344,15 @@ def test_billing_handles_stripe_error_gracefully(client, db_session, monkeypatch
     assert body["has_stripe_customer"] is True
     assert body["subscription_id"] is None
     assert body["recent_invoices"] == []
+
+
+def test_overview_includes_signups_per_week(client, db_session):
+    admin = _make_user(db_session, email="admin7@example.com", is_admin=True)
+    _login_as(client, admin)
+
+    response = client.get("/api/admin/overview")
+    assert response.status_code == 200
+    weeks = response.json()["signups_per_week"]
+    assert len(weeks) == 12
+    # admin selbst wurde gerade erst angelegt -> aktuelle Woche hat mind. 1
+    assert weeks[-1]["count"] >= 1

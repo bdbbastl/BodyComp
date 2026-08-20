@@ -9,6 +9,11 @@ from pydantic import BaseModel
 from app.models.user import AccountType
 
 
+class AdminWeekCount(BaseModel):
+    week_start: str  # ISO date (Monday) "YYYY-MM-DD"
+    count: int
+
+
 class AdminOverviewOut(BaseModel):
     total_accounts: int
     single_accounts: int
@@ -16,6 +21,7 @@ class AdminOverviewOut(BaseModel):
     active_subscriptions: int
     signups_this_week: int
     signups_this_month: int
+    signups_per_week: list[AdminWeekCount]
 
 
 class AdminAccountOut(BaseModel):

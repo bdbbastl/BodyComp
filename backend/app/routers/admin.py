@@ -23,6 +23,7 @@ from app.schemas.admin import (
     AdminInvoiceOut,
     AdminOverviewOut,
     AdminSetActiveRequest,
+    AdminWeekCount,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -146,6 +147,21 @@ def overview(db: Session = Depends(get_db)):
         db.query(func.count(User.id)).filter(User.created_at >= month_ago).scalar() or 0
     )
 
+    current_week_start = now - timedelta(days=now.weekday(), hours=now.hour, minutes=now.minute, seconds=now.second, microseconds=now.microsecond)
+    signups_per_week = []
+    for weeks_ago in range(11, -1, -1):
+        week_start = current_week_start - timedelta(weeks=weeks_ago)
+        week_end = week_start + timedelta(days=7)
+        count = (
+            db.query(func.count(User.id))
+            .filter(User.created_at >= week_start, User.created_at < week_end)
+            .scalar()
+            or 0
+        )
+        signups_per_week.append(
+            AdminWeekCount(week_start=week_start.date().isoformat(), count=count)
+        )
+
     return AdminOverviewOut(
         total_accounts=total_accounts,
         single_accounts=single_accounts,
@@ -153,6 +169,7 @@ def overview(db: Session = Depends(get_db)):
         active_subscriptions=active_subscriptions,
         signups_this_week=signups_this_week,
         signups_this_month=signups_this_month,
+        signups_per_week=signups_per_week,
     )
 
 
