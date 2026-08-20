@@ -7,6 +7,48 @@ import { parseWeightInput } from "../utils/weight";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 import { formatDateWithWeek } from "../utils/date";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
+import type { Photo } from "../types";
+
+const HISTORY_PHOTOS_DEFAULT_VISIBLE = 6;
+
+/** Foto-Grid für einen vergangenen Check-in in der Historie unten auf der
+ * Seite - größere, unbeschnittene Kacheln statt der vorherigen winzigen
+ * 16x16-Quadrate (siehe Live-Feedback "Bilder abgeschnitten, müssten
+ * größer sein"). Zeigt standardmäßig nur die ersten
+ * HISTORY_PHOTOS_DEFAULT_VISIBLE Fotos, der Rest liegt hinter einer
+ * "+N"-Kachel, die beim Klick den ganzen Satz einblendet (kein Nachladen
+ * vom Server nötig - die Fotos sind alle schon in `s.photos` enthalten,
+ * nur das Rendern wird verzögert). */
+function HistoryPhotoGrid({ photos }: { photos: Photo[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasMore = photos.length > HISTORY_PHOTOS_DEFAULT_VISIBLE;
+  const visiblePhotos =
+    expanded || !hasMore ? photos : photos.slice(0, HISTORY_PHOTOS_DEFAULT_VISIBLE);
+  const hiddenCount = photos.length - HISTORY_PHOTOS_DEFAULT_VISIBLE;
+
+  return (
+    <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+      {visiblePhotos.map((p) => (
+        <img
+          key={p.id}
+          src={mediaUrl(p.thumb_path)}
+          alt=""
+          className="aspect-[3/4] w-full rounded-lg object-cover"
+        />
+      ))}
+      {hasMore && !expanded && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-label={`Show ${hiddenCount} more photos`}
+          className="flex aspect-[3/4] w-full items-center justify-center rounded-lg bg-black/40 text-sm font-medium text-slate-300 hover:bg-black/60"
+        >
+          +{hiddenCount}
+        </button>
+      )}
+    </div>
+  );
+}
 
 function isSameCalendarDay(a: Date, b: Date): boolean {
   return (
@@ -297,16 +339,7 @@ export default function CheckinSubmit() {
                 <p className="mt-1 text-xs text-slate-500">{s.weight_kg} kg</p>
               )}
               {s.photos.length > 0 && (
-                <div className="mt-2 flex gap-2 overflow-x-auto">
-                  {s.photos.map((p) => (
-                    <img
-                      key={p.id}
-                      src={mediaUrl(p.thumb_path)}
-                      alt=""
-                      className="h-16 w-16 shrink-0 rounded-lg object-cover"
-                    />
-                  ))}
-                </div>
+                <HistoryPhotoGrid photos={s.photos} />
               )}
               {s.coach_feedback_text && (
                 <p className="mt-2 text-sm text-slate-300">{s.coach_feedback_text}</p>

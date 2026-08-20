@@ -28,6 +28,42 @@ def test_signup_creates_unverified_user_and_sends_email(client, db_session):
     assert token_row.used_at is None
 
 
+def test_signup_rolls_back_account_when_verification_email_fails(client, db_session):
+    """Regressionstest: schlug der Bestätigungsmail-Versand fehl (z.B.
+    Resend-Konfigurationsproblem wie in Produktion/Staging gesehen -
+    onboarding@resend.dev als Sandbox-Absender kann nicht an echte
+    Adressen zustellen), blieb bisher ein verwaister, unverifizierter
+    Account zurück, der jeden erneuten Signup-Versuch mit derselben
+    Adresse mit 409 blockierte, obwohl der Nutzer nie eine Mail bekam."""
+    with patch("app.routers.auth.send_verification_email", side_effect=Exception("Resend failed")):
+        response = client.post(
+            "/api/auth/signup",
+            json={
+                "email": "orphan@example.com",
+                "password": "SuperSecret123!",
+                "display_name": "Orphan",
+                "privacy_accepted": True,
+            },
+        )
+    assert response.status_code == 503
+
+    # Kein verwaister Account - ein erneuter Versuch muss möglich sein.
+    assert db_session.query(User).filter(User.email == "orphan@example.com").first() is None
+
+    with patch("app.routers.auth.send_verification_email") as mock_send:
+        retry_response = client.post(
+            "/api/auth/signup",
+            json={
+                "email": "orphan@example.com",
+                "password": "SuperSecret123!",
+                "display_name": "Orphan",
+                "privacy_accepted": True,
+            },
+        )
+    assert retry_response.status_code == 201
+    assert mock_send.call_count == 1
+
+
 def test_signup_without_privacy_consent_is_rejected(client, db_session):
     response = client.post(
         "/api/auth/signup",

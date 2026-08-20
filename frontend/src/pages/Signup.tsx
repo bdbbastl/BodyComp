@@ -75,7 +75,11 @@ export default function Signup() {
         </label>
         {signupMutation.isError && (
           <p className="text-sm text-red-400">
-            Sign-up failed - the email may already be in use.
+            {(signupMutation.error as any)?.response?.status === 409
+              ? "This email address is already registered."
+              : (signupMutation.error as any)?.response?.status === 503
+                ? "Could not send the confirmation email. Please try again shortly."
+                : "Sign-up failed. Please try again."}
           </p>
         )}
         <button

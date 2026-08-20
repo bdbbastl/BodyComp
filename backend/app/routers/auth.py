@@ -209,7 +209,23 @@ def signup(
     db.commit()
 
     verify_url = f"{settings.frontend_base_url}/verify-email?token={raw_token}"
-    send_verification_email(to=user.email, verify_url=verify_url)
+    try:
+        send_verification_email(to=user.email, verify_url=verify_url)
+    except Exception:
+        # Schlägt der Bestätigungsmail-Versand fehl (z.B. Resend-
+        # Konfigurationsproblem), bleibt sonst ein verwaister Account
+        # zurück: unverifiziert, für den Nutzer unerreichbar (keine Mail
+        # angekommen), UND blockiert jeden erneuten Signup-Versuch mit
+        # derselben Adresse ("already registered"). Stattdessen den
+        # gerade erst angelegten Account wieder entfernen (Client/
+        # EmailToken hängen per cascade="all, delete-orphan" bzw.
+        # DB-seitigem ondelete="CASCADE" daran, siehe delete_account()),
+        # damit ein erneuter Signup-Versuch sauber von vorne beginnen
+        # kann, sobald der Mail-Versand wieder funktioniert.
+        logger.warning("Bestätigungsmail beim Signup konnte nicht gesendet werden - Account wird zurückgerollt", exc_info=True)
+        db.delete(user)
+        db.commit()
+        raise HTTPException(503, "Could not send the confirmation email. Please try again shortly.")
 
     return user
 
