@@ -3,6 +3,18 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { Card } from "../components/Card";
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+  return `${value.toFixed(1)} ${units[unitIndex]}`;
+}
+
 export default function AdminAccountDetail() {
   const { userId } = useParams<{ userId: string }>();
   const userIdNum = Number(userId);
@@ -63,6 +75,18 @@ export default function AdminAccountDetail() {
             <dd className={account.is_active ? "text-green-400" : "text-red-400"}>
               {account.is_active ? "Active" : "Disabled"}
             </dd>
+            <dt className="text-slate-400">Total check-ins</dt>
+            <dd className="text-white">{account.total_checkins}</dd>
+            <dt className="text-slate-400">Storage used</dt>
+            <dd className="text-white">
+              {formatBytes(account.total_storage_bytes)}
+              {account.photos_with_unknown_size > 0 && (
+                <span className="text-slate-500">
+                  {" "}
+                  (+{account.photos_with_unknown_size} photos with unknown size)
+                </span>
+              )}
+            </dd>
           </dl>
           <button
             onClick={() => toggleActiveMutation.mutate(!account.is_active)}
@@ -97,7 +121,60 @@ export default function AdminAccountDetail() {
             ))}
           </ul>
         </Card>
+
+        <BillingCard userId={userIdNum} />
       </div>
     </div>
+  );
+}
+
+function BillingCard({ userId }: { userId: number }) {
+  const billingQuery = useQuery({
+    queryKey: ["admin", "accounts", userId, "billing"],
+    queryFn: () => api.admin.getBilling(userId),
+  });
+
+  return (
+    <Card title="Billing">
+      {billingQuery.isLoading && <p className="text-sm text-slate-500">Loading…</p>}
+      {billingQuery.isError && (
+        <p className="text-sm text-red-400">Could not load billing details.</p>
+      )}
+      {billingQuery.data && !billingQuery.data.has_stripe_customer && (
+        <p className="text-sm text-slate-500">No Stripe customer on this account.</p>
+      )}
+      {billingQuery.data && billingQuery.data.has_stripe_customer && (
+        <div className="space-y-3 text-sm">
+          <dl className="grid grid-cols-2 gap-y-2">
+            <dt className="text-slate-400">Subscription</dt>
+            <dd className="text-white">{billingQuery.data.subscription_id ?? "—"}</dd>
+            <dt className="text-slate-400">Next billing date</dt>
+            <dd className="text-white">
+              {billingQuery.data.next_billing_date
+                ? new Date(billingQuery.data.next_billing_date).toLocaleDateString("en-US")
+                : "—"}
+            </dd>
+          </dl>
+          {billingQuery.data.recent_invoices.length > 0 && (
+            <div>
+              <p className="mb-1 text-slate-400">Recent invoices</p>
+              <ul className="space-y-1">
+                {billingQuery.data.recent_invoices.map((inv, i) => (
+                  <li key={i} className="flex items-center justify-between text-slate-300">
+                    <span>
+                      {inv.paid_at ? new Date(inv.paid_at).toLocaleDateString("en-US") : "—"} ·{" "}
+                      {inv.status}
+                    </span>
+                    <span>
+                      {inv.amount.toFixed(2)} {inv.currency.toUpperCase()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }

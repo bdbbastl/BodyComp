@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { AdminAccount, AdminAccountDetail, AdminOverview, CheckinSubmission, Client, CoachDashboardSummary, DayLog, NeedsAttentionClient, Photo, Pose, PendingCheckinSummary, PublicCheckinPage, PublicCheckinPose, UnprocessedPhoto, WeekStats } from "../types";
+import type { AdminAccount, AdminAccountDetail, AdminBilling, AdminOverview, CheckinSubmission, Client, CoachDashboardSummary, DayLog, NeedsAttentionClient, Photo, Pose, PendingCheckinSummary, PublicCheckinPage, PublicCheckinPose, UnprocessedPhoto, WeekStats } from "../types";
 
 export interface DisplaySettings {
   timeline_columns_max: number;
@@ -45,6 +45,8 @@ export const api = {
     listAccounts: () => client.get<AdminAccount[]>("/admin/accounts").then((r) => r.data),
     getAccount: (userId: number) =>
       client.get<AdminAccountDetail>(`/admin/accounts/${userId}`).then((r) => r.data),
+    getBilling: (userId: number) =>
+      client.get<AdminBilling>(`/admin/accounts/${userId}/billing`).then((r) => r.data),
     setAccountActive: (userId: number, isActive: boolean) =>
       client
         .patch<AdminAccount>(`/admin/accounts/${userId}`, { is_active: isActive })

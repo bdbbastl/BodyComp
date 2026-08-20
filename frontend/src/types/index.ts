@@ -172,4 +172,21 @@ export interface AdminClientSummary {
 
 export interface AdminAccountDetail extends AdminAccount {
   clients: AdminClientSummary[];
+  total_checkins: number;
+  total_storage_bytes: number;
+  photos_with_unknown_size: number;
+}
+
+export interface AdminInvoice {
+  amount: number;
+  currency: string;
+  paid_at: string | null;
+  status: string;
+}
+
+export interface AdminBilling {
+  has_stripe_customer: boolean;
+  subscription_id: string | null;
+  next_billing_date: string | null;
+  recent_invoices: AdminInvoice[];
 }
