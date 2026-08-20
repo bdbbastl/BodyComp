@@ -30,6 +30,7 @@ import AdminAccountDetail from "./pages/AdminAccountDetail";
 import { OnboardingProvider, useOnboarding } from "./contexts/OnboardingContext";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { OnboardingTooltip } from "./components/OnboardingTooltip";
+import { OnboardingEndModal } from "./components/OnboardingEndModal";
 import { BusyOverlayProvider } from "./contexts/BusyOverlayContext";
 import { BusyOverlay } from "./components/BusyOverlay";
 import { CookieConsentProvider } from "./contexts/CookieConsentContext";
@@ -39,6 +40,7 @@ function OnboardingModalGate() {
   const { phase } = useOnboarding();
   if (phase === "modal") return <OnboardingModal />;
   if (phase === "tour") return <OnboardingTooltip />;
+  if (phase === "end") return <OnboardingEndModal />;
   return null;
 }
 

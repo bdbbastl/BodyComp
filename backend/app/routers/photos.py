@@ -31,6 +31,7 @@ from app.schemas.photo import (
 from app.services.billing import check_and_consume_free_checkin
 from app.services.folder_sync import sync_incoming_folder
 from app.services.pose_normalization import normalize_photo
+from app.services.photo_files import delete_photo_files as _delete_photo_files
 from app.services.pose_suggestion import compute_pose_suggestions
 from app.services.storage_paths import (
     incoming_dir_for_client,
@@ -518,20 +519,6 @@ def assign_photo(
         raise HTTPException(404, "Pose not found")
 
     return _assign_photo(db, photo, pose, payload.weight_kg, client_row.owner)
-
-
-def _delete_photo_files(photo: Photo) -> None:
-    """Entfernt alle mit dem Foto verknüpften Dateien von der Platte
-    (Original, HEIC-Vorschau, normalisierte Version). Fehlende Dateien
-    werden stillschweigend übersprungen (z.B. bei inkonsistentem Zustand)."""
-    for rel_path in (photo.original_path, photo.preview_path, photo.normalized_path, photo.thumbnail_path):
-        if not rel_path:
-            continue
-        ensure_local(rel_path)
-        file = settings.data_dir / rel_path
-        if file.exists():
-            file.unlink()
-        delete_remote(rel_path)
 
 
 @router.delete("/by-date/{date}", status_code=200)

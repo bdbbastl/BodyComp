@@ -20,16 +20,34 @@ export const COACH_STEPS: TourStep[] = [
     body: "This is where you add a new client to start tracking their progress.",
   },
   {
-    id: "checkin-link",
+    id: "client-settings",
+    dataTour: "nav-settings",
+    title: "Client settings",
+    body: "Every client has their own settings page - profile info, check-in reminders, and the magic link (next step).",
+  },
+  {
+    id: "magic-link",
     dataTour: "settings-checkin-link",
-    title: "Share the check-in link",
-    body: "Your client uses this link to submit check-ins - no account needed on their side.",
+    title: "The magic link",
+    body: "This link lets your client submit weight and progress photos without creating an account. Copy it and send it to them - it stays valid permanently, and you can regenerate it here if needed.",
+  },
+  {
+    id: "add-pose",
+    dataTour: "settings-add-pose",
+    title: "Create a pose",
+    body: "Poses are the angles you photograph (e.g. Front, Side, Back) - they're the fixed reference points for before/after comparisons.",
   },
   {
     id: "checkins-nav",
     dataTour: "nav-checkins",
     title: "Review check-ins",
-    body: "Submitted check-ins and your feedback show up here.",
+    body: "Submitted check-ins show up here, waiting for your review.",
+  },
+  {
+    id: "checkins-review",
+    dataTour: "checkins-review-area",
+    title: "Give feedback",
+    body: "Open a check-in to write feedback text, add a Loom video link, and mark it as reviewed - your client gets notified by email.",
   },
 ];
 
@@ -55,14 +73,20 @@ export const SINGLE_STEPS: TourStep[] = [
 ];
 
 interface OnboardingContextValue {
-  phase: "modal" | "tour" | null;
+  phase: "modal" | "tour" | "end" | null;
   modalSlide: number;
   stepIndex: number;
   steps: TourStep[];
+  tourClientId: number | null;
   start: () => void;
   nextModalSlide: () => void;
   startTour: () => void;
   nextStep: () => void;
+  setTourClientId: (id: number) => void;
+  finishTour: () => void;
+  deleteTourClient: () => void;
+  isDeletingTourClient: boolean;
+  tourClientDeleteFailed: boolean;
   skip: () => void;
   restart: () => void;
 }
@@ -84,9 +108,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     enabled: user?.account_type === "single",
     retry: false,
   });
-  const [phase, setPhase] = useState<"modal" | "tour" | null>(null);
+  const [phase, setPhase] = useState<"modal" | "tour" | "end" | null>(null);
   const [modalSlide, setModalSlide] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
+  const [tourClientId, setTourClientIdState] = useState<number | null>(null);
 
   const steps = useMemo(
     () => (user?.account_type === "coach" ? COACH_STEPS : SINGLE_STEPS),
@@ -125,16 +150,47 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setStepIndex((i) => {
       const next = i + 1;
       if (next >= steps.length) {
-        setPhase(null);
-        completeMutation.mutate();
+        setPhase("end");
         return i;
       }
       return next;
     });
-  }, [steps.length, completeMutation]);
+  }, [steps.length]);
+
+  const setTourClientId = useCallback((id: number) => {
+    setTourClientIdState(id);
+  }, []);
+
+  const finishTour = useCallback(() => {
+    setPhase(null);
+    setTourClientIdState(null);
+    completeMutation.mutate();
+  }, [completeMutation]);
+
+  const deleteClientMutation = useMutation({
+    mutationFn: (clientId: number) => api.clients.delete(clientId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      finishTour();
+    },
+    // Bewusst KEIN automatisches finishTour() bei Fehler - der Coach soll
+    // sehen, dass das Löschen fehlgeschlagen ist, statt anzunehmen, es
+    // hätte geklappt (siehe Design-Spec "Coach-Onboarding-Tour v2" Teil 3,
+    // Review-Fund). "Keep this client" im OnboardingEndModal bleibt als
+    // Ausweg jederzeit klickbar.
+  });
+
+  const deleteTourClient = useCallback(() => {
+    if (tourClientId !== null) {
+      deleteClientMutation.mutate(tourClientId);
+    } else {
+      finishTour();
+    }
+  }, [tourClientId, deleteClientMutation, finishTour]);
 
   const skip = useCallback(() => {
     setPhase(null);
+    setTourClientIdState(null);
     completeMutation.mutate();
   }, [completeMutation]);
 
@@ -147,10 +203,16 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     modalSlide,
     stepIndex,
     steps,
+    tourClientId,
     start,
     nextModalSlide,
     startTour,
     nextStep,
+    setTourClientId,
+    finishTour,
+    deleteTourClient,
+    isDeletingTourClient: deleteClientMutation.isPending,
+    tourClientDeleteFailed: deleteClientMutation.isError,
     skip,
     restart,
   };

@@ -46,7 +46,7 @@ export function OnboardingTooltip() {
   if (phase !== "tour" || !step) return null;
 
   return (
-    <div className="fixed inset-0 z-[100]">
+    <div className="pointer-events-none fixed inset-0 z-[100]">
       {rect && (
         <>
           {/* Spotlight: ein transparentes Rechteck exakt über dem Ziel-
@@ -63,7 +63,7 @@ export function OnboardingTooltip() {
             }}
           />
           <div
-            className="fixed z-[101] w-72 rounded-xl border border-accent/30 bg-surface p-4 shadow-2xl transition-all duration-300"
+            className="pointer-events-auto fixed z-[101] w-72 rounded-xl border border-accent/30 bg-surface p-4 shadow-2xl transition-all duration-300"
             style={{
               top: rect.bottom + 12,
               left: Math.min(rect.left, window.innerWidth - 300),

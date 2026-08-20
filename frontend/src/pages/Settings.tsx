@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import { Card } from "../components/Card";
 import PageHeader from "../components/PageHeader";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 
@@ -224,6 +225,7 @@ export default function Settings() {
         </ul>
 
         <form
+          data-tour="settings-add-pose"
           onSubmit={(e) => {
             e.preventDefault();
             if (newPoseName.trim()) createMutation.mutate(newPoseName.trim());
@@ -249,6 +251,63 @@ export default function Settings() {
           <p className="mt-2 text-xs text-slate-500">Maximum of {MAX_POSES} poses reached.</p>
         )}
       </div>
+
+      {!isSingleAccount && clientQuery.data && (
+        <DangerZoneSection clientId={clientIdNum} clientName={clientQuery.data.name} />
+      )}
     </div>
+  );
+}
+
+function DangerZoneSection({ clientId, clientName }: { clientId: number; clientName: string }) {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api.clients.delete(clientId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      navigate("/dashboard");
+    },
+  });
+
+  return (
+    <Card title="Danger Zone" danger>
+      {!showConfirm ? (
+        <button
+          onClick={() => setShowConfirm(true)}
+          className="w-fit rounded-lg border border-red-900/50 px-4 py-2 text-sm text-red-400 hover:bg-red-950/30"
+        >
+          Delete client
+        </button>
+      ) : (
+        <div className="space-y-2 rounded-lg border border-red-900/50 p-3">
+          <p className="text-sm text-red-400">
+            This will permanently delete {clientName} and ALL associated data (photos, poses,
+            check-ins, weight history). This cannot be undone.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
+              className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50"
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete permanently"}
+            </button>
+            <button
+              onClick={() => setShowConfirm(false)}
+              disabled={deleteMutation.isPending}
+              className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-black/30"
+            >
+              Cancel
+            </button>
+          </div>
+          {deleteMutation.isError && (
+            <p className="text-sm text-red-400">Could not delete this client. Please try again.</p>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }

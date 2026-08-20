@@ -1,7 +1,7 @@
 // frontend/src/pages/Dashboard.tsx
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { Card } from "../components/Card";
@@ -9,7 +9,7 @@ import { UpgradeBanner } from "../components/UpgradeBanner";
 import { Avatar } from "../components/Avatar";
 import { Sparkline } from "../components/Sparkline";
 import { useCurrentUser } from "../hooks/useCurrentUser";
-import { useOnboarding } from "../contexts/OnboardingContext";
+import { AddClientModal } from "../components/AddClientModal";
 import type {
   ActivityItem,
   Client,
@@ -25,46 +25,13 @@ function greetingForHour(hour: number): string {
 }
 
 export default function Dashboard() {
-  const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
-  const { phase, stepIndex, steps, nextStep } = useOnboarding();
-  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState("");
-  const [heightCm, setHeightCm] = useState("");
-  const [birthDate, setBirthDate] = useState("");
-  const [gender, setGender] = useState("");
-  const [startDate, setStartDate] = useState("");
 
   const clientsQuery = useQuery({ queryKey: ["clients"], queryFn: api.clients.list });
   const summaryQuery = useQuery({
     queryKey: ["dashboard", "coach-summary"],
     queryFn: api.dashboard.coachSummary,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      api.clients.create({
-        name,
-        height_cm: heightCm.trim() === "" ? null : Number(heightCm),
-        birth_date: birthDate.trim() === "" ? null : birthDate,
-        gender: gender.trim() === "" ? null : gender,
-        start_date: startDate.trim() === "" ? null : startDate,
-      }),
-    onSuccess: (createdClient) => {
-      queryClient.invalidateQueries({ queryKey: ["clients"] });
-      setShowForm(false);
-      setName("");
-      setHeightCm("");
-      setBirthDate("");
-      setGender("");
-      setStartDate("");
-
-      if (phase === "tour" && steps[stepIndex]?.id === "new-client") {
-        nextStep();
-        navigate(`/clients/${createdClient.id}/settings`);
-      }
-    },
   });
 
   const clients = clientsQuery.data ?? [];
@@ -101,78 +68,7 @@ export default function Dashboard() {
           </div>
         )}
 
-      {showForm && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (name.trim()) createMutation.mutate();
-          }}
-          className="mb-6 grid grid-cols-1 gap-3 rounded-xl border border-white/5 bg-surface p-4 sm:grid-cols-2"
-        >
-          <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Name
-            <input
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Height (cm)
-            <input
-              type="number"
-              value={heightCm}
-              onChange={(e) => setHeightCm(e.target.value)}
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Date of Birth
-            <input
-              type="date"
-              value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Gender
-            <input
-              value={gender}
-              onChange={(e) => setGender(e.target.value)}
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-slate-400">
-            Start Date
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-            />
-          </label>
-          {(createMutation.error as any)?.response?.status === 402 && (
-            <p className="text-sm text-red-400 sm:col-span-2">
-              Client limit reached -{" "}
-              <Link to="/account" className="underline">
-                subscribe/upgrade
-              </Link>
-              {" "}to add more clients.
-            </p>
-          )}
-          <div className="flex items-end">
-            <button
-              type="submit"
-              disabled={!name.trim() || createMutation.isPending}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-40"
-            >
-              {createMutation.isPending ? "Adding…" : "Add"}
-            </button>
-          </div>
-        </form>
-      )}
+      {showForm && <AddClientModal onClose={() => setShowForm(false)} />}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <ClientsWidget clients={clients} isLoading={clientsQuery.isLoading} />

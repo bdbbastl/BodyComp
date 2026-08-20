@@ -12,10 +12,12 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.seed import seed_default_poses_for_client
 from app.models.client import Client
+from app.models.photo import Photo
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.client import ClientCreate, ClientOut, ClientUpdate
 from app.services.billing import check_can_create_client
+from app.services.photo_files import delete_photo_files
 
 router = APIRouter(prefix="/api/clients", tags=["clients"])
 
@@ -175,3 +177,20 @@ def regenerate_checkin_token(
     db.commit()
     db.refresh(client_row)
     return _to_client_out(client_row, db)
+
+
+@router.delete("/{client_id}", status_code=204)
+def delete_client(client_row: Client = Depends(get_owned_client), db: Session = Depends(get_db)):
+    """Löscht einen Klienten unwiderruflich inkl. aller Datei-Assets
+    seiner Fotos - siehe Design-Spec "Coach-Onboarding-Tour v2" Teil 4.
+    Die Datenbank-Zeilen der abhängigen Tabellen (Photos, Poses, DayLogs,
+    CheckinSubmissions) werden automatisch durch ON DELETE CASCADE auf
+    dem jeweiligen Foreign Key entfernt (siehe core/database.py, PRAGMA
+    foreign_keys=ON für SQLite, nativ auf Postgres) - hier muss nur noch
+    das Löschen der Dateien auf Platte/R2 explizit passieren, das kann
+    die Datenbank nicht selbst."""
+    photos = db.query(Photo).filter(Photo.client_id == client_row.id).all()
+    for photo in photos:
+        delete_photo_files(photo)
+    db.delete(client_row)
+    db.commit()
