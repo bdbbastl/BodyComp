@@ -7,8 +7,6 @@ import type { Photo, Pose } from "../types";
 import { formatDateShortWithWeek } from "../utils/date";
 import { transformStyle, usePanZoom } from "../hooks/usePanZoom";
 import { ZoomSlider } from "../components/ZoomSlider";
-import { RotationSlider } from "../components/RotationSlider";
-import { PositionSlider } from "../components/PositionSlider";
 import { BrightnessSlider, BRIGHTNESS_DEFAULT } from "../components/BrightnessSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import { CompareFilterBar } from "../components/CompareFilterBar";
@@ -491,22 +489,16 @@ export default function Compare() {
             srcY={resolveSrc(result.photo_y)}
             filterX={filterFor(brightnessX)}
             filterY={filterFor(brightnessY)}
+            brightnessX={brightnessX}
+            onBrightnessXChange={setBrightnessX}
+            brightnessY={brightnessY}
+            onBrightnessYChange={setBrightnessY}
             altX={formatDate(dateX)}
             altY={formatDate(dateY)}
             showGrid={showGrid}
             gridLines={gridLines}
             onGridLineChange={updateGridLine}
           />
-          <div className="mx-auto grid max-w-2xl grid-cols-1 gap-x-8 gap-y-4 rounded-xl border border-white/5 bg-surface p-4 sm:grid-cols-2">
-            <BrightnessSlider
-              value={brightnessX}
-              onChange={setBrightnessX}
-            />
-            <BrightnessSlider
-              value={brightnessY}
-              onChange={setBrightnessY}
-            />
-          </div>
         </div>
       )}
 
@@ -837,13 +829,31 @@ const SliderComparePane = forwardRef<SliderPaneHandle, {
   srcY: string;
   filterX: string | undefined;
   filterY: string | undefined;
+  brightnessX: number;
+  onBrightnessXChange: (value: number) => void;
+  brightnessY: number;
+  onBrightnessYChange: (value: number) => void;
   altX: string;
   altY: string;
   showGrid?: boolean;
   gridLines?: number[];
   onGridLineChange?: (index: number, value: number) => void;
 }>(function SliderComparePane(
-  { srcX, srcY, filterX, filterY, altX, altY, showGrid, gridLines, onGridLineChange },
+  {
+    srcX,
+    srcY,
+    filterX,
+    filterY,
+    brightnessX,
+    onBrightnessXChange,
+    brightnessY,
+    onBrightnessYChange,
+    altX,
+    altY,
+    showGrid,
+    gridLines,
+    onGridLineChange,
+  },
   ref
 ) {
   const { scale, translate, containerRef, isDragging, reset, setScaleFromSlider } = usePanZoom();
@@ -970,20 +980,46 @@ const SliderComparePane = forwardRef<SliderPaneHandle, {
           {altY}
         </span>
       </div>
-      <div className="mx-auto max-w-2xl space-y-5 rounded-xl border border-white/5 bg-surface p-4">
+      <div className="mx-auto max-w-2xl space-y-4 rounded-xl border border-white/5 bg-surface p-4">
         <ZoomSlider label="Zoom (shared)" scale={scale} onChange={setScaleFromSlider} />
-        <div className="grid grid-cols-1 gap-x-8 gap-y-5 border-t border-white/5 pt-5 sm:grid-cols-2">
-          <div className="space-y-4">
-            <p className="text-sm font-medium text-slate-300">{altX}</p>
-            <ZoomSlider label="Zoom" scale={fineZoomX} onChange={setFineZoomX} />
-            <RotationSlider degrees={rotationX} onChange={setRotationX} />
-            <PositionSlider offset={offsetX} onChange={setOffsetX} />
+        <div className="grid grid-cols-1 gap-x-8 border-t border-white/5 pt-3 sm:grid-cols-2">
+          <div>
+            <p className="px-3 text-sm font-medium text-slate-300">{altX}</p>
+            <PaneAdjustments
+              scale={fineZoomX}
+              onScaleChange={setFineZoomX}
+              rotation={rotationX}
+              onRotationChange={setRotationX}
+              offset={offsetX}
+              onOffsetChange={setOffsetX}
+              brightness={brightnessX}
+              onBrightnessChange={onBrightnessXChange}
+              onReset={() => {
+                setFineZoomX(1);
+                setRotationX(0);
+                setOffsetX({ x: 0, y: 0 });
+                onBrightnessXChange(BRIGHTNESS_DEFAULT);
+              }}
+            />
           </div>
-          <div className="space-y-4">
-            <p className="text-sm font-medium text-slate-300">{altY}</p>
-            <ZoomSlider label="Zoom" scale={fineZoomY} onChange={setFineZoomY} />
-            <RotationSlider degrees={rotationY} onChange={setRotationY} />
-            <PositionSlider offset={offsetY} onChange={setOffsetY} />
+          <div>
+            <p className="px-3 text-sm font-medium text-slate-300">{altY}</p>
+            <PaneAdjustments
+              scale={fineZoomY}
+              onScaleChange={setFineZoomY}
+              rotation={rotationY}
+              onRotationChange={setRotationY}
+              offset={offsetY}
+              onOffsetChange={setOffsetY}
+              brightness={brightnessY}
+              onBrightnessChange={onBrightnessYChange}
+              onReset={() => {
+                setFineZoomY(1);
+                setRotationY(0);
+                setOffsetY({ x: 0, y: 0 });
+                onBrightnessYChange(BRIGHTNESS_DEFAULT);
+              }}
+            />
           </div>
         </div>
       </div>
