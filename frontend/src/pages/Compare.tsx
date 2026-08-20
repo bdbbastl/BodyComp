@@ -11,6 +11,7 @@ import { RotationSlider } from "../components/RotationSlider";
 import { PositionSlider } from "../components/PositionSlider";
 import { BrightnessSlider, BRIGHTNESS_DEFAULT } from "../components/BrightnessSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
+import { CompareFilterBar } from "../components/CompareFilterBar";
 import PageHeader from "../components/PageHeader";
 import { Grid3x3, ImageDown, Scan, Sparkles } from "lucide-react";
 import { IconButton } from "../components/IconButton";
@@ -385,97 +386,27 @@ export default function Compare() {
         }
       />
 
-      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-white/5 bg-surface p-4">
-        <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Pose
-          <select
-            value={poseSelection}
-            onChange={(e) =>
-              setPoseSelection(
-                e.target.value === "" ? "" : e.target.value === ALL_POSES ? ALL_POSES : Number(e.target.value)
-              )
-            }
-            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-          >
-            <option value="">Choose pose…</option>
-            <option value={ALL_POSES}>All poses</option>
-            {poses.map((p, index) => (
-              <option key={p.id} value={p.id}>
-                {numberedPoseOptionLabel(index, p.name)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Date X
-          <select
-            value={dateX}
-            onChange={(e) => setDateX(e.target.value)}
-            disabled={poseSelection === "" || availableDates.length === 0}
-            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none disabled:opacity-40"
-          >
-            <option value="">
-              {poseSelection === "" ? "Choose pose first…" : "Choose date…"}
-            </option>
-            {availableDates.map((d) => (
-              <option key={d} value={d}>
-                {formatDate(d)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Date Y
-          <select
-            value={dateY}
-            onChange={(e) => setDateY(e.target.value)}
-            disabled={poseSelection === "" || availableDates.length === 0}
-            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none disabled:opacity-40"
-          >
-            <option value="">
-              {poseSelection === "" ? "Choose pose first…" : "Choose date…"}
-            </option>
-            {availableDates.map((d) => (
-              <option key={d} value={d}>
-                {formatDate(d)}
-              </option>
-            ))}
-          </select>
-        </label>
-        {!isAllPoses && (
-          <div className="flex gap-1 rounded-full bg-black/30 p-1">
-            {(["side-by-side", "slider"] as Mode[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                  mode === m ? "bg-accent text-slate-900" : "text-slate-400 hover:text-white"
-                }`}
-              >
-                {m === "side-by-side" ? "Side-by-Side" : "Slider"}
-              </button>
-            ))}
-          </div>
-        )}
-        <label className="flex items-center gap-2 pb-2 text-sm text-slate-300">
-          <input
-            type="checkbox"
-            checked={normalize}
-            onChange={(e) => setNormalize(e.target.checked)}
-            className="h-4 w-4 accent-accent"
-          />
-          AI normalization (alignment &amp; scaling)
-        </label>
-        <label className="flex items-center gap-2 pb-2 text-sm text-slate-300">
-          <input
-            type="checkbox"
-            checked={showGrid}
-            onChange={(e) => setShowGrid(e.target.checked)}
-            className="h-4 w-4 accent-accent"
-          />
-          Alignment grid
-        </label>
-      </div>
+      <CompareFilterBar
+        poses={poses}
+        poseValue={poseSelection === "" ? "" : String(poseSelection)}
+        onPoseChange={(value) =>
+          setPoseSelection(value === "" ? "" : value === ALL_POSES ? ALL_POSES : Number(value))
+        }
+        onNavigate={goToPose}
+        navigationDisabled={isAllPoses || poses.length === 0}
+        allPosesValue={ALL_POSES}
+        dateX={dateX}
+        dateY={dateY}
+        onDateXChange={setDateX}
+        onDateYChange={setDateY}
+        availableDates={availableDates}
+        datesDisabled={poseSelection === "" || availableDates.length === 0}
+        datePlaceholder={poseSelection === "" ? "Choose pose first…" : "Choose date…"}
+        formatDate={formatDate}
+        mode={mode}
+        onModeChange={setMode}
+        showModeSwitch={!isAllPoses}
+      />
 
       {!isAllPoses && comparisonQuery.isError && (
         <p className="text-red-400">
@@ -498,10 +429,6 @@ export default function Compare() {
           At least one of the images has no normalized version available
           (normalization failed or is pending) — the original image is shown instead.
         </p>
-      )}
-
-      {poses.length > 0 && dateX !== "" && dateY !== "" && (
-        <PoseNavBar poses={poses} currentPoseId={poseSelection} onNavigate={goToPose} disabled={isAllPoses} />
       )}
 
       {activeAiMutation.isPending && (
@@ -697,48 +624,6 @@ function JudgeAnalysis({ text }: { text: string }) {
           </ul>
         </div>
       ))}
-    </div>
-  );
-}
-
-function PoseNavBar({
-  poses,
-  currentPoseId,
-  onNavigate,
-  disabled,
-}: {
-  poses: Pose[];
-  currentPoseId: PoseSelection;
-  onNavigate: (delta: number) => void;
-  disabled?: boolean;
-}) {
-  const currentIndex = poses.findIndex((p) => p.id === currentPoseId);
-  const currentPose = currentIndex >= 0 ? poses[currentIndex] : undefined;
-  const label =
-    currentPoseId === ALL_POSES
-      ? "All poses"
-      : currentPose
-        ? numberedPoseOptionLabel(currentIndex, currentPose.name)
-        : "Choose pose…";
-  return (
-    <div className="flex items-center justify-center gap-4">
-      <button
-        onClick={() => onNavigate(-1)}
-        disabled={disabled}
-        aria-label="Previous pose"
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-slate-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-      >
-        ‹
-      </button>
-      <span className="min-w-[10rem] text-center text-sm font-medium text-slate-300">{label}</span>
-      <button
-        onClick={() => onNavigate(1)}
-        disabled={disabled}
-        aria-label="Next pose"
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-slate-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-      >
-        ›
-      </button>
     </div>
   );
 }
