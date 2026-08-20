@@ -9,7 +9,7 @@ import { transformStyle, usePanZoom } from "../hooks/usePanZoom";
 import { ZoomSlider } from "../components/ZoomSlider";
 import { RotationSlider } from "../components/RotationSlider";
 import { PositionSlider } from "../components/PositionSlider";
-import { SliderControl } from "../components/SliderControl";
+import { BrightnessSlider, BRIGHTNESS_DEFAULT } from "../components/BrightnessSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
@@ -28,10 +28,6 @@ type Mode = "side-by-side" | "slider";
 // Reihenfolge) für die zwei gewählten Termine untereinander an.
 type PoseSelection = number | "" | "all";
 const ALL_POSES = "all";
-
-const BRIGHTNESS_MIN = 50;
-const BRIGHTNESS_MAX = 250;
-const BRIGHTNESS_DEFAULT = 100;
 
 export default function Compare() {
   const { clientId } = useParams<{ clientId: string }>();
@@ -722,24 +718,6 @@ function PoseNavBar({
     </div>
   );
 }
-
-/** Belichtungs-Slider unter einem Bild - jedes Bild wird individuell
- * gesteuert (100% = unverändertes Original). */
-function BrightnessSlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  return (
-    <SliderControl
-      icon="☀"
-      label="Exposure"
-      value={value}
-      min={BRIGHTNESS_MIN}
-      max={BRIGHTNESS_MAX}
-      step={1}
-      onChange={onChange}
-      suffix="%"
-    />
-  );
-}
-
 
 /**
  * Ausrichtungshilfe: 3 horizontale Linien, die per Klick+Ziehen vertikal
