@@ -51,6 +51,10 @@ export const api = {
       client
         .patch<AdminAccount>(`/admin/accounts/${userId}`, { is_active: isActive })
         .then((r) => r.data),
+    sendPasswordReset: (userId: number) =>
+      client.post(`/admin/accounts/${userId}/send-password-reset`),
+    sendMessage: (userId: number, message: string) =>
+      client.post(`/admin/accounts/${userId}/send-message`, { message }),
   },
   billing: {
     checkout: (tier: "starter" | "pro" | "business" | "single") =>

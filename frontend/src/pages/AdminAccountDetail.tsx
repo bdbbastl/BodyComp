@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
@@ -32,6 +33,10 @@ export default function AdminAccountDetail() {
       queryClient.invalidateQueries({ queryKey: ["admin", "accounts", userIdNum] });
       queryClient.invalidateQueries({ queryKey: ["admin", "accounts"] });
     },
+  });
+
+  const sendPasswordResetMutation = useMutation({
+    mutationFn: () => api.admin.sendPasswordReset(userIdNum),
   });
 
   if (accountQuery.isLoading) {
@@ -103,6 +108,23 @@ export default function AdminAccountDetail() {
                 ? "Deactivate account"
                 : "Reactivate account"}
           </button>
+          <button
+            onClick={() => sendPasswordResetMutation.mutate()}
+            disabled={sendPasswordResetMutation.isPending}
+            className="mt-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-40"
+          >
+            {sendPasswordResetMutation.isPending
+              ? "Sending…"
+              : sendPasswordResetMutation.isSuccess
+                ? "Reset email sent"
+                : "Send password reset email"}
+          </button>
+          {sendPasswordResetMutation.isError && (
+            <p className="mt-1 text-xs text-red-400">
+              {(sendPasswordResetMutation.error as any)?.response?.data?.detail ??
+                "Could not send the reset email."}
+            </p>
+          )}
         </Card>
 
         <Card title="Clients">
@@ -123,6 +145,7 @@ export default function AdminAccountDetail() {
         </Card>
 
         <BillingCard userId={userIdNum} />
+        <SendMessageCard userId={userIdNum} />
       </div>
     </div>
   );
@@ -174,6 +197,43 @@ function BillingCard({ userId }: { userId: number }) {
             </div>
           )}
         </div>
+      )}
+    </Card>
+  );
+}
+
+function SendMessageCard({ userId }: { userId: number }) {
+  const [message, setMessage] = useState("");
+  const sendMessageMutation = useMutation({
+    mutationFn: () => api.admin.sendMessage(userId, message),
+    onSuccess: () => setMessage(""),
+  });
+
+  return (
+    <Card title="Send message">
+      <textarea
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        rows={4}
+        maxLength={2000}
+        placeholder="Write a message to this user…"
+        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => sendMessageMutation.mutate()}
+          disabled={sendMessageMutation.isPending || message.trim() === ""}
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-40"
+        >
+          {sendMessageMutation.isPending ? "Sending…" : "Send message"}
+        </button>
+        {sendMessageMutation.isSuccess && (
+          <span className="text-xs text-emerald-400">Sent</span>
+        )}
+      </div>
+      {sendMessageMutation.isError && (
+        <p className="mt-1 text-xs text-red-400">Could not send the message.</p>
       )}
     </Card>
   );
