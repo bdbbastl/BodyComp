@@ -99,6 +99,14 @@ class Photo(Base):
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Größe der Originaldatei in Bytes, direkt nach dem finalen
+    # Schreiben/Komprimieren erfasst (services/folder_sync.py) - für den
+    # Speicherverbrauch im Master-Admin-Bereich. NULL für Fotos, die vor
+    # Einführung dieser Spalte synchronisiert wurden (kein rückwirkendes
+    # Backfill, siehe Design-Spec "Master-Admin: Account-Detail-
+    # Kennzahlen" Abschnitt b).
+    file_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

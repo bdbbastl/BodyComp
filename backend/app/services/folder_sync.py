@@ -152,6 +152,7 @@ def sync_incoming_folder(db: Session, client_id: int) -> list[Photo]:
             taken_at=taken_at,
             width=width,
             height=height,
+            file_size_bytes=file.stat().st_size,
         )
         db.add(photo)
         push(rel_path)
