@@ -45,12 +45,22 @@ export function dimensionsFor(aspect: ExportAspect) {
   return EXPORT_DIMENSIONS[aspect];
 }
 
+// Seitenverhältnis der Live-Vorschau-Container (aspect-[3/4] in ZoomPane/
+// SliderComparePane) - der Export muss ERST auf dieses Verhältnis croppen
+// (object-cover, wie live), bevor dieser Crop in die tatsächliche Export-
+// Region eingepasst wird. Vorher wurde direkt gegen die (davon meist
+// abweichende) Export-Region-Form gecovert, was einen völlig anderen
+// Ausschnitt als in der Live-Vorschau erzeugte (Bug-Report vom User).
+const LIVE_CONTAINER_ASPECT = 3 / 4; // Breite/Höhe
+
 /** Zeichnet ein einzelnes Foto mit seinem aktuellen Zoom/Pan/Rotation/
  * Belichtung-Zustand in eine rechteckige Zielregion des Canvas -
- * gemeinsam genutzt von renderSideBySide und renderSlider. slotWidth/
- * slotHeight sind die Zielgröße der Region (z.B. eine Bildhälfte),
- * (offsetXPx, offsetYPx) die obere linke Ecke der Region auf dem
- * Gesamt-Canvas. */
+ * gemeinsam genutzt von renderSideBySide und renderSlider. Repliziert
+ * zuerst den 3:4-Crop der Live-Vorschau (object-cover in eine so groß wie
+ * möglich in die Region passende, zentrierte 3:4-Box - ggf. mit
+ * Letterboxing, falls die Region eine andere Form hat), erst DANN wird
+ * das per Zoom/Pan/Rotation verschobene/gedrehte Foto hineingezeichnet -
+ * exakt wie es der User live sieht. */
 function drawPhotoIntoRegion(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
@@ -64,13 +74,28 @@ function drawPhotoIntoRegion(
 
   ctx.filter = state.brightness === 100 ? "none" : `brightness(${state.brightness}%)`;
 
-  // object-cover-Skalierung: Bild füllt die Zielregion vollständig aus,
-  // überschüssige Ränder werden vom Clip oben abgeschnitten.
-  const coverScale = Math.max(region.width / img.naturalWidth, region.height / img.naturalHeight);
+  // 3:4-Box so groß wie möglich zentriert in die Region einpassen
+  // ("contain"), NICHT die Region selbst als Crop-Ziel nehmen.
+  let boxWidth = region.width;
+  let boxHeight = boxWidth / LIVE_CONTAINER_ASPECT;
+  if (boxHeight > region.height) {
+    boxHeight = region.height;
+    boxWidth = boxHeight * LIVE_CONTAINER_ASPECT;
+  }
+  const boxX = region.x + (region.width - boxWidth) / 2;
+  const boxY = region.y + (region.height - boxHeight) / 2;
+
+  // object-cover-Skalierung GEGEN DIE 3:4-BOX (nicht gegen die Region) -
+  // entspricht exakt dem "object-cover" der Live-Vorschau in ihrem
+  // aspect-[3/4]-Container. translateX/translateY kommen 1:1 aus dem
+  // Live-Pan (in CSS-Pixeln des Live-Containers) und werden hier direkt
+  // übernommen, da boxWidth/boxHeight bewusst so berechnet sind, dass sie
+  // denselben "gefühlten" Bildausschnitt wie die Live-Ansicht ergeben.
+  const coverScale = Math.max(boxWidth / img.naturalWidth, boxHeight / img.naturalHeight);
   const drawWidth = img.naturalWidth * coverScale * state.scale;
   const drawHeight = img.naturalHeight * coverScale * state.scale;
-  const centerX = region.x + region.width / 2 + state.translateX;
-  const centerY = region.y + region.height / 2 + state.translateY;
+  const centerX = boxX + boxWidth / 2 + state.translateX;
+  const centerY = boxY + boxHeight / 2 + state.translateY;
 
   ctx.translate(centerX, centerY);
   ctx.rotate((state.rotation * Math.PI) / 180);
@@ -93,10 +118,34 @@ function drawDivider(ctx: CanvasRenderingContext2D, x: number, canvasHeight: num
 function drawWatermark(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
   ctx.save();
   ctx.font = "600 20px sans-serif";
-  ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+  const text = "BodyComp Tracker";
+  const paddingX = 10;
+  const paddingY = 6;
+  const textWidth = ctx.measureText(text).width;
+  const chipHeight = 20 + paddingY * 2;
+  const chipWidth = textWidth + paddingX * 2;
+  const chipX = canvasWidth - 16 - chipWidth;
+  const chipY = canvasHeight - 14 - chipHeight;
+
+  // Dunkler, halbtransparenter Hintergrund-Chip hinter dem Text - reiner
+  // heller Text allein war auf hellen Foto-Hintergründen (z.B. Wand/Boden)
+  // praktisch unsichtbar (Bug-Report vom User). Der Chip macht das
+  // Wasserzeichen unabhängig vom Foto-Untergrund lesbar.
+  ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+  ctx.beginPath();
+  const radius = 6;
+  ctx.moveTo(chipX + radius, chipY);
+  ctx.arcTo(chipX + chipWidth, chipY, chipX + chipWidth, chipY + chipHeight, radius);
+  ctx.arcTo(chipX + chipWidth, chipY + chipHeight, chipX, chipY + chipHeight, radius);
+  ctx.arcTo(chipX, chipY + chipHeight, chipX, chipY, radius);
+  ctx.arcTo(chipX, chipY, chipX + chipWidth, chipY, radius);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
   ctx.textAlign = "right";
   ctx.textBaseline = "bottom";
-  ctx.fillText("BodyComp Tracker", canvasWidth - 16, canvasHeight - 14);
+  ctx.fillText(text, canvasWidth - 16 - paddingX, canvasHeight - 14 - paddingY);
   ctx.restore();
 }
 
