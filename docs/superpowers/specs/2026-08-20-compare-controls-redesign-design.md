@@ -105,7 +105,12 @@ Pfeile wandern an das Dropdown, `PoseNavBar` wird ersatzlos entfernt.
 
 Die Pfeile übernehmen `goToPose` unverändert. Im Modus „All poses" sind
 sie deaktiviert — analog zum heutigen `disabled={isAllPoses}` der
-`PoseNavBar` —, ebenso am jeweiligen Anfang und Ende der Posenliste.
+`PoseNavBar`.
+
+`goToPose` läuft per Modulo zyklisch durch die Posenliste; es gibt kein
+Anfang oder Ende. Die Pfeile werden daher **nicht** an den Rändern
+deaktiviert. Auch die bestehende Pfeiltasten-Steuerung (←/→ auf
+Fensterebene, die Formularfelder bewusst ausspart) bleibt unverändert.
 
 Die beiden Checkboxen (KI-Normalisierung, Ausrichtungsgitter) werden zu
 Icon-Toggles im Header, weil sie Ansichtsschalter sind und nicht die
