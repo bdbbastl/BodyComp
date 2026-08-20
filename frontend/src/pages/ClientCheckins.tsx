@@ -63,7 +63,7 @@ export default function ClientCheckins() {
     };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-tour="checkins-review-area">
       <PageHeader title="Check-ins" />
 
       {checkins.length > 0 && (

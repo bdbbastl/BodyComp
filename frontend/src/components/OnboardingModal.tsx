@@ -47,8 +47,9 @@ export function OnboardingModal() {
               {isCoach ? (
                 <>
                   <li>1. Adding your first client</li>
-                  <li>2. Sharing the check-in link</li>
-                  <li>3. Reviewing check-ins</li>
+                  <li>2. Client settings & the magic link</li>
+                  <li>3. Creating poses</li>
+                  <li>4. Reviewing check-ins & giving feedback</li>
                 </>
               ) : (
                 <>

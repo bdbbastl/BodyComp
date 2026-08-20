@@ -20,16 +20,34 @@ export const COACH_STEPS: TourStep[] = [
     body: "This is where you add a new client to start tracking their progress.",
   },
   {
-    id: "checkin-link",
+    id: "client-settings",
+    dataTour: "nav-settings",
+    title: "Client settings",
+    body: "Every client has their own settings page - profile info, check-in reminders, and the magic link (next step).",
+  },
+  {
+    id: "magic-link",
     dataTour: "settings-checkin-link",
-    title: "Share the check-in link",
-    body: "Your client uses this link to submit check-ins - no account needed on their side.",
+    title: "The magic link",
+    body: "This link lets your client submit weight and progress photos without creating an account. Copy it and send it to them - it stays valid permanently, and you can regenerate it here if needed.",
+  },
+  {
+    id: "add-pose",
+    dataTour: "settings-add-pose",
+    title: "Create a pose",
+    body: "Poses are the angles you photograph (e.g. Front, Side, Back) - they're the fixed reference points for before/after comparisons.",
   },
   {
     id: "checkins-nav",
     dataTour: "nav-checkins",
     title: "Review check-ins",
-    body: "Submitted check-ins and your feedback show up here.",
+    body: "Submitted check-ins show up here, waiting for your review.",
+  },
+  {
+    id: "checkins-review",
+    dataTour: "checkins-review-area",
+    title: "Give feedback",
+    body: "Open a check-in to write feedback text, add a Loom video link, and mark it as reviewed - your client gets notified by email.",
   },
 ];
 

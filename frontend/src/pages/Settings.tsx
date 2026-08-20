@@ -224,6 +224,7 @@ export default function Settings() {
         </ul>
 
         <form
+          data-tour="settings-add-pose"
           onSubmit={(e) => {
             e.preventDefault();
             if (newPoseName.trim()) createMutation.mutate(newPoseName.trim());
