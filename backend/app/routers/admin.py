@@ -212,8 +212,27 @@ def get_account(user_id: int, db: Session = Depends(get_db)):
         default=None,
     )
 
+    total_checkins = (
+        db.query(func.count(CheckinSubmission.id))
+        .filter(CheckinSubmission.client_id.in_(client_ids))
+        .scalar()
+        or 0
+    )
+
+    storage_rows = (
+        db.query(Photo.file_size_bytes).filter(Photo.client_id.in_(client_ids)).all()
+    )
+    total_storage_bytes = sum(size for (size,) in storage_rows if size is not None)
+    photos_with_unknown_size = sum(1 for (size,) in storage_rows if size is None)
+
     base = _account_out(user, len(clients), last_activity_at)
-    return AdminAccountDetailOut(**base.model_dump(), clients=client_summaries)
+    return AdminAccountDetailOut(
+        **base.model_dump(),
+        clients=client_summaries,
+        total_checkins=total_checkins,
+        total_storage_bytes=total_storage_bytes,
+        photos_with_unknown_size=photos_with_unknown_size,
+    )
 
 
 @router.patch("/accounts/{user_id}", response_model=AdminAccountOut)

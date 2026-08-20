@@ -45,6 +45,9 @@ class AdminClientSummaryOut(BaseModel):
 
 class AdminAccountDetailOut(AdminAccountOut):
     clients: list[AdminClientSummaryOut]
+    total_checkins: int
+    total_storage_bytes: int
+    photos_with_unknown_size: int
 
 
 class AdminSetActiveRequest(BaseModel):

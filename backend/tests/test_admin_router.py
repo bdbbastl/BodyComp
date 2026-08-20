@@ -196,3 +196,80 @@ def test_deactivate_404_for_unknown_id(client, db_session):
 
     response = client.patch("/api/admin/accounts/999999", json={"is_active": False})
     assert response.status_code == 404
+
+
+def test_account_detail_includes_total_checkins(client, db_session):
+    from app.models.client import Client
+    from app.models.checkin_submission import CheckinStatus, CheckinSubmission
+
+    admin = _make_user(db_session, email="admin2@example.com", is_admin=True)
+    target = _make_user(db_session, email="target-checkins@example.com")
+    _login_as(client, admin)
+
+    c1 = Client(owner_id=target.id, name="C1")
+    db_session.add(c1)
+    db_session.commit()
+    db_session.refresh(c1)
+
+    db_session.add_all(
+        [
+            CheckinSubmission(client_id=c1.id, weight_kg=80.0, status=CheckinStatus.PENDING),
+            CheckinSubmission(client_id=c1.id, weight_kg=81.0, status=CheckinStatus.REVIEWED),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(f"/api/admin/accounts/{target.id}")
+    assert response.status_code == 200
+    assert response.json()["total_checkins"] == 2
+
+
+def test_account_detail_sums_known_photo_sizes_and_counts_unknown(client, db_session):
+    from app.models.client import Client
+    from app.models.photo import Photo, ProcessingStatus
+    from datetime import datetime, timezone
+
+    admin = _make_user(db_session, email="admin3@example.com", is_admin=True)
+    target = _make_user(db_session, email="target-storage@example.com")
+    _login_as(client, admin)
+
+    c1 = Client(owner_id=target.id, name="C1")
+    db_session.add(c1)
+    db_session.commit()
+    db_session.refresh(c1)
+
+    db_session.add_all(
+        [
+            Photo(
+                client_id=c1.id,
+                filename="a.jpg",
+                original_path=f"photos_processed/{c1.id}/a.jpg",
+                taken_at=datetime.now(timezone.utc),
+                status=ProcessingStatus.PROCESSED,
+                file_size_bytes=1000,
+            ),
+            Photo(
+                client_id=c1.id,
+                filename="b.jpg",
+                original_path=f"photos_processed/{c1.id}/b.jpg",
+                taken_at=datetime.now(timezone.utc),
+                status=ProcessingStatus.PROCESSED,
+                file_size_bytes=2000,
+            ),
+            Photo(
+                client_id=c1.id,
+                filename="c.jpg",
+                original_path=f"photos_processed/{c1.id}/c.jpg",
+                taken_at=datetime.now(timezone.utc),
+                status=ProcessingStatus.PROCESSED,
+                file_size_bytes=None,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(f"/api/admin/accounts/{target.id}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_storage_bytes"] == 3000
+    assert body["photos_with_unknown_size"] == 1
