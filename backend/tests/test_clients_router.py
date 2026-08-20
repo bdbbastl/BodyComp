@@ -211,12 +211,21 @@ def test_delete_client_removes_client_and_cascades(client, db_session, tmp_path,
     )
     db_session.add(photo)
     db_session.commit()
+    photo_id = photo.id
+    pose_id = pose.id
 
     response = client.delete(f"/api/clients/{client_id}")
     assert response.status_code == 204
 
     assert db_session.get(Client, client_id) is None
     assert not photo_file.exists()
+
+    from app.models.photo import Photo as PhotoModel
+    from app.models.pose import Pose as PoseModel
+
+    db_session.expunge_all()
+    assert db_session.get(PhotoModel, photo_id) is None
+    assert db_session.get(PoseModel, pose_id) is None
 
     list_resp = client.get("/api/clients")
     assert list_resp.json() == []
