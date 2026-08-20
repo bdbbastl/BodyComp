@@ -13,6 +13,14 @@ import { SliderControl } from "../components/SliderControl";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
+import { CompareExportModal } from "../components/CompareExportModal";
+import {
+  exportFilename,
+  renderSideBySideToCanvas,
+  renderSliderToCanvas,
+  shouldShowWatermark,
+} from "../utils/compareExport";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 type Mode = "side-by-side" | "slider";
 // "all" = Sonderauswahl "Alle Posen" - zeigt alle Posen (in Settings-
@@ -55,6 +63,8 @@ export default function Compare() {
   const paneXRef = useRef<ZoomPaneHandle>(null);
   const paneYRef = useRef<ZoomPaneHandle>(null);
   const sliderPaneRef = useRef<SliderPaneHandle>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const { data: currentUser } = useCurrentUser();
   function updateGridLine(index: number, value: number) {
     setGridLines((lines) => lines.map((l, i) => (i === index ? value : l)));
   }
@@ -421,6 +431,17 @@ export default function Compare() {
         </div>
       )}
 
+      {!isAllPoses && result && (
+        <div className="flex justify-center">
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+          >
+            Export Comparison
+          </button>
+        </div>
+      )}
+
       {activeAiMutation.isError && (
         <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {(activeAiMutation.error as { response?: { data?: { detail?: string } } })?.response
@@ -529,6 +550,57 @@ export default function Compare() {
             </section>
           ))}
         </div>
+      )}
+
+      {showExportModal && result && (
+        <CompareExportModal
+          onClose={() => setShowExportModal(false)}
+          filename={exportFilename(`client-${clientIdNum}`, dateX, dateY)}
+          render={(canvas, aspect) => {
+            const imgX = new Image();
+            const imgY = new Image();
+            imgX.crossOrigin = "anonymous";
+            imgY.crossOrigin = "anonymous";
+            imgX.src = resolveSrc(result.photo_x);
+            imgY.src = resolveSrc(result.photo_y);
+            const draw = () => {
+              if (!imgX.complete || !imgY.complete) return;
+              const watermark = shouldShowWatermark(currentUser);
+              if (mode === "side-by-side") {
+                const stateX = paneXRef.current?.getExportState();
+                const stateY = paneYRef.current?.getExportState();
+                if (!stateX || !stateY) return;
+                renderSideBySideToCanvas(
+                  canvas,
+                  aspect,
+                  imgX,
+                  { ...stateX, brightness: brightnessX },
+                  imgY,
+                  { ...stateY, brightness: brightnessY },
+                  watermark
+                );
+              } else {
+                const sliderState = sliderPaneRef.current?.getExportState();
+                if (!sliderState) return;
+                renderSliderToCanvas(
+                  canvas,
+                  aspect,
+                  imgX,
+                  imgY,
+                  {
+                    ...sliderState,
+                    x: { ...sliderState.x, brightness: brightnessX },
+                    y: { ...sliderState.y, brightness: brightnessY },
+                  },
+                  watermark
+                );
+              }
+            };
+            imgX.onload = draw;
+            imgY.onload = draw;
+            draw();
+          }}
+        />
       )}
     </div>
   );
