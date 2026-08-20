@@ -1,5 +1,5 @@
 // frontend/src/components/CookieConsentBanner.tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCookieConsent } from "../contexts/CookieConsentContext";
 
 /** Schmales Consent-Banner am unteren Bildschirmrand - siehe Design-Spec
@@ -11,6 +11,14 @@ export function CookieConsentBanner() {
   const [customizing, setCustomizing] = useState(false);
   const [analytics, setAnalytics] = useState(consent?.analytics ?? false);
   const [marketing, setMarketing] = useState(consent?.marketing ?? false);
+
+  useEffect(() => {
+    if (bannerVisible) {
+      setAnalytics(consent?.analytics ?? false);
+      setMarketing(consent?.marketing ?? false);
+      setCustomizing(false);
+    }
+  }, [bannerVisible, consent]);
 
   if (!bannerVisible) return null;
 
