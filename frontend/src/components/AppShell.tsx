@@ -31,7 +31,10 @@ export default function AppShell() {
     mutationFn: api.auth.logout,
     onSuccess: () => {
       queryClient.clear();
-      navigate("/login");
+      // Zur Landing-Page statt Login - Login wirkt nach dem Ausloggen wie
+      // ein Sackgassen-Fehlerbildschirm, Landing gibt dem User wieder
+      // Kontext (und einen Weg zurück zum Login, falls gewünscht).
+      navigate("/");
     },
   });
 

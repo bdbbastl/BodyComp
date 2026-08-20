@@ -43,6 +43,12 @@ export default function Login() {
         }}
         className="w-full max-w-sm space-y-4 rounded-xl border border-white/5 bg-surface p-6"
       >
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-white"
+        >
+          ← Back to home
+        </Link>
         <h1 className="text-xl font-semibold text-white">
           BodyComp <span className="text-accent">Tracker</span>
         </h1>
