@@ -2,6 +2,7 @@
 import { Link, Navigate } from "react-router-dom";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { DashboardPreview } from "../components/DashboardPreview";
+import { useCookieConsent } from "../contexts/CookieConsentContext";
 
 const FEATURES = [
   {
@@ -65,6 +66,7 @@ const PRICING_PLANS: {
  * sofort zu /app weitergeleitet, sehen diese Seite nie. */
 export default function Landing() {
   const { data: user, isLoading } = useCurrentUser();
+  const { openSettings } = useCookieConsent();
 
   if (isLoading) return null;
   if (user) return <Navigate to="/app" replace />;
@@ -211,6 +213,9 @@ export default function Landing() {
             <Link to="/impressum" className="hover:text-white">Legal notice</Link>
             <Link to="/datenschutz" className="hover:text-white">Privacy</Link>
             <Link to="/agb" className="hover:text-white">Terms</Link>
+            <button type="button" onClick={openSettings} className="hover:text-white">
+              Cookie settings
+            </button>
           </div>
         </div>
       </footer>

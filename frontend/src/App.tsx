@@ -32,6 +32,8 @@ import { OnboardingModal } from "./components/OnboardingModal";
 import { OnboardingTooltip } from "./components/OnboardingTooltip";
 import { BusyOverlayProvider } from "./contexts/BusyOverlayContext";
 import { BusyOverlay } from "./components/BusyOverlay";
+import { CookieConsentProvider } from "./contexts/CookieConsentContext";
+import { CookieConsentBanner } from "./components/CookieConsentBanner";
 
 function OnboardingModalGate() {
   const { phase } = useOnboarding();
@@ -42,6 +44,7 @@ function OnboardingModalGate() {
 
 export default function App() {
   return (
+    <CookieConsentProvider>
     <BusyOverlayProvider>
     <OnboardingProvider>
       <Routes>
@@ -82,5 +85,7 @@ export default function App() {
     </OnboardingProvider>
     <BusyOverlay />
     </BusyOverlayProvider>
+    <CookieConsentBanner />
+    </CookieConsentProvider>
   );
 }
