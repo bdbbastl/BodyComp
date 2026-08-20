@@ -21,14 +21,14 @@ def _make_verified_user(db_session, email="basti@example.com", password="OldPass
 
 def test_forgot_password_sends_email_for_existing_user(client, db_session):
     _make_verified_user(db_session)
-    with patch("app.routers.auth.send_password_reset_email") as mock_send:
+    with patch("app.services.account.send_password_reset_email") as mock_send:
         response = client.post("/api/auth/forgot-password", json={"email": "basti@example.com"})
     assert response.status_code == 204
     assert mock_send.call_count == 1
 
 
 def test_forgot_password_is_silent_for_unknown_email(client, db_session):
-    with patch("app.routers.auth.send_password_reset_email") as mock_send:
+    with patch("app.services.account.send_password_reset_email") as mock_send:
         response = client.post("/api/auth/forgot-password", json={"email": "nobody@example.com"})
     assert response.status_code == 204
     assert mock_send.call_count == 0
@@ -42,7 +42,7 @@ def test_forgot_password_is_silent_for_google_only_account(client, db_session):
     db_session.add(google_user)
     db_session.commit()
 
-    with patch("app.routers.auth.send_password_reset_email") as mock_send:
+    with patch("app.services.account.send_password_reset_email") as mock_send:
         response = client.post("/api/auth/forgot-password", json={"email": "google@example.com"})
     assert response.status_code == 204
     assert mock_send.call_count == 0

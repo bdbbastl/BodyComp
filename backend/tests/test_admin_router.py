@@ -356,3 +356,41 @@ def test_overview_includes_signups_per_week(client, db_session):
     assert len(weeks) == 12
     # admin selbst wurde gerade erst angelegt -> aktuelle Woche hat mind. 1
     assert weeks[-1]["count"] >= 1
+
+
+def test_admin_send_password_reset_triggers_email(client, db_session, monkeypatch):
+    admin = _make_user(db_session, email="admin8@example.com", is_admin=True)
+    target = _make_user(db_session, email="target-reset@example.com")
+    _login_as(client, admin)
+
+    sent = {}
+
+    def _fake_send(*, to, reset_url):
+        sent["to"] = to
+        sent["reset_url"] = reset_url
+
+    monkeypatch.setattr("app.services.account.send_password_reset_email", _fake_send)
+
+    response = client.post(f"/api/admin/accounts/{target.id}/send-password-reset")
+    assert response.status_code == 204
+    assert sent["to"] == "target-reset@example.com"
+    assert "reset-password?token=" in sent["reset_url"]
+
+
+def test_admin_send_password_reset_rejects_google_only_account(client, db_session):
+    from app.models.user import AccountType
+
+    admin = _make_user(db_session, email="admin9@example.com", is_admin=True)
+    google_user = User(
+        email="google-only@example.com",
+        password_hash=None,
+        display_name="Google User",
+        account_type=AccountType.SINGLE,
+    )
+    db_session.add(google_user)
+    db_session.commit()
+    db_session.refresh(google_user)
+    _login_as(client, admin)
+
+    response = client.post(f"/api/admin/accounts/{google_user.id}/send-password-reset")
+    assert response.status_code == 400

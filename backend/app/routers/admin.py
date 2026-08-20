@@ -25,6 +25,7 @@ from app.schemas.admin import (
     AdminSetActiveRequest,
     AdminWeekCount,
 )
+from app.services.account import trigger_password_reset
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -324,6 +325,19 @@ def get_account_billing(user_id: int, db: Session = Depends(get_db)):
         next_billing_date=next_billing_date,
         recent_invoices=recent_invoices,
     )
+
+
+@router.post("/accounts/{user_id}/send-password-reset", status_code=204)
+def send_account_password_reset(user_id: int, db: Session = Depends(get_db)):
+    """Löst dieselbe Reset-Mail aus wie der öffentliche forgot-password-
+    Endpunkt (siehe services/account.py trigger_password_reset) - der
+    Admin sieht/setzt zu keinem Zeitpunkt ein Passwort."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(404, "Account not found")
+    if user.password_hash is None:
+        raise HTTPException(400, "This account uses Google Sign-In and has no password to reset")
+    trigger_password_reset(db, user)
 
 
 @router.patch("/accounts/{user_id}", response_model=AdminAccountOut)

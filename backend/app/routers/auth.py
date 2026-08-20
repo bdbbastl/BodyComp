@@ -25,7 +25,7 @@ from app.schemas.signup import (
     ResetPasswordRequest,
     SignupRequest,
 )
-from app.services.account import create_account
+from app.services.account import create_account, trigger_password_reset
 from app.services.auth import (
     SESSION_COOKIE_NAME,
     SESSION_MAX_AGE_SECONDS,
@@ -390,16 +390,7 @@ def forgot_password(
 ):
     user = db.query(User).filter(User.email == payload.email).first()
     if user is not None and user.password_hash is not None:
-        raw_token = create_email_token(user_id=user.id, purpose=EmailTokenPurpose.RESET_PASSWORD.value)
-        db.add(EmailToken(
-            user_id=user.id,
-            token_hash=hash_email_token(raw_token),
-            purpose=EmailTokenPurpose.RESET_PASSWORD,
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-        ))
-        db.commit()
-        reset_url = f"{settings.frontend_base_url}/reset-password?token={raw_token}"
-        send_password_reset_email(to=user.email, reset_url=reset_url)
+        trigger_password_reset(db, user)
     # immer 204 - kein Enumeration-Leak, egal ob Account existiert/Passwort hat
 
 
