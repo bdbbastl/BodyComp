@@ -113,10 +113,30 @@ export interface WeekStats {
   active_clients: number;
 }
 
+export interface DayCount {
+  date: string;
+  count: number;
+}
+
+export interface WeekCount {
+  week_start: string;
+  count: number;
+}
+
+export interface ActivityItem {
+  type: "checkin_submitted" | "checkin_reviewed" | "client_added";
+  client_id: number;
+  client_name: string;
+  timestamp: string;
+}
+
 export interface CoachDashboardSummary {
   pending_checkins: PendingCheckinSummary[];
   needs_attention: NeedsAttentionClient[];
   week_stats: WeekStats;
+  active_clients_last_7_days: DayCount[];
+  checkins_per_week: WeekCount[];
+  activity_feed: ActivityItem[];
 }
 
 export interface AdminOverview {
