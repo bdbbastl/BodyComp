@@ -12,5 +12,9 @@
     "jsx": "react-jsx",
     "strict": true
   },
-  "include": ["src"]
+  // Tests laufen unter Node (node --test, siehe npm run test), nicht im
+  // Browser - sie gehören deshalb nicht in den DOM-orientierten
+  // Type-Check der App und brauchen hier keine Node-Typen.
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }
