@@ -18,7 +18,6 @@ export function RotationSlider({
 }) {
   return (
     <SliderControl
-      icon="↻"
       label={label}
       value={degrees}
       min={ROTATION_MIN}
