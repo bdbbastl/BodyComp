@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useOnboarding } from "../contexts/OnboardingContext";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 /** Ersetzt das frühere Inline-Formular auf dem Dashboard - siehe
  * Design-Spec "Coach-Onboarding-Tour v2" Teil 5. Nur noch 3 Felder
@@ -97,6 +97,16 @@ export function AddClientModal({ onClose }: { onClose: () => void }) {
                 <option value="Other">Other</option>
               </select>
             </label>
+
+            {(createMutation.error as any)?.response?.status === 402 && (
+              <p className="text-sm text-red-400">
+                Client limit reached -{" "}
+                <Link to="/account" className="underline">
+                  subscribe/upgrade
+                </Link>
+                {" "}to add more clients.
+              </p>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <button
