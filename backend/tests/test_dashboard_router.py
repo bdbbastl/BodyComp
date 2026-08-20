@@ -165,3 +165,104 @@ def test_coach_summary_scoped_to_own_clients_only(client, db_session):
     response = client.get("/api/dashboard/coach-summary")
     assert response.status_code == 200
     assert response.json()["pending_checkins"] == []
+
+
+def test_coach_summary_activity_feed_sorted_newest_first(client, db_session):
+    user = _login(client, db_session)
+    old_client = Client(owner_id=user.id, name="Old Client")
+    db_session.add(old_client)
+    db_session.commit()
+    db_session.refresh(old_client)
+
+    old_client.created_at = datetime.now(timezone.utc) - timedelta(days=5)
+    checkin = CheckinSubmission(
+        client_id=old_client.id,
+        weight_kg=80.0,
+        status=CheckinStatus.REVIEWED,
+        submitted_at=datetime.now(timezone.utc) - timedelta(days=2),
+        reviewed_at=datetime.now(timezone.utc) - timedelta(hours=1),
+    )
+    db_session.add(checkin)
+    db_session.commit()
+
+    response = client.get("/api/dashboard/coach-summary")
+    assert response.status_code == 200
+    feed = response.json()["activity_feed"]
+    assert len(feed) >= 2
+    # neuestes Ereignis zuerst
+    assert feed[0]["type"] == "checkin_reviewed"
+    types = {item["type"] for item in feed}
+    assert "checkin_submitted" in types
+    assert "client_added" in types
+
+
+def test_coach_summary_activity_feed_limited_to_five(client, db_session):
+    user = _login(client, db_session)
+    c = Client(owner_id=user.id, name="Busy Client")
+    db_session.add(c)
+    db_session.commit()
+    db_session.refresh(c)
+
+    for i in range(8):
+        db_session.add(
+            CheckinSubmission(
+                client_id=c.id,
+                weight_kg=80.0,
+                status=CheckinStatus.PENDING,
+                submitted_at=datetime.now(timezone.utc) - timedelta(hours=i),
+            )
+        )
+    db_session.commit()
+
+    response = client.get("/api/dashboard/coach-summary")
+    assert response.status_code == 200
+    assert len(response.json()["activity_feed"]) == 5
+
+
+def test_coach_summary_active_clients_last_7_days_has_seven_entries(client, db_session):
+    user = _login(client, db_session)
+    c = Client(owner_id=user.id, name="Client A")
+    db_session.add(c)
+    db_session.commit()
+    db_session.refresh(c)
+
+    db_session.add(
+        CheckinSubmission(
+            client_id=c.id,
+            weight_kg=80.0,
+            status=CheckinStatus.PENDING,
+            submitted_at=datetime.now(timezone.utc),
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/api/dashboard/coach-summary")
+    assert response.status_code == 200
+    days = response.json()["active_clients_last_7_days"]
+    assert len(days) == 7
+    # heutiger Tag (letzter Eintrag) hat mindestens 1 aktiven Klienten
+    assert days[-1]["count"] >= 1
+
+
+def test_coach_summary_checkins_per_week_has_six_entries(client, db_session):
+    user = _login(client, db_session)
+    c = Client(owner_id=user.id, name="Client A")
+    db_session.add(c)
+    db_session.commit()
+    db_session.refresh(c)
+
+    db_session.add(
+        CheckinSubmission(
+            client_id=c.id,
+            weight_kg=80.0,
+            status=CheckinStatus.PENDING,
+            submitted_at=datetime.now(timezone.utc),
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/api/dashboard/coach-summary")
+    assert response.status_code == 200
+    weeks = response.json()["checkins_per_week"]
+    assert len(weeks) == 6
+    assert weeks[-1]["count"] >= 1

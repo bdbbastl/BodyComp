@@ -17,9 +17,12 @@ from app.models.photo import Photo
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.dashboard import (
+    ActivityItem,
     CoachDashboardSummary,
+    DayCount,
     NeedsAttentionClient,
     PendingCheckinSummary,
+    WeekCount,
     WeekStats,
 )
 
@@ -129,6 +132,86 @@ def coach_summary(
         .all()
     )
 
+    # --- activity_feed: letzte 5 Ereignisse (Check-in eingereicht/reviewed,
+    # neuer Klient), neueste zuerst. Reine Aggregation, kein neues Modell.
+    all_checkins = (
+        db.query(CheckinSubmission)
+        .filter(CheckinSubmission.client_id.in_(client_ids))
+        .all()
+    )
+
+    def _aware(dt: datetime) -> datetime:
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+    activity_events: list[ActivityItem] = []
+    for row in all_checkins:
+        activity_events.append(
+            ActivityItem(
+                type="checkin_submitted",
+                client_id=row.client_id,
+                client_name=client_names[row.client_id],
+                timestamp=row.submitted_at,
+            )
+        )
+        if row.status == CheckinStatus.REVIEWED and row.reviewed_at is not None:
+            activity_events.append(
+                ActivityItem(
+                    type="checkin_reviewed",
+                    client_id=row.client_id,
+                    client_name=client_names[row.client_id],
+                    timestamp=row.reviewed_at,
+                )
+            )
+    for c in clients:
+        activity_events.append(
+            ActivityItem(
+                type="client_added",
+                client_id=c.id,
+                client_name=c.name,
+                timestamp=c.created_at,
+            )
+        )
+    activity_events.sort(key=lambda e: _aware(e.timestamp), reverse=True)
+    activity_feed = activity_events[:5]
+
+    # --- active_clients_last_7_days: pro Kalendertag (UTC), wie viele
+    # Klienten an dem Tag einen Check-in eingereicht ODER ein Foto
+    # aufgenommen haben. Älteste zuerst, heute zuletzt.
+    photo_rows_7d = (
+        db.query(Photo.client_id, Photo.taken_at)
+        .filter(Photo.client_id.in_(client_ids), Photo.taken_at >= now - timedelta(days=7))
+        .all()
+    )
+    active_clients_last_7_days: list[DayCount] = []
+    for offset in range(6, -1, -1):
+        day_start = (now - timedelta(days=offset)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        day_end = day_start + timedelta(days=1)
+        active_ids = {
+            row.client_id
+            for row in all_checkins
+            if day_start <= _aware(row.submitted_at) < day_end
+        }
+        active_ids |= {
+            cid for cid, taken_at in photo_rows_7d if day_start <= _aware(taken_at) < day_end
+        }
+        active_clients_last_7_days.append(
+            DayCount(date=day_start.date().isoformat(), count=len(active_ids))
+        )
+
+    # --- checkins_per_week: letzte 6 Kalenderwochen (Montag-Start), Anzahl
+    # eingereichter Check-ins über alle Klienten.
+    current_week_start = now.date() - timedelta(days=now.weekday())
+    checkins_per_week: list[WeekCount] = []
+    for weeks_ago in range(5, -1, -1):
+        week_start = current_week_start - timedelta(weeks=weeks_ago)
+        week_end = week_start + timedelta(days=7)
+        count = sum(
+            1 for row in all_checkins if week_start <= row.submitted_at.date() < week_end
+        )
+        checkins_per_week.append(WeekCount(week_start=week_start.isoformat(), count=count))
+
     return CoachDashboardSummary(
         pending_checkins=pending_checkins,
         needs_attention=needs_attention,
@@ -137,4 +220,7 @@ def coach_summary(
             photos=photos_this_week,
             active_clients=len(active_client_ids),
         ),
+        active_clients_last_7_days=active_clients_last_7_days,
+        checkins_per_week=checkins_per_week,
+        activity_feed=activity_feed,
     )

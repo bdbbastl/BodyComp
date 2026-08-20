@@ -25,7 +25,27 @@ class WeekStats(BaseModel):
     active_clients: int
 
 
+class DayCount(BaseModel):
+    date: str  # ISO date "YYYY-MM-DD"
+    count: int
+
+
+class WeekCount(BaseModel):
+    week_start: str  # ISO date (Monday) "YYYY-MM-DD"
+    count: int
+
+
+class ActivityItem(BaseModel):
+    type: str  # "checkin_submitted" | "checkin_reviewed" | "client_added"
+    client_id: int
+    client_name: str
+    timestamp: datetime
+
+
 class CoachDashboardSummary(BaseModel):
     pending_checkins: list[PendingCheckinSummary]
     needs_attention: list[NeedsAttentionClient]
     week_stats: WeekStats
+    active_clients_last_7_days: list[DayCount]
+    checkins_per_week: list[WeekCount]
+    activity_feed: list[ActivityItem]
