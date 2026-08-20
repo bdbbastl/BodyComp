@@ -1,6 +1,7 @@
 // frontend/src/pages/Landing.tsx
 import { Link, Navigate } from "react-router-dom";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { DashboardPreview } from "../components/DashboardPreview";
 
 const FEATURES = [
   {
@@ -104,6 +105,10 @@ export default function Landing() {
           >
             Track yourself
           </Link>
+        </div>
+
+        <div className="mt-12">
+          <DashboardPreview />
         </div>
       </section>
 
