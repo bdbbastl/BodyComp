@@ -12,6 +12,8 @@ import { PositionSlider } from "../components/PositionSlider";
 import { BrightnessSlider, BRIGHTNESS_DEFAULT } from "../components/BrightnessSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import PageHeader from "../components/PageHeader";
+import { Grid3x3, ImageDown, Scan, Sparkles } from "lucide-react";
+import { IconButton } from "../components/IconButton";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 import { CompareExportModal } from "../components/CompareExportModal";
 import type { ExportAspect } from "../utils/compareExport";
@@ -273,6 +275,12 @@ export default function Compare() {
     !!result &&
     (!result.photo_x.normalized_path || !result.photo_y.normalized_path);
 
+  // Früher steuerte diese Bedingung, OB der KI-Button überhaupt gerendert
+  // wird. Im Header bleibt der Button dauerhaft sichtbar und wird
+  // stattdessen deaktiviert - sonst würde die Icon-Reihe je nach Auswahl
+  // ihre Breite ändern.
+  const canAnalyze = (isAllPoses && allPosePairs.length > 0) || (!isAllPoses && !!result);
+
   const resolveSrc = (photo: Photo) =>
     mediaUrl(normalize && photo.normalized_path ? photo.normalized_path : photo.display_path);
 
@@ -330,7 +338,52 @@ export default function Compare() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Compare" />
+      <PageHeader
+        title="Compare"
+        actions={
+          <>
+            <IconButton
+              icon={Scan}
+              label="KI-Normalisierung (Ausrichtung & Skalierung)"
+              toggle
+              active={normalize}
+              onClick={() => setNormalize((v) => !v)}
+            />
+            <IconButton
+              icon={Grid3x3}
+              label="Ausrichtungsgitter"
+              toggle
+              active={showGrid}
+              onClick={() => setShowGrid((v) => !v)}
+            />
+            <span className="mx-1 h-6 w-px bg-white/10" aria-hidden="true" />
+            <IconButton
+              icon={Sparkles}
+              label={
+                isAllPoses
+                  ? `KI-Gesamtanalyse (${allPosePairs.length} Posen)`
+                  : "KI-Analyse (Judge-Bewertung)"
+              }
+              variant="accent"
+              pending={activeAiMutation.isPending}
+              disabled={!canAnalyze}
+              badge={isAllPoses && allPosePairs.length > 0 ? allPosePairs.length : undefined}
+              onClick={() => {
+                show("Judge analyzing…");
+                activeAiMutation.mutate();
+              }}
+            />
+            {!isAllPoses && (
+              <IconButton
+                icon={ImageDown}
+                label="Vergleich exportieren"
+                disabled={!result}
+                onClick={() => setShowExportModal(true)}
+              />
+            )}
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-end gap-4 rounded-xl border border-white/5 bg-surface p-4">
         <label className="flex flex-col gap-1 text-sm text-slate-400">
@@ -451,41 +504,12 @@ export default function Compare() {
         <PoseNavBar poses={poses} currentPoseId={poseSelection} onNavigate={goToPose} disabled={isAllPoses} />
       )}
 
-      {((isAllPoses && allPosePairs.length > 0) || (!isAllPoses && result)) && (
-        <div className="flex flex-col items-center gap-2">
-          <button
-            onClick={() => {
-              show("Judge analyzing…");
-              activeAiMutation.mutate();
-            }}
-            disabled={activeAiMutation.isPending}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {activeAiMutation.isPending
-              ? "Judge analyzing…"
-              : isAllPoses
-                ? `🥊 AI overall analysis (${allPosePairs.length} poses)`
-                : "🥊 AI analysis (judge rating)"}
-          </button>
-          {activeAiMutation.isPending && (
-            <p className="flex items-center gap-2 text-xs text-slate-400">
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-              AI is still working… {elapsedSeconds}s
-              {elapsedSeconds > 20 && " (Gemini retries automatically under server load)"}
-            </p>
-          )}
-        </div>
-      )}
-
-      {!isAllPoses && result && (
-        <div className="flex justify-center">
-          <button
-            onClick={() => setShowExportModal(true)}
-            className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
-          >
-            Export Comparison
-          </button>
-        </div>
+      {activeAiMutation.isPending && (
+        <p className="flex items-center justify-center gap-2 text-xs text-accent">
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+          Judge analysiert… {elapsedSeconds}s
+          {elapsedSeconds > 20 && " (Gemini wiederholt automatisch bei Serverlast)"}
+        </p>
       )}
 
       {activeAiMutation.isError && (
