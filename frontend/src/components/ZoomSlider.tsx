@@ -17,7 +17,6 @@ export function ZoomSlider({
 }) {
   return (
     <SliderControl
-      icon="🔍"
       label={label}
       value={scale}
       min={ZOOM_MIN}

@@ -7,11 +7,13 @@ import type { Photo, Pose } from "../types";
 import { formatDateShortWithWeek } from "../utils/date";
 import { transformStyle, usePanZoom } from "../hooks/usePanZoom";
 import { ZoomSlider } from "../components/ZoomSlider";
-import { RotationSlider } from "../components/RotationSlider";
-import { PositionSlider } from "../components/PositionSlider";
-import { SliderControl } from "../components/SliderControl";
+import { BrightnessSlider, BRIGHTNESS_DEFAULT } from "../components/BrightnessSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
+import { CompareFilterBar } from "../components/CompareFilterBar";
+import { PaneAdjustments } from "../components/PaneAdjustments";
 import PageHeader from "../components/PageHeader";
+import { Grid3x3, ImageDown, Scan, Sparkles } from "lucide-react";
+import { IconButton } from "../components/IconButton";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 import { CompareExportModal } from "../components/CompareExportModal";
 import type { ExportAspect } from "../utils/compareExport";
@@ -28,10 +30,6 @@ type Mode = "side-by-side" | "slider";
 // Reihenfolge) für die zwei gewählten Termine untereinander an.
 type PoseSelection = number | "" | "all";
 const ALL_POSES = "all";
-
-const BRIGHTNESS_MIN = 50;
-const BRIGHTNESS_MAX = 250;
-const BRIGHTNESS_DEFAULT = 100;
 
 export default function Compare() {
   const { clientId } = useParams<{ clientId: string }>();
@@ -277,6 +275,12 @@ export default function Compare() {
     !!result &&
     (!result.photo_x.normalized_path || !result.photo_y.normalized_path);
 
+  // Früher steuerte diese Bedingung, OB der KI-Button überhaupt gerendert
+  // wird. Im Header bleibt der Button dauerhaft sichtbar und wird
+  // stattdessen deaktiviert - sonst würde die Icon-Reihe je nach Auswahl
+  // ihre Breite ändern.
+  const canAnalyze = (isAllPoses && allPosePairs.length > 0) || (!isAllPoses && !!result);
+
   const resolveSrc = (photo: Photo) =>
     mediaUrl(normalize && photo.normalized_path ? photo.normalized_path : photo.display_path);
 
@@ -334,99 +338,74 @@ export default function Compare() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Compare" />
+      <PageHeader
+        title="Compare"
+        actions={
+          <>
+            <IconButton
+              icon={Scan}
+              label="KI-Normalisierung (Ausrichtung & Skalierung)"
+              toggle
+              active={normalize}
+              onClick={() => setNormalize((v) => !v)}
+            />
+            <IconButton
+              icon={Grid3x3}
+              label="Ausrichtungsgitter"
+              toggle
+              active={showGrid}
+              onClick={() => setShowGrid((v) => !v)}
+            />
+            <span className="mx-1 h-6 w-px bg-white/10" aria-hidden="true" />
+            <IconButton
+              icon={Sparkles}
+              label={
+                isAllPoses
+                  ? `KI-Gesamtanalyse (${allPosePairs.length} Posen)`
+                  : "KI-Analyse (Judge-Bewertung)"
+              }
+              variant="accent"
+              pending={activeAiMutation.isPending}
+              disabled={!canAnalyze}
+              badge={isAllPoses && allPosePairs.length > 0 ? allPosePairs.length : undefined}
+              onClick={() => {
+                show("Judge analyzing…");
+                activeAiMutation.mutate();
+              }}
+            />
+            {!isAllPoses && (
+              <IconButton
+                icon={ImageDown}
+                label="Vergleich exportieren"
+                disabled={!result}
+                onClick={() => setShowExportModal(true)}
+              />
+            )}
+          </>
+        }
+      />
 
-      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-white/5 bg-surface p-4">
-        <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Pose
-          <select
-            value={poseSelection}
-            onChange={(e) =>
-              setPoseSelection(
-                e.target.value === "" ? "" : e.target.value === ALL_POSES ? ALL_POSES : Number(e.target.value)
-              )
-            }
-            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
-          >
-            <option value="">Choose pose…</option>
-            <option value={ALL_POSES}>All poses</option>
-            {poses.map((p, index) => (
-              <option key={p.id} value={p.id}>
-                {numberedPoseOptionLabel(index, p.name)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Date X
-          <select
-            value={dateX}
-            onChange={(e) => setDateX(e.target.value)}
-            disabled={poseSelection === "" || availableDates.length === 0}
-            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none disabled:opacity-40"
-          >
-            <option value="">
-              {poseSelection === "" ? "Choose pose first…" : "Choose date…"}
-            </option>
-            {availableDates.map((d) => (
-              <option key={d} value={d}>
-                {formatDate(d)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Date Y
-          <select
-            value={dateY}
-            onChange={(e) => setDateY(e.target.value)}
-            disabled={poseSelection === "" || availableDates.length === 0}
-            className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none disabled:opacity-40"
-          >
-            <option value="">
-              {poseSelection === "" ? "Choose pose first…" : "Choose date…"}
-            </option>
-            {availableDates.map((d) => (
-              <option key={d} value={d}>
-                {formatDate(d)}
-              </option>
-            ))}
-          </select>
-        </label>
-        {!isAllPoses && (
-          <div className="flex gap-1 rounded-full bg-black/30 p-1">
-            {(["side-by-side", "slider"] as Mode[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                  mode === m ? "bg-accent text-slate-900" : "text-slate-400 hover:text-white"
-                }`}
-              >
-                {m === "side-by-side" ? "Side-by-Side" : "Slider"}
-              </button>
-            ))}
-          </div>
-        )}
-        <label className="flex items-center gap-2 pb-2 text-sm text-slate-300">
-          <input
-            type="checkbox"
-            checked={normalize}
-            onChange={(e) => setNormalize(e.target.checked)}
-            className="h-4 w-4 accent-accent"
-          />
-          AI normalization (alignment &amp; scaling)
-        </label>
-        <label className="flex items-center gap-2 pb-2 text-sm text-slate-300">
-          <input
-            type="checkbox"
-            checked={showGrid}
-            onChange={(e) => setShowGrid(e.target.checked)}
-            className="h-4 w-4 accent-accent"
-          />
-          Alignment grid
-        </label>
-      </div>
+      <CompareFilterBar
+        poses={poses}
+        poseValue={poseSelection === "" ? "" : String(poseSelection)}
+        onPoseChange={(value) =>
+          setPoseSelection(value === "" ? "" : value === ALL_POSES ? ALL_POSES : Number(value))
+        }
+        onNavigate={goToPose}
+        navigationDisabled={isAllPoses || poses.length === 0}
+        allPosesValue={ALL_POSES}
+        dateX={dateX}
+        dateY={dateY}
+        onDateXChange={setDateX}
+        onDateYChange={setDateY}
+        availableDates={availableDates}
+        datesDisabled={poseSelection === "" || availableDates.length === 0}
+        datePlaceholder={poseSelection === "" ? "Choose pose first…" : "Choose date…"}
+        formatDate={formatDate}
+        mode={mode}
+        onModeChange={setMode}
+        showModeSwitch={!isAllPoses}
+      />
 
       {!isAllPoses && comparisonQuery.isError && (
         <p className="text-red-400">
@@ -451,45 +430,12 @@ export default function Compare() {
         </p>
       )}
 
-      {poses.length > 0 && dateX !== "" && dateY !== "" && (
-        <PoseNavBar poses={poses} currentPoseId={poseSelection} onNavigate={goToPose} disabled={isAllPoses} />
-      )}
-
-      {((isAllPoses && allPosePairs.length > 0) || (!isAllPoses && result)) && (
-        <div className="flex flex-col items-center gap-2">
-          <button
-            onClick={() => {
-              show("Judge analyzing…");
-              activeAiMutation.mutate();
-            }}
-            disabled={activeAiMutation.isPending}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {activeAiMutation.isPending
-              ? "Judge analyzing…"
-              : isAllPoses
-                ? `🥊 AI overall analysis (${allPosePairs.length} poses)`
-                : "🥊 AI analysis (judge rating)"}
-          </button>
-          {activeAiMutation.isPending && (
-            <p className="flex items-center gap-2 text-xs text-slate-400">
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-              AI is still working… {elapsedSeconds}s
-              {elapsedSeconds > 20 && " (Gemini retries automatically under server load)"}
-            </p>
-          )}
-        </div>
-      )}
-
-      {!isAllPoses && result && (
-        <div className="flex justify-center">
-          <button
-            onClick={() => setShowExportModal(true)}
-            className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
-          >
-            Export Comparison
-          </button>
-        </div>
+      {activeAiMutation.isPending && (
+        <p className="flex items-center justify-center gap-2 text-xs text-accent">
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+          Judge analysiert… {elapsedSeconds}s
+          {elapsedSeconds > 20 && " (Gemini wiederholt automatisch bei Serverlast)"}
+        </p>
       )}
 
       {activeAiMutation.isError && (
@@ -543,22 +489,16 @@ export default function Compare() {
             srcY={resolveSrc(result.photo_y)}
             filterX={filterFor(brightnessX)}
             filterY={filterFor(brightnessY)}
+            brightnessX={brightnessX}
+            onBrightnessXChange={setBrightnessX}
+            brightnessY={brightnessY}
+            onBrightnessYChange={setBrightnessY}
             altX={formatDate(dateX)}
             altY={formatDate(dateY)}
             showGrid={showGrid}
             gridLines={gridLines}
             onGridLineChange={updateGridLine}
           />
-          <div className="mx-auto grid max-w-2xl grid-cols-1 gap-x-8 gap-y-4 rounded-xl border border-white/5 bg-surface p-4 sm:grid-cols-2">
-            <BrightnessSlider
-              value={brightnessX}
-              onChange={setBrightnessX}
-            />
-            <BrightnessSlider
-              value={brightnessY}
-              onChange={setBrightnessY}
-            />
-          </div>
         </div>
       )}
 
@@ -680,66 +620,6 @@ function JudgeAnalysis({ text }: { text: string }) {
     </div>
   );
 }
-
-function PoseNavBar({
-  poses,
-  currentPoseId,
-  onNavigate,
-  disabled,
-}: {
-  poses: Pose[];
-  currentPoseId: PoseSelection;
-  onNavigate: (delta: number) => void;
-  disabled?: boolean;
-}) {
-  const currentIndex = poses.findIndex((p) => p.id === currentPoseId);
-  const currentPose = currentIndex >= 0 ? poses[currentIndex] : undefined;
-  const label =
-    currentPoseId === ALL_POSES
-      ? "All poses"
-      : currentPose
-        ? numberedPoseOptionLabel(currentIndex, currentPose.name)
-        : "Choose pose…";
-  return (
-    <div className="flex items-center justify-center gap-4">
-      <button
-        onClick={() => onNavigate(-1)}
-        disabled={disabled}
-        aria-label="Previous pose"
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-slate-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-      >
-        ‹
-      </button>
-      <span className="min-w-[10rem] text-center text-sm font-medium text-slate-300">{label}</span>
-      <button
-        onClick={() => onNavigate(1)}
-        disabled={disabled}
-        aria-label="Next pose"
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-slate-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-      >
-        ›
-      </button>
-    </div>
-  );
-}
-
-/** Belichtungs-Slider unter einem Bild - jedes Bild wird individuell
- * gesteuert (100% = unverändertes Original). */
-function BrightnessSlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  return (
-    <SliderControl
-      icon="☀"
-      label="Exposure"
-      value={value}
-      min={BRIGHTNESS_MIN}
-      max={BRIGHTNESS_MAX}
-      step={1}
-      onChange={onChange}
-      suffix="%"
-    />
-  );
-}
-
 
 /**
  * Ausrichtungshilfe: 3 horizontale Linien, die per Klick+Ziehen vertikal
@@ -904,13 +784,21 @@ const ZoomPane = forwardRef<ZoomPaneHandle, {
           </span>
         )}
       </div>
-      <div className="space-y-4 p-3.5">
-        {caption && <p className="text-sm font-medium text-slate-300">{caption}</p>}
-        <ZoomSlider scale={scale} onChange={setScaleFromSlider} />
-        <RotationSlider degrees={rotation} onChange={setRotation} />
-        {showBrightnessSlider && brightness !== undefined && onBrightnessChange && (
-          <BrightnessSlider value={brightness} onChange={onBrightnessChange} />
-        )}
+      <div>
+        {caption && <p className="px-3.5 pt-3 text-sm font-medium text-slate-300">{caption}</p>}
+        <PaneAdjustments
+          scale={scale}
+          onScaleChange={setScaleFromSlider}
+          rotation={rotation}
+          onRotationChange={setRotation}
+          brightness={showBrightnessSlider ? brightness : undefined}
+          onBrightnessChange={showBrightnessSlider ? onBrightnessChange : undefined}
+          onReset={() => {
+            reset();
+            setRotation(0);
+            if (showBrightnessSlider && onBrightnessChange) onBrightnessChange(BRIGHTNESS_DEFAULT);
+          }}
+        />
       </div>
     </div>
   );
@@ -941,13 +829,31 @@ const SliderComparePane = forwardRef<SliderPaneHandle, {
   srcY: string;
   filterX: string | undefined;
   filterY: string | undefined;
+  brightnessX: number;
+  onBrightnessXChange: (value: number) => void;
+  brightnessY: number;
+  onBrightnessYChange: (value: number) => void;
   altX: string;
   altY: string;
   showGrid?: boolean;
   gridLines?: number[];
   onGridLineChange?: (index: number, value: number) => void;
 }>(function SliderComparePane(
-  { srcX, srcY, filterX, filterY, altX, altY, showGrid, gridLines, onGridLineChange },
+  {
+    srcX,
+    srcY,
+    filterX,
+    filterY,
+    brightnessX,
+    onBrightnessXChange,
+    brightnessY,
+    onBrightnessYChange,
+    altX,
+    altY,
+    showGrid,
+    gridLines,
+    onGridLineChange,
+  },
   ref
 ) {
   const { scale, translate, containerRef, isDragging, reset, setScaleFromSlider } = usePanZoom();
@@ -1074,20 +980,46 @@ const SliderComparePane = forwardRef<SliderPaneHandle, {
           {altY}
         </span>
       </div>
-      <div className="mx-auto max-w-2xl space-y-5 rounded-xl border border-white/5 bg-surface p-4">
+      <div className="mx-auto max-w-2xl space-y-4 rounded-xl border border-white/5 bg-surface p-4">
         <ZoomSlider label="Zoom (shared)" scale={scale} onChange={setScaleFromSlider} />
-        <div className="grid grid-cols-1 gap-x-8 gap-y-5 border-t border-white/5 pt-5 sm:grid-cols-2">
-          <div className="space-y-4">
-            <p className="text-sm font-medium text-slate-300">{altX}</p>
-            <ZoomSlider label="Zoom" scale={fineZoomX} onChange={setFineZoomX} />
-            <RotationSlider degrees={rotationX} onChange={setRotationX} />
-            <PositionSlider offset={offsetX} onChange={setOffsetX} />
+        <div className="grid grid-cols-1 gap-x-8 border-t border-white/5 pt-3 sm:grid-cols-2">
+          <div>
+            <p className="px-3 text-sm font-medium text-slate-300">{altX}</p>
+            <PaneAdjustments
+              scale={fineZoomX}
+              onScaleChange={setFineZoomX}
+              rotation={rotationX}
+              onRotationChange={setRotationX}
+              offset={offsetX}
+              onOffsetChange={setOffsetX}
+              brightness={brightnessX}
+              onBrightnessChange={onBrightnessXChange}
+              onReset={() => {
+                setFineZoomX(1);
+                setRotationX(0);
+                setOffsetX({ x: 0, y: 0 });
+                onBrightnessXChange(BRIGHTNESS_DEFAULT);
+              }}
+            />
           </div>
-          <div className="space-y-4">
-            <p className="text-sm font-medium text-slate-300">{altY}</p>
-            <ZoomSlider label="Zoom" scale={fineZoomY} onChange={setFineZoomY} />
-            <RotationSlider degrees={rotationY} onChange={setRotationY} />
-            <PositionSlider offset={offsetY} onChange={setOffsetY} />
+          <div>
+            <p className="px-3 text-sm font-medium text-slate-300">{altY}</p>
+            <PaneAdjustments
+              scale={fineZoomY}
+              onScaleChange={setFineZoomY}
+              rotation={rotationY}
+              onRotationChange={setRotationY}
+              offset={offsetY}
+              onOffsetChange={setOffsetY}
+              brightness={brightnessY}
+              onBrightnessChange={onBrightnessYChange}
+              onReset={() => {
+                setFineZoomY(1);
+                setRotationY(0);
+                setOffsetY({ x: 0, y: 0 });
+                onBrightnessYChange(BRIGHTNESS_DEFAULT);
+              }}
+            />
           </div>
         </div>
       </div>
