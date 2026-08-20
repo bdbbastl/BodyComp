@@ -303,6 +303,9 @@ function DangerZoneSection({ clientId, clientName }: { clientId: number; clientN
               Cancel
             </button>
           </div>
+          {deleteMutation.isError && (
+            <p className="text-sm text-red-400">Could not delete this client. Please try again.</p>
+          )}
         </div>
       )}
     </Card>
