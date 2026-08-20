@@ -136,7 +136,10 @@ def coach_summary(
     # neuer Klient), neueste zuerst. Reine Aggregation, kein neues Modell.
     all_checkins = (
         db.query(CheckinSubmission)
-        .filter(CheckinSubmission.client_id.in_(client_ids))
+        .filter(
+            CheckinSubmission.client_id.in_(client_ids),
+            CheckinSubmission.submitted_at >= now - timedelta(weeks=6),
+        )
         .all()
     )
 
