@@ -56,6 +56,8 @@ export const api = {
     portal: () => client.post<{ portal_url: string }>("/billing/portal").then((r) => r.data),
   },
   auth: {
+    config: () =>
+      client.get<{ signup_enabled: boolean }>("/auth/config").then((r) => r.data),
     login: (email: string, password: string) =>
       client.post<CurrentUser>("/auth/login", { email, password }).then((r) => r.data),
     logout: () => client.post("/auth/logout"),

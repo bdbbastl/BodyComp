@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 
@@ -10,11 +10,34 @@ export default function Signup() {
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const navigate = useNavigate();
 
+  // Selbst-Registrierung kann vorübergehend gesperrt sein (siehe
+  // BODYCOMP_SIGNUP_ENABLED) - lieber gar kein Formular zeigen als eins,
+  // das garantiert mit 403 fehlschlägt.
+  const configQuery = useQuery({ queryKey: ["auth", "config"], queryFn: api.auth.config });
+
   const signupMutation = useMutation({
     mutationFn: () =>
       api.auth.signup({ email, password, display_name: displayName, privacy_accepted: privacyAccepted }),
     onSuccess: () => navigate("/signup-success"),
   });
+
+  if (configQuery.data && !configQuery.data.signup_enabled) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="w-full max-w-sm space-y-4 rounded-xl border border-white/5 bg-surface p-6 text-center">
+          <h1 className="text-xl font-semibold text-white">
+            BodyComp <span className="text-accent">Tracker</span>
+          </h1>
+          <p className="text-sm text-slate-400">
+            Sign-ups are currently closed. Please check back soon.
+          </p>
+          <Link to="/login" className="inline-block text-sm text-accent hover:underline">
+            Already have an account? Log in
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">

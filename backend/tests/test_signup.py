@@ -64,6 +64,32 @@ def test_signup_rolls_back_account_when_verification_email_fails(client, db_sess
     assert mock_send.call_count == 1
 
 
+def test_signup_disabled_via_settings_returns_403(client, db_session, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "signup_enabled", False)
+    response = client.post(
+        "/api/auth/signup",
+        json={
+            "email": "blocked@example.com",
+            "password": "SuperSecret123!",
+            "display_name": "Blocked",
+            "privacy_accepted": True,
+        },
+    )
+    assert response.status_code == 403
+    assert db_session.query(User).filter(User.email == "blocked@example.com").first() is None
+
+
+def test_public_config_reflects_signup_enabled(client, db_session, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "signup_enabled", False)
+    response = client.get("/api/auth/config")
+    assert response.status_code == 200
+    assert response.json() == {"signup_enabled": False}
+
+
 def test_signup_without_privacy_consent_is_rejected(client, db_session):
     response = client.post(
         "/api/auth/signup",

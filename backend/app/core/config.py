@@ -110,6 +110,12 @@ class Settings(BaseSettings):
     # Leer = Sentry deaktiviert (lokale Entwicklung) - siehe main.py.
     sentry_dsn: str = ""
 
+    # Schalter, um neue Selbst-Registrierungen vorübergehend zu sperren
+    # (z.B. während echte Nutzer noch keine sinnvolle Umgebung vorfinden
+    # sollen) - siehe routers/auth.py signup(). Bewusst nur Signup
+    # betroffen, nicht Login/bestehende Accounts.
+    signup_enabled: bool = True
+
     # Stripe (Stufe 4 - Billing). Leere Strings = Billing-Endpunkte
     # funktionieren nicht (kein Crash beim Start), aber jeder Versuch,
     # eine Checkout-Session zu erzeugen, schlägt kontrolliert fehl -

@@ -110,6 +110,15 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+@router.get("/config")
+def public_config():
+    """Öffentliche, unauthentifizierte Frontend-Konfiguration - aktuell nur
+    ob Selbst-Registrierung gerade offen ist (siehe settings.signup_enabled),
+    damit die Signup-Seite das Formular gar nicht erst zeigt statt einen
+    fehlschlagenden Absende-Versuch zu erzwingen."""
+    return {"signup_enabled": settings.signup_enabled}
+
+
 @router.post("/login", response_model=UserOut)
 def login(
     payload: LoginRequest,
@@ -182,6 +191,9 @@ def signup(
     db: Session = Depends(get_db),
     _rate_limit: None = Depends(signup_rate_limit),
 ):
+    if not settings.signup_enabled:
+        raise HTTPException(403, "Sign-ups are currently closed.")
+
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         # Bewusst NICHT generisch wie forgot-password/resend-verification:
