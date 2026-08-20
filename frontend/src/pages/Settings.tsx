@@ -25,6 +25,9 @@ export default function Settings() {
   const [coachNote, setCoachNote] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [reminderDays, setReminderDays] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [profileBirthDate, setProfileBirthDate] = useState("");
+  const [profileGender, setProfileGender] = useState("");
 
   const clientQuery = useQuery({
     queryKey: ["clients", clientIdNum],
@@ -38,6 +41,9 @@ export default function Settings() {
     setReminderDays(
       clientQuery.data.checkin_reminder_days != null ? String(clientQuery.data.checkin_reminder_days) : ""
     );
+    setProfileName(clientQuery.data.name);
+    setProfileBirthDate(clientQuery.data.birth_date ?? "");
+    setProfileGender(clientQuery.data.gender ?? "");
   }, [clientQuery.data]);
 
   const updateClientMutation = useMutation({
@@ -46,6 +52,20 @@ export default function Settings() {
         coach_private_note: coachNote.trim() === "" ? null : coachNote,
         email: clientEmail.trim() === "" ? null : clientEmail.trim(),
         checkin_reminder_days: reminderDays.trim() === "" ? null : Number(reminderDays),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["clients", clientIdNum] }),
+  });
+
+  // Eigene Mutation statt updateClientMutation zu erweitern - Profil-
+  // Stammdaten (Name/Geburtsdatum/Gender) und die coach-spezifischen
+  // Felder (E-Mail/Reminder/Notiz) haben eigene Karten mit eigenem
+  // Save-Button, siehe Design-Spec "Client-Profil bearbeiten".
+  const profileMutation = useMutation({
+    mutationFn: () =>
+      api.clients.update(clientIdNum, {
+        name: profileName.trim(),
+        birth_date: profileBirthDate.trim() === "" ? null : profileBirthDate,
+        gender: profileGender.trim() === "" ? null : profileGender,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["clients", clientIdNum] }),
   });
@@ -90,6 +110,55 @@ export default function Settings() {
   return (
     <div className="max-w-xl space-y-6">
       <PageHeader title="Settings" />
+
+      <Card title="Client Profile">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (profileName.trim()) profileMutation.mutate();
+          }}
+          className="space-y-3"
+        >
+          <label className="flex flex-col gap-1 text-sm text-slate-400">
+            Name
+            <input
+              required
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-slate-400">
+            Date of Birth
+            <input
+              type="date"
+              value={profileBirthDate}
+              onChange={(e) => setProfileBirthDate(e.target.value)}
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-slate-400">
+            Gender
+            <select
+              value={profileGender}
+              onChange={(e) => setProfileGender(e.target.value)}
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-accent focus:outline-none"
+            >
+              <option value="">Select…</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+          <button
+            type="submit"
+            disabled={!profileName.trim() || profileMutation.isPending}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-slate-900 hover:opacity-90 disabled:opacity-50"
+          >
+            {profileMutation.isPending ? "Saving…" : profileMutation.isSuccess ? "Saved!" : "Save"}
+          </button>
+        </form>
+      </Card>
 
       {!isSingleAccount && (
         <div className="space-y-4 rounded-xl border border-white/5 bg-surface p-4">
