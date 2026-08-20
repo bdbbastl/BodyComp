@@ -12,6 +12,7 @@ import { PositionSlider } from "../components/PositionSlider";
 import { BrightnessSlider, BRIGHTNESS_DEFAULT } from "../components/BrightnessSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import { CompareFilterBar } from "../components/CompareFilterBar";
+import { PaneAdjustments } from "../components/PaneAdjustments";
 import PageHeader from "../components/PageHeader";
 import { Grid3x3, ImageDown, Scan, Sparkles } from "lucide-react";
 import { IconButton } from "../components/IconButton";
@@ -791,13 +792,21 @@ const ZoomPane = forwardRef<ZoomPaneHandle, {
           </span>
         )}
       </div>
-      <div className="space-y-4 p-3.5">
-        {caption && <p className="text-sm font-medium text-slate-300">{caption}</p>}
-        <ZoomSlider scale={scale} onChange={setScaleFromSlider} />
-        <RotationSlider degrees={rotation} onChange={setRotation} />
-        {showBrightnessSlider && brightness !== undefined && onBrightnessChange && (
-          <BrightnessSlider value={brightness} onChange={onBrightnessChange} />
-        )}
+      <div>
+        {caption && <p className="px-3.5 pt-3 text-sm font-medium text-slate-300">{caption}</p>}
+        <PaneAdjustments
+          scale={scale}
+          onScaleChange={setScaleFromSlider}
+          rotation={rotation}
+          onRotationChange={setRotation}
+          brightness={showBrightnessSlider ? brightness : undefined}
+          onBrightnessChange={showBrightnessSlider ? onBrightnessChange : undefined}
+          onReset={() => {
+            reset();
+            setRotation(0);
+            if (showBrightnessSlider && onBrightnessChange) onBrightnessChange(BRIGHTNESS_DEFAULT);
+          }}
+        />
       </div>
     </div>
   );
