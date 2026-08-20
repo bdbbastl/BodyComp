@@ -359,7 +359,7 @@ function WeekStatsWidget({
   );
 }
 
-function ACTIVITY_LABEL(item: ActivityItem): string {
+function activityLabel(item: ActivityItem): string {
   switch (item.type) {
     case "checkin_submitted":
       return `${item.client_name} submitted a check-in`;
@@ -388,10 +388,13 @@ function ActivityFeedWidget({ items, isLoading }: { items: ActivityItem[]; isLoa
         <p className="text-sm text-slate-500">Nothing yet — activity will show up here.</p>
       )}
       <div className="space-y-1">
-        {items.map((item, i) => (
-          <div key={i} className="flex items-center gap-2 border-b border-white/5 py-1.5 last:border-0">
+        {items.map((item) => (
+          <div
+            key={`${item.type}-${item.client_id}-${item.timestamp}`}
+            className="flex items-center gap-2 border-b border-white/5 py-1.5 last:border-0"
+          >
             <Avatar name={item.client_name} />
-            <p className="flex-1 text-sm text-slate-300">{ACTIVITY_LABEL(item)}</p>
+            <p className="flex-1 text-sm text-slate-300">{activityLabel(item)}</p>
             <p className="shrink-0 text-xs text-slate-500">{relativeTime(item.timestamp)}</p>
           </div>
         ))}
@@ -411,7 +414,10 @@ function WeeklyCheckinsChartWidget({
   return (
     <Card title="Check-ins per week" className="md:col-span-2">
       {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
-      {!isLoading && (
+      {!isLoading && weeks.length === 0 && (
+        <p className="text-sm text-slate-500">No check-ins yet.</p>
+      )}
+      {!isLoading && weeks.length > 0 && (
         <div className="flex h-24 items-end gap-3">
           {weeks.map((w) => (
             <div key={w.week_start} className="flex flex-1 flex-col items-center gap-1">
