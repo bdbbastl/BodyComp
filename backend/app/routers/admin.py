@@ -219,11 +219,14 @@ def get_account(user_id: int, db: Session = Depends(get_db)):
         or 0
     )
 
-    storage_rows = (
-        db.query(Photo.file_size_bytes).filter(Photo.client_id.in_(client_ids)).all()
+    total_storage_bytes, photos_with_unknown_size = (
+        db.query(
+            func.coalesce(func.sum(Photo.file_size_bytes), 0),
+            func.count().filter(Photo.file_size_bytes.is_(None)),
+        )
+        .filter(Photo.client_id.in_(client_ids))
+        .one()
     )
-    total_storage_bytes = sum(size for (size,) in storage_rows if size is not None)
-    photos_with_unknown_size = sum(1 for (size,) in storage_rows if size is None)
 
     base = _account_out(user, len(clients), last_activity_at)
     return AdminAccountDetailOut(
