@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
@@ -52,6 +52,9 @@ export default function Compare() {
   // auf jedem Bild an derselben relativen Höhe erscheinen.
   const [showGrid, setShowGrid] = useState(false);
   const [gridLines, setGridLines] = useState<number[]>([25, 50, 75]);
+  const paneXRef = useRef<ZoomPaneHandle>(null);
+  const paneYRef = useRef<ZoomPaneHandle>(null);
+  const sliderPaneRef = useRef<SliderPaneHandle>(null);
   function updateGridLine(index: number, value: number) {
     setGridLines((lines) => lines.map((l, i) => (i === index ? value : l)));
   }
@@ -430,6 +433,7 @@ export default function Compare() {
       {!isAllPoses && result && mode === "side-by-side" && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <ComparePane
+            ref={paneXRef}
             label={formatDate(dateX)}
             src={resolveSrc(result.photo_x)}
             filter={filterFor(brightnessX)}
@@ -440,6 +444,7 @@ export default function Compare() {
             onGridLineChange={updateGridLine}
           />
           <ComparePane
+            ref={paneYRef}
             label={formatDate(dateY)}
             src={resolveSrc(result.photo_y)}
             filter={filterFor(brightnessY)}
@@ -461,6 +466,7 @@ export default function Compare() {
             </p>
           )}
           <SliderComparePane
+            ref={sliderPaneRef}
             key={`${result.photo_x.id}-${result.photo_y.id}`}
             srcX={resolveSrc(result.photo_x)}
             srcY={resolveSrc(result.photo_y)}
@@ -732,18 +738,11 @@ function AlignmentGridOverlay({
  * Einzel-Regler, damit die Zuordnung "welcher Regler gehört zu welchem
  * Bild" auf einen Blick klar ist.
  */
-function ZoomPane({
-  src,
-  alt,
-  filter,
-  caption,
-  brightness,
-  onBrightnessChange,
-  showBrightnessSlider = true,
-  showGrid,
-  gridLines,
-  onGridLineChange,
-}: {
+export interface ZoomPaneHandle {
+  getExportState: () => { scale: number; translateX: number; translateY: number; rotation: number };
+}
+
+const ZoomPane = forwardRef<ZoomPaneHandle, {
   src: string;
   alt: string;
   filter: string | undefined;
@@ -754,9 +753,27 @@ function ZoomPane({
   showGrid?: boolean;
   gridLines?: number[];
   onGridLineChange?: (index: number, value: number) => void;
-}) {
+}>(function ZoomPane(
+  {
+    src,
+    alt,
+    filter,
+    caption,
+    brightness,
+    onBrightnessChange,
+    showBrightnessSlider = true,
+    showGrid,
+    gridLines,
+    onGridLineChange,
+  },
+  ref
+) {
   const { scale, translate, containerRef, isDragging, reset, setScaleFromSlider } = usePanZoom();
   const [rotation, setRotation] = useState(0);
+
+  useImperativeHandle(ref, () => ({
+    getExportState: () => ({ scale, translateX: translate.x, translateY: translate.y, rotation }),
+  }));
 
   return (
     <div>
@@ -795,7 +812,7 @@ function ZoomPane({
       </div>
     </div>
   );
-}
+});
 
 /** Schieberegler-Vergleich: eine vertikale Trennlinie, die man horizontal
  * hin- und herziehen kann - links Bild X, rechts Bild Y (klassischer
@@ -804,17 +821,18 @@ function ZoomPane({
  * zu sehen. Zoom/Pan wirken auf beide Bilder gleich (siehe usePanZoom),
  * damit sie beim Zoomen deckungsgleich bleiben; ein zusätzlicher
  * Zoom-Slider erlaubt feinstufiges Nachjustieren über das Mausrad hinaus. */
-function SliderComparePane({
-  srcX,
-  srcY,
-  filterX,
-  filterY,
-  altX,
-  altY,
-  showGrid,
-  gridLines,
-  onGridLineChange,
-}: {
+export interface SliderPaneHandle {
+  getExportState: () => {
+    scale: number;
+    translateX: number;
+    translateY: number;
+    dividerPct: number;
+    x: { offsetX: number; offsetY: number; fineZoom: number; rotation: number };
+    y: { offsetX: number; offsetY: number; fineZoom: number; rotation: number };
+  };
+}
+
+const SliderComparePane = forwardRef<SliderPaneHandle, {
   srcX: string;
   srcY: string;
   filterX: string | undefined;
@@ -824,7 +842,10 @@ function SliderComparePane({
   showGrid?: boolean;
   gridLines?: number[];
   onGridLineChange?: (index: number, value: number) => void;
-}) {
+}>(function SliderComparePane(
+  { srcX, srcY, filterX, filterY, altX, altY, showGrid, gridLines, onGridLineChange },
+  ref
+) {
   const { scale, translate, containerRef, isDragging, reset, setScaleFromSlider } = usePanZoom();
   const [dividerPct, setDividerPct] = useState(50);
   const [rotationX, setRotationX] = useState(0);
@@ -844,6 +865,17 @@ function SliderComparePane({
   const [offsetX, setOffsetX] = useState({ x: 0, y: 0 });
   const [offsetY, setOffsetY] = useState({ x: 0, y: 0 });
   const draggingDividerRef = useRef(false);
+
+  useImperativeHandle(ref, () => ({
+    getExportState: () => ({
+      scale,
+      translateX: translate.x,
+      translateY: translate.y,
+      dividerPct,
+      x: { offsetX: offsetX.x, offsetY: offsetX.y, fineZoom: fineZoomX, rotation: rotationX },
+      y: { offsetX: offsetY.x, offsetY: offsetY.y, fineZoom: fineZoomY, rotation: rotationY },
+    }),
+  }));
 
   useEffect(() => {
     function handleMove(e: MouseEvent) {
@@ -952,19 +984,9 @@ function SliderComparePane({
       </div>
     </div>
   );
-}
+});
 
-function ComparePane({
-  label,
-  src,
-  filter,
-  brightness,
-  onBrightnessChange,
-  showBrightnessSlider = true,
-  showGrid,
-  gridLines,
-  onGridLineChange,
-}: {
+const ComparePane = forwardRef<ZoomPaneHandle, {
   label: string;
   src: string;
   filter: string | undefined;
@@ -974,10 +996,14 @@ function ComparePane({
   showGrid?: boolean;
   gridLines?: number[];
   onGridLineChange?: (index: number, value: number) => void;
-}) {
+}>(function ComparePane(
+  { label, src, filter, brightness, onBrightnessChange, showBrightnessSlider = true, showGrid, gridLines, onGridLineChange },
+  ref
+) {
   return (
     <figure className="overflow-hidden rounded-xl border border-white/5 bg-surface">
       <ZoomPane
+        ref={ref}
         key={src}
         src={src}
         alt={label}
@@ -992,4 +1018,4 @@ function ComparePane({
       />
     </figure>
   );
-}
+});
