@@ -6,7 +6,7 @@ import { useOnboarding } from "../contexts/OnboardingContext";
  * Klienten wieder zu löschen, damit der Coach sauber mit einem echten
  * ersten Klienten starten kann. */
 export function OnboardingEndModal() {
-  const { phase, tourClientId, finishTour, deleteTourClient } = useOnboarding();
+  const { phase, tourClientId, finishTour, deleteTourClient, isDeletingTourClient } = useOnboarding();
 
   if (phase !== "end") return null;
 
@@ -30,9 +30,10 @@ export function OnboardingEndModal() {
           {tourClientId !== null && (
             <button
               onClick={deleteTourClient}
-              className="rounded-lg border border-red-900/50 px-4 py-2 text-sm text-red-400 hover:bg-red-950/30"
+              disabled={isDeletingTourClient}
+              className="rounded-lg border border-red-900/50 px-4 py-2 text-sm text-red-400 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Delete this client
+              {isDeletingTourClient ? "Deleting…" : "Delete this client"}
             </button>
           )}
         </div>

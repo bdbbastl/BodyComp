@@ -85,6 +85,7 @@ interface OnboardingContextValue {
   setTourClientId: (id: number) => void;
   finishTour: () => void;
   deleteTourClient: () => void;
+  isDeletingTourClient: boolean;
   skip: () => void;
   restart: () => void;
 }
@@ -171,6 +172,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       finishTour();
     },
+    onError: () => {
+      finishTour();
+    },
   });
 
   const deleteTourClient = useCallback(() => {
@@ -183,6 +187,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   const skip = useCallback(() => {
     setPhase(null);
+    setTourClientIdState(null);
     completeMutation.mutate();
   }, [completeMutation]);
 
@@ -203,6 +208,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setTourClientId,
     finishTour,
     deleteTourClient,
+    isDeletingTourClient: deleteClientMutation.isPending,
     skip,
     restart,
   };
