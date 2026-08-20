@@ -6,7 +6,8 @@ import { useOnboarding } from "../contexts/OnboardingContext";
  * Klienten wieder zu löschen, damit der Coach sauber mit einem echten
  * ersten Klienten starten kann. */
 export function OnboardingEndModal() {
-  const { phase, tourClientId, finishTour, deleteTourClient, isDeletingTourClient } = useOnboarding();
+  const { phase, tourClientId, finishTour, deleteTourClient, isDeletingTourClient, tourClientDeleteFailed } =
+    useOnboarding();
 
   if (phase !== "end") return null;
 
@@ -37,6 +38,11 @@ export function OnboardingEndModal() {
             </button>
           )}
         </div>
+        {tourClientDeleteFailed && (
+          <p className="mt-2 text-xs text-red-400">
+            Could not delete this client. Please try again, or keep it for now.
+          </p>
+        )}
       </div>
     </div>
   );

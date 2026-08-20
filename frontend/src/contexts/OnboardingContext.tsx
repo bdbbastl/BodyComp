@@ -86,6 +86,7 @@ interface OnboardingContextValue {
   finishTour: () => void;
   deleteTourClient: () => void;
   isDeletingTourClient: boolean;
+  tourClientDeleteFailed: boolean;
   skip: () => void;
   restart: () => void;
 }
@@ -172,9 +173,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       finishTour();
     },
-    onError: () => {
-      finishTour();
-    },
+    // Bewusst KEIN automatisches finishTour() bei Fehler - der Coach soll
+    // sehen, dass das Löschen fehlgeschlagen ist, statt anzunehmen, es
+    // hätte geklappt (siehe Design-Spec "Coach-Onboarding-Tour v2" Teil 3,
+    // Review-Fund). "Keep this client" im OnboardingEndModal bleibt als
+    // Ausweg jederzeit klickbar.
   });
 
   const deleteTourClient = useCallback(() => {
@@ -209,6 +212,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     finishTour,
     deleteTourClient,
     isDeletingTourClient: deleteClientMutation.isPending,
+    tourClientDeleteFailed: deleteClientMutation.isError,
     skip,
     restart,
   };
