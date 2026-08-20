@@ -73,14 +73,18 @@ export const SINGLE_STEPS: TourStep[] = [
 ];
 
 interface OnboardingContextValue {
-  phase: "modal" | "tour" | null;
+  phase: "modal" | "tour" | "end" | null;
   modalSlide: number;
   stepIndex: number;
   steps: TourStep[];
+  tourClientId: number | null;
   start: () => void;
   nextModalSlide: () => void;
   startTour: () => void;
   nextStep: () => void;
+  setTourClientId: (id: number) => void;
+  finishTour: () => void;
+  deleteTourClient: () => void;
   skip: () => void;
   restart: () => void;
 }
@@ -102,9 +106,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     enabled: user?.account_type === "single",
     retry: false,
   });
-  const [phase, setPhase] = useState<"modal" | "tour" | null>(null);
+  const [phase, setPhase] = useState<"modal" | "tour" | "end" | null>(null);
   const [modalSlide, setModalSlide] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
+  const [tourClientId, setTourClientIdState] = useState<number | null>(null);
 
   const steps = useMemo(
     () => (user?.account_type === "coach" ? COACH_STEPS : SINGLE_STEPS),
@@ -143,13 +148,38 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setStepIndex((i) => {
       const next = i + 1;
       if (next >= steps.length) {
-        setPhase(null);
-        completeMutation.mutate();
+        setPhase("end");
         return i;
       }
       return next;
     });
-  }, [steps.length, completeMutation]);
+  }, [steps.length]);
+
+  const setTourClientId = useCallback((id: number) => {
+    setTourClientIdState(id);
+  }, []);
+
+  const finishTour = useCallback(() => {
+    setPhase(null);
+    setTourClientIdState(null);
+    completeMutation.mutate();
+  }, [completeMutation]);
+
+  const deleteClientMutation = useMutation({
+    mutationFn: (clientId: number) => api.clients.delete(clientId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      finishTour();
+    },
+  });
+
+  const deleteTourClient = useCallback(() => {
+    if (tourClientId !== null) {
+      deleteClientMutation.mutate(tourClientId);
+    } else {
+      finishTour();
+    }
+  }, [tourClientId, deleteClientMutation, finishTour]);
 
   const skip = useCallback(() => {
     setPhase(null);
@@ -165,10 +195,14 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     modalSlide,
     stepIndex,
     steps,
+    tourClientId,
     start,
     nextModalSlide,
     startTour,
     nextStep,
+    setTourClientId,
+    finishTour,
+    deleteTourClient,
     skip,
     restart,
   };

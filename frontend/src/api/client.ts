@@ -116,6 +116,7 @@ export const api = {
     ) => client.patch<Client>(`/clients/${clientId}`, payload).then((r) => r.data),
     regenerateCheckinToken: (clientId: number) =>
       client.post<Client>(`/clients/${clientId}/checkin-token/regenerate`).then((r) => r.data),
+    delete: (clientId: number) => client.delete(`/clients/${clientId}`),
   },
   poses: {
     list: (clientId: number) => client.get<Pose[]>(`/clients/${clientId}/poses`).then((r) => r.data),
