@@ -273,3 +273,74 @@ def test_account_detail_sums_known_photo_sizes_and_counts_unknown(client, db_ses
     body = response.json()
     assert body["total_storage_bytes"] == 3000
     assert body["photos_with_unknown_size"] == 1
+
+
+def test_billing_returns_empty_state_when_no_stripe_customer(client, db_session):
+    admin = _make_user(db_session, email="admin4@example.com", is_admin=True)
+    target = _make_user(db_session, email="target-no-stripe@example.com")
+    _login_as(client, admin)
+
+    response = client.get(f"/api/admin/accounts/{target.id}/billing")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["has_stripe_customer"] is False
+    assert body["subscription_id"] is None
+    assert body["recent_invoices"] == []
+
+
+def test_billing_fetches_live_stripe_data(client, db_session, monkeypatch):
+    admin = _make_user(db_session, email="admin5@example.com", is_admin=True)
+    target = _make_user(db_session, email="target-stripe@example.com")
+    target.stripe_customer_id = "cus_test123"
+    db_session.commit()
+    _login_as(client, admin)
+
+    fake_subscription = {
+        "data": [
+            {"id": "sub_abc", "current_period_end": 1893456000}  # 2030-01-01 UTC
+        ]
+    }
+    fake_invoices = {
+        "data": [
+            {
+                "amount_paid": 4900,
+                "currency": "eur",
+                "status_transitions": {"paid_at": 1735689600},  # 2025-01-01 UTC
+                "status": "paid",
+            }
+        ]
+    }
+
+    monkeypatch.setattr(
+        "app.routers.admin.stripe.Subscription.list", lambda **kwargs: fake_subscription
+    )
+    monkeypatch.setattr("app.routers.admin.stripe.Invoice.list", lambda **kwargs: fake_invoices)
+
+    response = client.get(f"/api/admin/accounts/{target.id}/billing")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["has_stripe_customer"] is True
+    assert body["subscription_id"] == "sub_abc"
+    assert len(body["recent_invoices"]) == 1
+    assert body["recent_invoices"][0]["amount"] == 49.0
+    assert body["recent_invoices"][0]["currency"] == "eur"
+
+
+def test_billing_handles_stripe_error_gracefully(client, db_session, monkeypatch):
+    admin = _make_user(db_session, email="admin6@example.com", is_admin=True)
+    target = _make_user(db_session, email="target-stripe-err@example.com")
+    target.stripe_customer_id = "cus_broken"
+    db_session.commit()
+    _login_as(client, admin)
+
+    def _raise(**kwargs):
+        raise Exception("Stripe network error")
+
+    monkeypatch.setattr("app.routers.admin.stripe.Subscription.list", _raise)
+
+    response = client.get(f"/api/admin/accounts/{target.id}/billing")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["has_stripe_customer"] is True
+    assert body["subscription_id"] is None
+    assert body["recent_invoices"] == []

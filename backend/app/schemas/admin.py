@@ -52,3 +52,17 @@ class AdminAccountDetailOut(AdminAccountOut):
 
 class AdminSetActiveRequest(BaseModel):
     is_active: bool
+
+
+class AdminInvoiceOut(BaseModel):
+    amount: float
+    currency: str
+    paid_at: datetime | None
+    status: str
+
+
+class AdminBillingOut(BaseModel):
+    has_stripe_customer: bool
+    subscription_id: str | None
+    next_billing_date: datetime | None
+    recent_invoices: list[AdminInvoiceOut]

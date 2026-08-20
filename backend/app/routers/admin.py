@@ -1,7 +1,9 @@
 """Master-Admin-Bereich - siehe Design-Spec "Master-Admin-Dashboard".
 Alle Routen hinter require_admin (app/routers/auth.py)."""
+import logging
 from datetime import datetime, timedelta, timezone
 
+import stripe
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -16,12 +18,16 @@ from app.routers.auth import require_admin
 from app.schemas.admin import (
     AdminAccountDetailOut,
     AdminAccountOut,
+    AdminBillingOut,
     AdminClientSummaryOut,
+    AdminInvoiceOut,
     AdminOverviewOut,
     AdminSetActiveRequest,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
+
+logger = logging.getLogger(__name__)
 
 # Wie active/inactive bestimmt wird - konsistent mit dem 14-Tage-Fenster
 # aus der Design-Spec. "never" (kein last_activity_at) wird separat
@@ -235,6 +241,71 @@ def get_account(user_id: int, db: Session = Depends(get_db)):
         total_checkins=total_checkins,
         total_storage_bytes=total_storage_bytes,
         photos_with_unknown_size=photos_with_unknown_size,
+    )
+
+
+@router.get("/accounts/{user_id}/billing", response_model=AdminBillingOut)
+def get_account_billing(user_id: int, db: Session = Depends(get_db)):
+    """Fragt Billing-Details LIVE von Stripe ab statt sie zu spiegeln
+    (vermeidet Stale-Data) - siehe Design-Spec "Master-Admin:
+    Account-Detail-Kennzahlen" Abschnitt c). Eigener Endpunkt statt Teil
+    von get_account(), damit die Haupt-Detailseite nicht bei jedem Aufruf
+    auf einen zusätzlichen Stripe-Roundtrip wartet."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(404, "Account not found")
+
+    if not user.stripe_customer_id:
+        return AdminBillingOut(
+            has_stripe_customer=False,
+            subscription_id=None,
+            next_billing_date=None,
+            recent_invoices=[],
+        )
+
+    subscription_id: str | None = None
+    next_billing_date: datetime | None = None
+    recent_invoices: list[AdminInvoiceOut] = []
+
+    try:
+        subscriptions = stripe.Subscription.list(customer=user.stripe_customer_id, limit=1)
+        if subscriptions["data"]:
+            sub = subscriptions["data"][0]
+            subscription_id = sub["id"]
+            next_billing_date = datetime.fromtimestamp(
+                sub["current_period_end"], tz=timezone.utc
+            )
+    except Exception:
+        logger.warning(
+            "Konnte Stripe-Subscription für Account %s nicht laden", user_id, exc_info=True
+        )
+
+    try:
+        invoices = stripe.Invoice.list(customer=user.stripe_customer_id, limit=5)
+        for inv in invoices["data"]:
+            paid_at_ts = inv.get("status_transitions", {}).get("paid_at")
+            recent_invoices.append(
+                AdminInvoiceOut(
+                    amount=inv["amount_paid"] / 100,
+                    currency=inv["currency"],
+                    paid_at=(
+                        datetime.fromtimestamp(paid_at_ts, tz=timezone.utc)
+                        if paid_at_ts
+                        else None
+                    ),
+                    status=inv["status"],
+                )
+            )
+    except Exception:
+        logger.warning(
+            "Konnte Stripe-Invoices für Account %s nicht laden", user_id, exc_info=True
+        )
+
+    return AdminBillingOut(
+        has_stripe_customer=True,
+        subscription_id=subscription_id,
+        next_billing_date=next_billing_date,
+        recent_invoices=recent_invoices,
     )
 
 
