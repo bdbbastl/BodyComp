@@ -25,9 +25,21 @@ function HistoryPhotoGrid({ photos }: { photos: Photo[] }) {
   const visiblePhotos =
     expanded || !hasMore ? photos : photos.slice(0, HISTORY_PHOTOS_DEFAULT_VISIBLE);
   const hiddenCount = photos.length - HISTORY_PHOTOS_DEFAULT_VISIBLE;
+  // Feste Spaltenzahl statt responsiver Umbrüche (sm:/md:), damit die
+  // "+N"-Kachel bei nicht-expandiertem Zustand genau EINE Zeile neben den
+  // 6 Fotos bildet, statt in eine zweite, fast leere Zeile umzubrechen
+  // (siehe Live-Feedback "nimmt viel zu viel Platz weg"). Bei Overflow
+  // also 7 Spalten (6 Fotos + Kachel), sonst genau so viele wie Fotos da
+  // sind (nie mehr als HISTORY_PHOTOS_DEFAULT_VISIBLE).
+  const columnCount = hasMore
+    ? HISTORY_PHOTOS_DEFAULT_VISIBLE + 1
+    : Math.min(photos.length, HISTORY_PHOTOS_DEFAULT_VISIBLE);
 
   return (
-    <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+    <div
+      className="mt-2 grid gap-2"
+      style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
+    >
       {visiblePhotos.map((p) => (
         <img
           key={p.id}
