@@ -24,24 +24,26 @@ export function CookieConsentBanner() {
 
         {customizing && (
           <div className="space-y-2 rounded-lg border border-white/10 bg-black/20 p-3">
-            <label className="flex items-center justify-between text-sm text-slate-300">
+            <label htmlFor="cookie-necessary" className="flex items-center justify-between text-sm text-slate-300">
               <span>
                 Necessary <span className="text-slate-500">(always on)</span>
               </span>
-              <input type="checkbox" checked disabled className="h-4 w-4" />
+              <input id="cookie-necessary" type="checkbox" checked disabled className="h-4 w-4" aria-label="Necessary cookies (always enabled)" />
             </label>
-            <label className="flex items-center justify-between text-sm text-slate-300">
+            <label htmlFor="cookie-analytics" className="flex items-center justify-between text-sm text-slate-300">
               <span>Analytics</span>
               <input
+                id="cookie-analytics"
                 type="checkbox"
                 checked={analytics}
                 onChange={(e) => setAnalytics(e.target.checked)}
                 className="h-4 w-4"
               />
             </label>
-            <label className="flex items-center justify-between text-sm text-slate-300">
+            <label htmlFor="cookie-marketing" className="flex items-center justify-between text-sm text-slate-300">
               <span>Marketing</span>
               <input
+                id="cookie-marketing"
                 type="checkbox"
                 checked={marketing}
                 onChange={(e) => setMarketing(e.target.checked)}
@@ -79,7 +81,7 @@ export function CookieConsentBanner() {
               <button
                 type="button"
                 onClick={() => setCustomizing(true)}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-300 hover:text-white"
+                className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
               >
                 Customize
               </button>
