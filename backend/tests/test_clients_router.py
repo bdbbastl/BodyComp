@@ -177,3 +177,57 @@ def test_create_client_blocked_when_over_billing_limit(client, db_session):
     assert first.status_code == 201
     response = client.post("/api/clients", json={"name": "Zweiter Klient"})
     assert response.status_code == 402
+
+
+def test_delete_client_removes_client_and_cascades(client, db_session, tmp_path, monkeypatch):
+    from app.core.config import settings
+    from app.models.client import Client
+    from app.models.photo import Photo, ProcessingStatus
+    from app.models.pose import Pose
+
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    _login(client, db_session)
+
+    create_resp = client.post("/api/clients", json={"name": "To Delete"})
+    client_id = create_resp.json()["id"]
+
+    client_row = db_session.get(Client, client_id)
+    pose = Pose(client_id=client_id, name="Front", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+    db_session.refresh(pose)
+
+    photo_dir = tmp_path / "photos_processed" / str(client_id)
+    photo_dir.mkdir(parents=True)
+    photo_file = photo_dir / "a.jpg"
+    photo_file.write_bytes(b"fake-jpeg-bytes")
+    photo = Photo(
+        client_id=client_id,
+        filename="a.jpg",
+        original_path=f"photos_processed/{client_id}/a.jpg",
+        taken_at=datetime.now(timezone.utc),
+        status=ProcessingStatus.PROCESSED,
+        pose_id=pose.id,
+    )
+    db_session.add(photo)
+    db_session.commit()
+
+    response = client.delete(f"/api/clients/{client_id}")
+    assert response.status_code == 204
+
+    assert db_session.get(Client, client_id) is None
+    assert not photo_file.exists()
+
+    list_resp = client.get("/api/clients")
+    assert list_resp.json() == []
+
+
+def test_delete_client_requires_ownership(client, db_session):
+    owner_a = _login(client, db_session, email="owner-a@example.com", password="pw12345")
+    create_resp = client.post("/api/clients", json={"name": "Owner A's Client"})
+    client_id = create_resp.json()["id"]
+
+    client.post("/api/auth/logout")
+    _login(client, db_session, email="owner-b@example.com", password="pw12345")
+    response = client.delete(f"/api/clients/{client_id}")
+    assert response.status_code == 404
