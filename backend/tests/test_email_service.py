@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from app.services.email import (
+    send_admin_message_email,
     send_verification_email,
     send_password_reset_email,
     send_quota_warning_email,
@@ -61,3 +62,18 @@ def test_send_quota_warning_email_calls_resend():
     assert mock_send.call_count == 1
     call_kwargs = mock_send.call_args[0][0]
     assert call_kwargs["to"] == ["single@example.com"]
+
+
+def test_send_admin_message_email_escapes_html():
+    with patch("app.services.email.resend.Emails.send") as mock_send:
+        mock_send.return_value = {"id": "fake-id"}
+        send_admin_message_email(
+            to="user@example.com", message="<script>alert(1)</script>\nline2"
+        )
+
+    assert mock_send.call_count == 1
+    call_kwargs = mock_send.call_args[0][0]
+    assert call_kwargs["to"] == ["user@example.com"]
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in call_kwargs["html"]
+    assert "<script>" not in call_kwargs["html"]
+    assert "<br>line2" in call_kwargs["html"]
