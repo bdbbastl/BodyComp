@@ -30,25 +30,28 @@ export default function Admin() {
         )}
 
         {overviewQuery.data && (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            <Card title="Total Accounts">
-              <p className="text-2xl font-semibold text-white">{overviewQuery.data.total_accounts}</p>
-            </Card>
-            <Card title="Single">
-              <p className="text-2xl font-semibold text-white">{overviewQuery.data.single_accounts}</p>
-            </Card>
-            <Card title="Coach">
-              <p className="text-2xl font-semibold text-white">{overviewQuery.data.coach_accounts}</p>
-            </Card>
-            <Card title="Active Subs">
-              <p className="text-2xl font-semibold text-white">{overviewQuery.data.active_subscriptions}</p>
-            </Card>
-            <Card title="Signups (7d / 30d)">
-              <p className="text-2xl font-semibold text-white">
-                {overviewQuery.data.signups_this_week} / {overviewQuery.data.signups_this_month}
-              </p>
-            </Card>
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+              <Card title="Total Accounts">
+                <p className="text-2xl font-semibold text-white">{overviewQuery.data.total_accounts}</p>
+              </Card>
+              <Card title="Single">
+                <p className="text-2xl font-semibold text-white">{overviewQuery.data.single_accounts}</p>
+              </Card>
+              <Card title="Coach">
+                <p className="text-2xl font-semibold text-white">{overviewQuery.data.coach_accounts}</p>
+              </Card>
+              <Card title="Active Subs">
+                <p className="text-2xl font-semibold text-white">{overviewQuery.data.active_subscriptions}</p>
+              </Card>
+              <Card title="Signups (7d / 30d)">
+                <p className="text-2xl font-semibold text-white">
+                  {overviewQuery.data.signups_this_week} / {overviewQuery.data.signups_this_month}
+                </p>
+              </Card>
+            </div>
+            <SignupTrendChart weeks={overviewQuery.data.signups_per_week} />
+          </>
         )}
 
         <Card title="Accounts">
@@ -105,5 +108,24 @@ export default function Admin() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function SignupTrendChart({ weeks }: { weeks: { week_start: string; count: number }[] }) {
+  const max = Math.max(1, ...weeks.map((w) => w.count));
+  return (
+    <Card title="Signups — last 12 weeks">
+      <div className="flex h-20 items-end gap-2">
+        {weeks.map((w) => (
+          <div key={w.week_start} className="flex flex-1 flex-col items-center gap-1">
+            <div
+              className="w-full rounded-t bg-accent/60"
+              style={{ height: `${Math.max(4, (w.count / max) * 100)}%` }}
+              title={`${w.count} signups`}
+            />
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }

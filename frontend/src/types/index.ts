@@ -146,6 +146,7 @@ export interface AdminOverview {
   active_subscriptions: number;
   signups_this_week: number;
   signups_this_month: number;
+  signups_per_week: { week_start: string; count: number }[];
 }
 
 export interface AdminAccount {
