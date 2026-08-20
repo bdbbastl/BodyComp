@@ -4,7 +4,7 @@ liegen hinter require_admin (app/routers/auth.py)."""
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.user import AccountType
 
@@ -72,3 +72,7 @@ class AdminBillingOut(BaseModel):
     subscription_id: str | None
     next_billing_date: datetime | None
     recent_invoices: list[AdminInvoiceOut]
+
+
+class AdminSendMessageRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)

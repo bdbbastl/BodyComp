@@ -22,10 +22,12 @@ from app.schemas.admin import (
     AdminClientSummaryOut,
     AdminInvoiceOut,
     AdminOverviewOut,
+    AdminSendMessageRequest,
     AdminSetActiveRequest,
     AdminWeekCount,
 )
 from app.services.account import trigger_password_reset
+from app.services.email import send_admin_message_email
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
@@ -338,6 +340,16 @@ def send_account_password_reset(user_id: int, db: Session = Depends(get_db)):
     if user.password_hash is None:
         raise HTTPException(400, "This account uses Google Sign-In and has no password to reset")
     trigger_password_reset(db, user)
+
+
+@router.post("/accounts/{user_id}/send-message", status_code=204)
+def send_account_message(
+    user_id: int, payload: AdminSendMessageRequest, db: Session = Depends(get_db)
+):
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(404, "Account not found")
+    send_admin_message_email(to=user.email, message=payload.message)
 
 
 @router.patch("/accounts/{user_id}", response_model=AdminAccountOut)

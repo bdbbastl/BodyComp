@@ -394,3 +394,41 @@ def test_admin_send_password_reset_rejects_google_only_account(client, db_sessio
 
     response = client.post(f"/api/admin/accounts/{google_user.id}/send-password-reset")
     assert response.status_code == 400
+
+
+def test_admin_send_message_emails_user(client, db_session, monkeypatch):
+    admin = _make_user(db_session, email="admin10@example.com", is_admin=True)
+    target = _make_user(db_session, email="target-message@example.com")
+    _login_as(client, admin)
+
+    sent = {}
+
+    def _fake_send(*, to, message):
+        sent["to"] = to
+        sent["message"] = message
+
+    monkeypatch.setattr("app.routers.admin.send_admin_message_email", _fake_send)
+
+    response = client.post(
+        f"/api/admin/accounts/{target.id}/send-message", json={"message": "Hello there!"}
+    )
+    assert response.status_code == 204
+    assert sent["to"] == "target-message@example.com"
+    assert sent["message"] == "Hello there!"
+
+
+def test_admin_send_message_rejects_empty_message(client, db_session):
+    admin = _make_user(db_session, email="admin11@example.com", is_admin=True)
+    target = _make_user(db_session, email="target-message2@example.com")
+    _login_as(client, admin)
+
+    response = client.post(f"/api/admin/accounts/{target.id}/send-message", json={"message": ""})
+    assert response.status_code == 422
+
+
+def test_admin_send_message_404_for_missing_account(client, db_session):
+    admin = _make_user(db_session, email="admin12@example.com", is_admin=True)
+    _login_as(client, admin)
+
+    response = client.post("/api/admin/accounts/999999/send-message", json={"message": "Hi"})
+    assert response.status_code == 404

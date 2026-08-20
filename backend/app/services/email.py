@@ -8,6 +8,8 @@ Sandbox-Modus (keine verifizierte Domain, siehe Design-Spec): Mails gehen
 nur an die eigene, bei Resend verifizierte Test-Adresse - das ist eine
 Resend-seitige Einschränkung, keine hier im Code abgebildete.
 """
+from html import escape
+
 import resend
 
 from app.core.config import settings
@@ -56,6 +58,28 @@ def send_password_reset_email(*, to: str, reset_url: str) -> None:
         "from": settings.email_from_address,
         "to": [to],
         "subject": "Reset your password - BodyComp Tracker",
+        "html": html,
+    })
+
+
+def send_admin_message_email(*, to: str, message: str) -> None:
+    """Freier Text vom Admin an einen Nutzer - siehe Design-Spec
+    "Master-Admin: Signup-Trend & Admin-Aktionen" Abschnitt 2b. message
+    wird escaped, bevor es ins HTML eingebettet wird (es ist
+    Admin-eingegebener Freitext, kein von uns kontrollierter String) -
+    Zeilenumbrüche werden danach manuell durch <br> ersetzt, damit die
+    Formatierung des Admins erhalten bleibt."""
+    safe_message = escape(message).replace("\n", "<br>")
+    html = _base_email_html(
+        "A message from your coach team",
+        f"""
+        <p>{safe_message}</p>
+        """,
+    )
+    resend.Emails.send({
+        "from": settings.email_from_address,
+        "to": [to],
+        "subject": "A message from BodyComp Tracker",
         "html": html,
     })
 
