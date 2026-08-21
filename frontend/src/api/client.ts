@@ -219,11 +219,13 @@ export const api = {
         client_note?: string;
         files: File[];
         poseIds: number[];
+        photoDate?: string;
       }
     ) => {
       const form = new FormData();
       if (payload.weight_kg != null) form.append("weight_kg", String(payload.weight_kg));
       if (payload.client_note) form.append("client_note", payload.client_note);
+      if (payload.photoDate) form.append("photo_date", payload.photoDate);
       for (let i = 0; i < payload.files.length; i++) {
         form.append("files", payload.files[i]);
         form.append("pose_ids", String(payload.poseIds[i]));
