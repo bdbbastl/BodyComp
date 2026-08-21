@@ -103,8 +103,8 @@ export function PaneAdjustments({
         />
         <IconButton
           icon={RotateCw}
-          label="Neigung"
-          visibleLabel="Neigung"
+          label="Tilt"
+          visibleLabel="Tilt"
           showLabel
           size="sm"
           active={openTool === "rotation"}
@@ -138,7 +138,7 @@ export function PaneAdjustments({
         <div className="ml-auto">
           <IconButton
             icon={RotateCcw}
-            label="Alles zurücksetzen"
+            label="Reset all"
             visibleLabel="Reset"
             showLabel
             size="sm"

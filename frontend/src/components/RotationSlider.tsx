@@ -10,7 +10,7 @@ const STEP = 0.5;
 export function RotationSlider({
   degrees,
   onChange,
-  label = "Neigung",
+  label = "Tilt",
 }: {
   degrees: number;
   onChange: (value: number) => void;

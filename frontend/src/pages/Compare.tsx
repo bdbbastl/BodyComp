@@ -383,8 +383,8 @@ export default function Compare() {
           <>
             <IconButton
               icon={Scan}
-              label="KI-Normalisierung (Ausrichtung & Skalierung)"
-              visibleLabel="KI-Norm."
+              label="AI normalization (alignment & scaling)"
+              visibleLabel="AI Norm."
               showLabel
               toggle
               active={normalize}
@@ -392,8 +392,8 @@ export default function Compare() {
             />
             <IconButton
               icon={Grid3x3}
-              label="Ausrichtungsgitter"
-              visibleLabel="Gitter"
+              label="Alignment grid"
+              visibleLabel="Grid"
               showLabel
               toggle
               active={showGrid}
@@ -402,8 +402,8 @@ export default function Compare() {
             {!isAllPoses && (
               <IconButton
                 icon={Maximize2}
-                label="Groß anzeigen"
-                visibleLabel="Groß"
+                label="View fullscreen"
+                visibleLabel="Fullscreen"
                 showLabel
                 disabled={!result}
                 onClick={() => setShowBigMode(true)}
@@ -414,10 +414,10 @@ export default function Compare() {
               icon={Sparkles}
               label={
                 isAllPoses
-                  ? `KI-Gesamtanalyse (${allPosePairs.length} Posen)`
-                  : "KI-Analyse (Judge-Bewertung)"
+                  ? `AI overall analysis (${allPosePairs.length} poses)`
+                  : "AI analysis (judge rating)"
               }
-              visibleLabel="KI-Analyse"
+              visibleLabel="AI Analysis"
               showLabel
               variant="accent"
               pending={activeAiMutation.isPending}
@@ -431,7 +431,7 @@ export default function Compare() {
             {!isAllPoses && (
               <IconButton
                 icon={ImageDown}
-                label="Vergleich exportieren"
+                label="Export comparison"
                 visibleLabel="Export"
                 showLabel
                 disabled={!result}
@@ -492,8 +492,8 @@ export default function Compare() {
       {activeAiMutation.isPending && (
         <p className="flex items-center justify-center gap-2 text-xs text-accent">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-          Judge analysiert… {elapsedSeconds}s
-          {elapsedSeconds > 20 && " (Gemini wiederholt automatisch bei Serverlast)"}
+          Judge analyzing… {elapsedSeconds}s
+          {elapsedSeconds > 20 && " (Gemini retries automatically under server load)"}
         </p>
       )}
 

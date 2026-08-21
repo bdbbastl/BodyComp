@@ -22,7 +22,7 @@ export function PositionSlider({
   return (
     <div className="space-y-3">
       <SliderControl
-        label="Position horizontal"
+        label="Horizontal position"
         value={offset.x}
         min={-OFFSET_LIMIT}
         max={OFFSET_LIMIT}
@@ -31,7 +31,7 @@ export function PositionSlider({
         suffix="px"
       />
       <SliderControl
-        label="Position vertikal"
+        label="Vertical position"
         value={offset.y}
         min={-OFFSET_LIMIT}
         max={OFFSET_LIMIT}
