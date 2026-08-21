@@ -384,6 +384,8 @@ export default function Compare() {
             <IconButton
               icon={Scan}
               label="KI-Normalisierung (Ausrichtung & Skalierung)"
+              visibleLabel="KI-Norm."
+              showLabel
               toggle
               active={normalize}
               onClick={() => setNormalize((v) => !v)}
@@ -391,6 +393,8 @@ export default function Compare() {
             <IconButton
               icon={Grid3x3}
               label="Ausrichtungsgitter"
+              visibleLabel="Gitter"
+              showLabel
               toggle
               active={showGrid}
               onClick={() => setShowGrid((v) => !v)}
@@ -399,6 +403,8 @@ export default function Compare() {
               <IconButton
                 icon={Maximize2}
                 label="Groß anzeigen"
+                visibleLabel="Groß"
+                showLabel
                 disabled={!result}
                 onClick={() => setShowBigMode(true)}
               />
@@ -411,6 +417,8 @@ export default function Compare() {
                   ? `KI-Gesamtanalyse (${allPosePairs.length} Posen)`
                   : "KI-Analyse (Judge-Bewertung)"
               }
+              visibleLabel="KI-Analyse"
+              showLabel
               variant="accent"
               pending={activeAiMutation.isPending}
               disabled={!canAnalyze}
@@ -424,6 +432,8 @@ export default function Compare() {
               <IconButton
                 icon={ImageDown}
                 label="Vergleich exportieren"
+                visibleLabel="Export"
+                showLabel
                 disabled={!result}
                 onClick={() => setShowExportModal(true)}
               />

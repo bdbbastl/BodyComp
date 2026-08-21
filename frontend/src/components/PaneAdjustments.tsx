@@ -90,10 +90,12 @@ export function PaneAdjustments({
 
   return (
     <div ref={rootRef} className="relative p-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <IconButton
           icon={ZoomIn}
           label="Zoom"
+          visibleLabel="Zoom"
+          showLabel
           size="sm"
           active={openTool === "zoom"}
           dot={zoomTouched}
@@ -102,6 +104,8 @@ export function PaneAdjustments({
         <IconButton
           icon={RotateCw}
           label="Neigung"
+          visibleLabel="Neigung"
+          showLabel
           size="sm"
           active={openTool === "rotation"}
           dot={rotationTouched}
@@ -111,6 +115,8 @@ export function PaneAdjustments({
           <IconButton
             icon={Move}
             label="Position"
+            visibleLabel="Position"
+            showLabel
             size="sm"
             active={openTool === "position"}
             dot={positionTouched}
@@ -121,6 +127,8 @@ export function PaneAdjustments({
           <IconButton
             icon={Sun}
             label="Exposure"
+            visibleLabel="Exposure"
+            showLabel
             size="sm"
             active={openTool === "exposure"}
             dot={exposureTouched}
@@ -131,6 +139,8 @@ export function PaneAdjustments({
           <IconButton
             icon={RotateCcw}
             label="Alles zurücksetzen"
+            visibleLabel="Reset"
+            showLabel
             size="sm"
             disabled={!anyTouched}
             onClick={() => {
