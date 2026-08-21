@@ -5,7 +5,7 @@ import { useParams } from "react-router-dom";
 import { api, mediaUrl } from "../api/client";
 import type { Photo, Pose } from "../types";
 import { formatDateShortWithWeek } from "../utils/date";
-import { transformStyle, usePanZoom } from "../hooks/usePanZoom";
+import { COMPARE_ZOOM_MIN, transformStyle, usePanZoom } from "../hooks/usePanZoom";
 import { ZoomSlider } from "../components/ZoomSlider";
 import { BrightnessSlider, BRIGHTNESS_DEFAULT } from "../components/BrightnessSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
@@ -719,6 +719,7 @@ const ZoomPane = forwardRef<ZoomPaneHandle, {
   showGrid?: boolean;
   gridLines?: number[];
   onGridLineChange?: (index: number, value: number) => void;
+  aspectRatio?: number;
 }>(function ZoomPane(
   {
     src,
@@ -731,10 +732,13 @@ const ZoomPane = forwardRef<ZoomPaneHandle, {
     showGrid,
     gridLines,
     onGridLineChange,
+    aspectRatio = 3 / 4,
   },
   ref
 ) {
-  const { scale, translate, containerRef, isDragging, reset, setScaleFromSlider } = usePanZoom();
+  const { scale, translate, containerRef, isDragging, reset, setScaleFromSlider } = usePanZoom({
+    zoomMin: COMPARE_ZOOM_MIN,
+  });
   const [rotation, setRotation] = useState(0);
 
   useImperativeHandle(ref, () => ({
@@ -761,8 +765,8 @@ const ZoomPane = forwardRef<ZoomPaneHandle, {
     <div>
       <div
         ref={containerRef}
-        className="relative aspect-[3/4] w-full overflow-hidden bg-black/40"
-        style={{ cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "zoom-in" }}
+        className="relative w-full overflow-hidden bg-background"
+        style={{ aspectRatio, cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "zoom-in" }}
         onDoubleClick={reset}
         title="Scroll to zoom, click+drag to pan while zoomed, double-click to reset"
       >
@@ -778,7 +782,7 @@ const ZoomPane = forwardRef<ZoomPaneHandle, {
         {showGrid && gridLines && onGridLineChange && (
           <AlignmentGridOverlay lines={gridLines} onChange={onGridLineChange} />
         )}
-        {scale > 1 && (
+        {scale !== 1 && (
           <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-slate-200">
             {scale.toFixed(2)}×
           </span>
@@ -793,6 +797,7 @@ const ZoomPane = forwardRef<ZoomPaneHandle, {
           onRotationChange={setRotation}
           brightness={showBrightnessSlider ? brightness : undefined}
           onBrightnessChange={showBrightnessSlider ? onBrightnessChange : undefined}
+          zoomMin={COMPARE_ZOOM_MIN}
           onReset={() => {
             reset();
             setRotation(0);
@@ -838,6 +843,7 @@ const SliderComparePane = forwardRef<SliderPaneHandle, {
   showGrid?: boolean;
   gridLines?: number[];
   onGridLineChange?: (index: number, value: number) => void;
+  aspectRatio?: number;
 }>(function SliderComparePane(
   {
     srcX,
@@ -853,10 +859,13 @@ const SliderComparePane = forwardRef<SliderPaneHandle, {
     showGrid,
     gridLines,
     onGridLineChange,
+    aspectRatio = 3 / 4,
   },
   ref
 ) {
-  const { scale, translate, containerRef, isDragging, reset, setScaleFromSlider } = usePanZoom();
+  const { scale, translate, containerRef, isDragging, reset, setScaleFromSlider } = usePanZoom({
+    zoomMin: COMPARE_ZOOM_MIN,
+  });
   const [dividerPct, setDividerPct] = useState(50);
   const [rotationX, setRotationX] = useState(0);
   const [rotationY, setRotationY] = useState(0);
@@ -915,8 +924,8 @@ const SliderComparePane = forwardRef<SliderPaneHandle, {
     <div className="space-y-3">
       <div
         ref={containerRef}
-        className="relative mx-auto aspect-[3/4] max-w-md overflow-hidden rounded-xl border border-white/5 bg-black/40 select-none"
-        style={{ cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "default" }}
+        className="relative mx-auto max-w-md overflow-hidden rounded-xl border border-white/5 bg-background select-none"
+        style={{ aspectRatio, cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "default" }}
         onDoubleClick={reset}
         title="Scroll to zoom, click+drag to pan while zoomed, drag the divider to compare"
       >
@@ -968,7 +977,7 @@ const SliderComparePane = forwardRef<SliderPaneHandle, {
             ⇔
           </div>
         </div>
-        {scale > 1 && (
+        {scale !== 1 && (
           <span className="pointer-events-none absolute bottom-1 right-1 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-slate-200">
             {scale.toFixed(1)}×
           </span>
@@ -994,6 +1003,7 @@ const SliderComparePane = forwardRef<SliderPaneHandle, {
               onOffsetChange={setOffsetX}
               brightness={brightnessX}
               onBrightnessChange={onBrightnessXChange}
+              zoomMin={COMPARE_ZOOM_MIN}
               onReset={() => {
                 setFineZoomX(1);
                 setRotationX(0);
@@ -1013,6 +1023,7 @@ const SliderComparePane = forwardRef<SliderPaneHandle, {
               onOffsetChange={setOffsetY}
               brightness={brightnessY}
               onBrightnessChange={onBrightnessYChange}
+              zoomMin={COMPARE_ZOOM_MIN}
               onReset={() => {
                 setFineZoomY(1);
                 setRotationY(0);
