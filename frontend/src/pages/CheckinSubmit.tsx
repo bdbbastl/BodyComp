@@ -149,7 +149,12 @@ export default function CheckinSubmit() {
     files.length === 0
       ? null
       : photoDateOverride
-        ? formatDateWithWeek(`${photoDateOverride}T12:00:00`)
+        ? // Feste lokale Mittagszeit anhängen (wie toIsoDateLocal's
+          // Kommentar in utils/date.ts erklärt) - sonst parst
+          // formatDateWithWeek den reinen YYYY-MM-DD-String als UTC-
+          // Mitternacht und springt in westlichen Zeitzonen auf den
+          // Vortag zurück.
+          formatDateWithWeek(`${photoDateOverride}T12:00:00`)
         : hasUniformPhotoDate
           ? formatDateWithWeek(photoDates[0].toISOString())
           : allExifDatesLoaded
