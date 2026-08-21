@@ -3,6 +3,12 @@ import type { CSSProperties } from "react";
 
 export const ZOOM_MIN = 1;
 export const ZOOM_MAX = 6;
+// Erweiterter unterer Zoom-Wert nur für die Compare-Seite (Live-
+// Vorschau, Big Mode, Export) - erlaubt "Rauszoomen" für Fotos, die
+// durch ihr Seitenverhältnis mehr Randbereich brauchen als die Box
+// bietet. Andere usePanZoom-Nutzer (z.B. PhotoLightbox) übergeben
+// keine Option und bleiben beim Standard ZOOM_MIN.
+export const COMPARE_ZOOM_MIN = 0.5;
 // Feinjustierung: 0.05 pro Mausrad-Tick (vorher multiplikativ ~0.15-0.3
 // bei üblichen Zoom-Stufen - zu grob für exakte Bild-zu-Bild-Deckung).
 const WHEEL_STEP = 0.05;
@@ -22,7 +28,8 @@ const WHEEL_STEP = 0.05;
  * translateRef halten den aktuellen Wert für die nativen Event-Handler
  * (die nur einmal beim Mount registriert werden) immer aktuell, ohne
  * stale Closures. */
-export function usePanZoom() {
+export function usePanZoom(options?: { zoomMin?: number }) {
+  const zoomMin = options?.zoomMin ?? ZOOM_MIN;
   const [scale, setScale] = useState(1);
   const [translate, setTranslateState] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -34,7 +41,7 @@ export function usePanZoom() {
   const dragRef = useRef<{ startX: number; startY: number; startTx: number; startTy: number } | null>(null);
 
   function applyZoomAtPoint(nextScaleRaw: number, px: number, py: number) {
-    const nextScale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, nextScaleRaw));
+    const nextScale = Math.min(ZOOM_MAX, Math.max(zoomMin, nextScaleRaw));
     const s = scaleRef.current;
     const t = translateRef.current;
     const nextTranslate = {
