@@ -362,8 +362,8 @@ export default function Compare() {
   );
 
   const handleExportRender = useCallback(
-    (canvas: HTMLCanvasElement, aspect: ExportAspect) => {
-      renderComparisonToCanvas(canvas, aspect, shouldShowWatermark(currentUser));
+    (canvas: HTMLCanvasElement, dims: { width: number; height: number }) => {
+      renderComparisonToCanvas(canvas, dims, shouldShowWatermark(currentUser));
     },
     [renderComparisonToCanvas, currentUser]
   );
@@ -618,6 +618,7 @@ export default function Compare() {
           onClose={() => setShowExportModal(false)}
           filename={exportFilename(`client-${clientIdNum}`, dateX, dateY)}
           render={handleExportRender}
+          aspectRatio={aspectRatio}
         />
       )}
 

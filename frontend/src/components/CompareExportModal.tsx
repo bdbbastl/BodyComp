@@ -1,27 +1,37 @@
 // frontend/src/components/CompareExportModal.tsx
-import { useEffect, useRef, useState } from "react";
-import type { ExportAspect } from "../utils/compareExport";
-import { dimensionsFor } from "../utils/compareExport";
+import { useEffect, useRef } from "react";
+import { exportDimensionsForRatio } from "../utils/compareExport";
 
 /** Vorschau-Dialog vor dem eigentlichen Download - siehe Design-Spec
- * "Compare-Export für Social Media". `render` zeichnet auf den
- * übergebenen Canvas für das gewählte Format; wird bei jedem
- * Format-Wechsel erneut aufgerufen. */
+ * "Compare-Export für Social Media". Nutzt bewusst KEINE eigene
+ * Format-Auswahl mehr (früher 1:1/4:3, unabhängig von der Live-
+ * Vorschau) - der Export übernimmt exakt das Format, das gerade auf
+ * der Compare-Seite gewählt ist (Auto/3:4/4:5/1:1/9:16, siehe
+ * CompareFilterBar), damit Live-Vorschau, Big Mode und Export niemals
+ * unterschiedliche Ausschnitte zeigen können (User-Feedback: Export
+ * brauchte "die gleichen Maße wie die Anzeige auf der Compare-Seite").
+ * `render` zeichnet auf den übergebenen Canvas; wird erneut aufgerufen,
+ * sobald sich die Zielmaße ändern (z.B. weil der User das Format auf
+ * der Compare-Seite gewechselt hat, während dieses Modal offen ist). */
 export function CompareExportModal({
   onClose,
   render,
   filename,
+  aspectRatio,
 }: {
   onClose: () => void;
-  render: (canvas: HTMLCanvasElement, aspect: ExportAspect) => void;
+  render: (canvas: HTMLCanvasElement, dims: { width: number; height: number }) => void;
   filename: string;
+  /** Aktuell auf der Compare-Seite gewähltes/berechnetes Seitenverhältnis. */
+  aspectRatio: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [aspect, setAspect] = useState<ExportAspect>("1:1");
+  const dims = exportDimensionsForRatio(aspectRatio);
 
   useEffect(() => {
-    if (canvasRef.current) render(canvasRef.current, aspect);
-  }, [aspect, render]);
+    if (canvasRef.current) render(canvasRef.current, dims);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dims.width, dims.height, render]);
 
   const handleDownload = () => {
     const canvas = canvasRef.current;
@@ -37,8 +47,6 @@ export function CompareExportModal({
     }, "image/png");
   };
 
-  const dims = dimensionsFor(aspect);
-
   return (
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4"
@@ -47,28 +55,10 @@ export function CompareExportModal({
       }}
     >
       <div className="w-full max-w-lg rounded-xl border border-white/10 bg-surface p-6 shadow-2xl">
-        <h2 className="mb-4 text-lg font-semibold text-white">Export Comparison</h2>
-
-        <div className="mb-4 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setAspect("1:1")}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              aspect === "1:1" ? "bg-accent text-slate-900" : "border border-white/15 text-white"
-            }`}
-          >
-            1:1 (Instagram)
-          </button>
-          <button
-            type="button"
-            onClick={() => setAspect("4:3")}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              aspect === "4:3" ? "bg-accent text-slate-900" : "border border-white/15 text-white"
-            }`}
-          >
-            4:3
-          </button>
-        </div>
+        <h2 className="mb-1 text-lg font-semibold text-white">Export Comparison</h2>
+        <p className="mb-4 text-xs text-slate-400">
+          {dims.width} × {dims.height}px — matches the format selected on the Compare page
+        </p>
 
         <div className="mb-4 flex justify-center overflow-hidden rounded-lg bg-black/40">
           <canvas

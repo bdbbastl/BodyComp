@@ -7,11 +7,12 @@ import type { Photo } from "../types";
  * den echten Pixelmaßen beider verglichener Fotos; die übrigen Werte
  * sind manuelle Presets, die die Automatik überschreiben.
  */
-export type AspectPreset = "auto" | "3:4" | "4:5" | "9:16";
+export type AspectPreset = "auto" | "3:4" | "4:5" | "1:1" | "9:16";
 
 export const ASPECT_PRESETS: Record<Exclude<AspectPreset, "auto">, number> = {
   "3:4": 3 / 4,
   "4:5": 4 / 5,
+  "1:1": 1,
   "9:16": 9 / 16,
 };
 
@@ -21,9 +22,10 @@ const FALLBACK_RATIO = 3 / 4;
 
 // Die Auto-Berechnung wird nie extremer als die weiteste bzw. schmalste
 // manuelle Preset-Option - verhindert, dass ein falsch rotiertes oder
-// extrem verzerrtes Foto die Box absurd verformt.
+// extrem verzerrtes Foto die Box absurd verformt. "1:1" ist jetzt die
+// breiteste Preset-Option, also auch die neue Obergrenze.
 const AUTO_MIN_RATIO = ASPECT_PRESETS["9:16"];
-const AUTO_MAX_RATIO = ASPECT_PRESETS["4:5"];
+const AUTO_MAX_RATIO = ASPECT_PRESETS["1:1"];
 
 type PhotoDimensions = Pick<Photo, "width" | "height">;
 

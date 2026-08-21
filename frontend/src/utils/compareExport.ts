@@ -64,6 +64,25 @@ export function resolveDimensions(target: ExportAspect | TargetDimensions): Targ
   return target;
 }
 
+// Referenzgröße an der kürzeren Kante für den Download-Export - dieselbe
+// Zahl, die Instagram für sein Portrait-Format (1080×1350 bei 4:5) und
+// Story-Format (1080×1920 bei 9:16) empfiehlt. Daraus ergeben sich die
+// bekannten Social-Media-Maße automatisch für JEDES Seitenverhältnis,
+// ohne eine format-spezifische Tabelle pflegen zu müssen.
+const EXPORT_REFERENCE_PX = 1080;
+
+/** Konkrete Download-Pixelmaße für ein beliebiges Seitenverhältnis - siehe
+ * Design-Entscheidung "Export nutzt dasselbe Format wie die Compare-
+ * Anzeige" (User-Feedback: Export sollte nicht mehr eine eigene,
+ * unabhängige 1:1/4:3-Auswahl haben, sondern überall dieselbe Format-
+ * Auswahl wie die Live-Vorschau und Big Mode). */
+export function exportDimensionsForRatio(aspectRatio: number): TargetDimensions {
+  if (aspectRatio <= 1) {
+    return { width: EXPORT_REFERENCE_PX, height: Math.round(EXPORT_REFERENCE_PX / aspectRatio) };
+  }
+  return { width: Math.round(EXPORT_REFERENCE_PX * aspectRatio), height: EXPORT_REFERENCE_PX };
+}
+
 /**
  * Vollständiger Live-Transform-Zustand einer Vergleichs-Kachel.
  *

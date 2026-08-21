@@ -145,7 +145,7 @@ export function CompareFilterBar({
       <div>
         <div className={GROUP_LABEL_CLASS}>Format</div>
         <div className="flex gap-1 rounded-full bg-black/30 p-1">
-          {(["auto", "3:4", "4:5", "9:16"] as AspectPreset[]).map((preset) => (
+          {(["auto", "9:16", "4:5", "3:4", "1:1"] as AspectPreset[]).map((preset) => (
             <button
               key={preset}
               type="button"
