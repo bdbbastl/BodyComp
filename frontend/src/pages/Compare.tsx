@@ -624,6 +624,7 @@ export default function Compare() {
       {showBigMode && !isAllPoses && result && (
         <CompareBigMode
           aspectRatio={aspectRatio}
+          mode={mode}
           render={handleBigModeRender}
           poseLabel={currentPoseLabel}
           onNavigate={goToPose}

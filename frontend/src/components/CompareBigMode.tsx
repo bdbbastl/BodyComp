@@ -18,18 +18,33 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
  */
 export function CompareBigMode({
   aspectRatio,
+  mode,
   render,
   poseLabel,
   onNavigate,
   onClose,
 }: {
+  /** Seitenverhältnis EINES Fotos/Panes (dasselbe, das ZoomPane/
+   * SliderComparePane als aspectRatio bekommen) - NICHT das der
+   * Gesamt-Canvas. */
   aspectRatio: number;
+  mode: "side-by-side" | "slider";
   render: (canvas: HTMLCanvasElement, dims: { width: number; height: number }) => void;
   poseLabel: string;
   onNavigate: (delta: number) => void;
   onClose: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // renderSideBySideToCanvas teilt die Zielbreite intern durch 2 (zwei
+  // Fotos nebeneinander) - die Gesamt-Canvas muss deshalb doppelt so
+  // breit wie EIN Pane sein, damit jede Hälfte am Ende wieder exakt
+  // `aspectRatio` hat. renderSliderToCanvas nutzt dagegen die ganze
+  // Canvas als EINE gemeinsame Region für beide (überlagerten) Fotos -
+  // dort entspricht die Canvas-Form direkt der Pane-Form. Ohne diese
+  // Unterscheidung zeigte Big Mode im Side-by-Side-Modus jedes Foto nur
+  // halb so breit wie das gewählte Seitenverhältnis (Bug-Report vom
+  // User, per Test bestätigt: exakt Faktor 2 zu schmal).
+  const canvasAspectRatio = mode === "side-by-side" ? aspectRatio * 2 : aspectRatio;
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -51,17 +66,17 @@ export function CompareBigMode({
       const availableWidth = window.innerWidth - 64;
       const availableHeight = window.innerHeight - 96;
       let width = availableWidth;
-      let height = width / aspectRatio;
+      let height = width / canvasAspectRatio;
       if (height > availableHeight) {
         height = availableHeight;
-        width = height * aspectRatio;
+        width = height * canvasAspectRatio;
       }
       render(canvas, { width: Math.round(width), height: Math.round(height) });
     }
     draw();
     window.addEventListener("resize", draw);
     return () => window.removeEventListener("resize", draw);
-  }, [render, aspectRatio]);
+  }, [render, canvasAspectRatio]);
 
   return (
     <div className="fixed inset-0 z-[95] flex flex-col items-center bg-black/90 p-4">
