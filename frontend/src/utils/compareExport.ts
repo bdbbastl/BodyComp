@@ -24,6 +24,11 @@ export interface SliderExportState {
 
 export type ExportAspect = "1:1" | "4:3";
 
+export interface TargetDimensions {
+  width: number;
+  height: number;
+}
+
 /** Wasserzeichen-Regel - siehe Design-Spec "Compare-Export für Social
  * Media" Abschnitt "Sichtbarkeit / Wasserzeichen-Logik im Detail".
  * Nur zahlende Coaches sind befreit - Single-Accounts (auch mit
@@ -40,13 +45,23 @@ export function exportFilename(clientName: string, dateX: string, dateY: string)
   return `bodycomp-compare-${safeName}-${dateX}-vs-${dateY}.png`;
 }
 
-const EXPORT_DIMENSIONS: Record<ExportAspect, { width: number; height: number }> = {
+const EXPORT_DIMENSIONS: Record<ExportAspect, TargetDimensions> = {
   "1:1": { width: 1080, height: 1080 },
   "4:3": { width: 1200, height: 900 },
 };
 
-export function dimensionsFor(aspect: ExportAspect) {
+export function dimensionsFor(aspect: ExportAspect): TargetDimensions {
   return EXPORT_DIMENSIONS[aspect];
+}
+
+/** Verallgemeinerte Variante von dimensionsFor: nimmt entweder eines der
+ * beiden benannten Export-Formate ODER beliebige Zielmaße direkt
+ * entgegen. Genutzt von Big Mode, das keine feste Export-Form hat,
+ * sondern die live gewählte Container-Form bildschirmfüllend zeigt -
+ * derselbe Render-Pfad wie der Export, nur mit anderer Zielgröße. */
+export function resolveDimensions(target: ExportAspect | TargetDimensions): TargetDimensions {
+  if (typeof target === "string") return dimensionsFor(target);
+  return target;
 }
 
 /**
@@ -251,14 +266,14 @@ function drawWatermark(ctx: CanvasRenderingContext2D, canvasWidth: number, canva
 
 export function renderSideBySideToCanvas(
   canvas: HTMLCanvasElement,
-  aspect: ExportAspect,
+  target: ExportAspect | TargetDimensions,
   imgX: HTMLImageElement,
   stateX: PaneExportState,
   imgY: HTMLImageElement,
   stateY: PaneExportState,
   showWatermark: boolean
 ): void {
-  const { width, height } = dimensionsFor(aspect);
+  const { width, height } = resolveDimensions(target);
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d");
@@ -277,13 +292,13 @@ export function renderSideBySideToCanvas(
 
 export function renderSliderToCanvas(
   canvas: HTMLCanvasElement,
-  aspect: ExportAspect,
+  target: ExportAspect | TargetDimensions,
   imgX: HTMLImageElement,
   imgY: HTMLImageElement,
   state: SliderExportState,
   showWatermark: boolean
 ): void {
-  const { width, height } = dimensionsFor(aspect);
+  const { width, height } = resolveDimensions(target);
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d");

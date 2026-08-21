@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, Columns2, MoveHorizontal } from "lucide-react";
 import type { Pose } from "../types";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
+import type { AspectPreset } from "../utils/compareAspect";
 
 export type CompareMode = "side-by-side" | "slider";
 
@@ -41,6 +42,8 @@ export function CompareFilterBar({
   mode,
   onModeChange,
   showModeSwitch,
+  formatPreset,
+  onFormatPresetChange,
 }: {
   poses: Pose[];
   poseValue: string;
@@ -59,6 +62,8 @@ export function CompareFilterBar({
   mode: CompareMode;
   onModeChange: (mode: CompareMode) => void;
   showModeSwitch: boolean;
+  formatPreset: AspectPreset;
+  onFormatPresetChange: (preset: AspectPreset) => void;
 }) {
   return (
     <div className="flex flex-wrap items-end gap-5 rounded-xl border border-white/5 bg-surface p-4">
@@ -134,6 +139,24 @@ export function CompareFilterBar({
               </option>
             ))}
           </select>
+        </div>
+      </div>
+
+      <div>
+        <div className={GROUP_LABEL_CLASS}>Format</div>
+        <div className="flex gap-1 rounded-full bg-black/30 p-1">
+          {(["auto", "3:4", "4:5", "9:16"] as AspectPreset[]).map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => onFormatPresetChange(preset)}
+              className={`rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                formatPreset === preset ? "bg-accent text-slate-900" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              {preset === "auto" ? "Auto" : preset}
+            </button>
+          ))}
         </div>
       </div>
 

@@ -2,16 +2,21 @@ import type { LucideIcon } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
 /**
- * Icon-Button ohne sichtbares Textlabel - genutzt im Compare-Header
+ * Icon-Button, optional mit sichtbarem Text - genutzt im Compare-Header
  * (Ansichtsschalter + Aktionen) und in der Reglerleiste unter jedem Foto.
  *
- * `label` ist bewusst ein Pflicht-Prop und NICHT optional: Der Button
- * zeigt keinen Text, also ist das Label die einzige Beschriftung für
- * Screenreader und der einzige Tooltip für sehende Nutzer.
+ * `label` bleibt Pflicht-Prop und liefert aria-label/title (auch wenn
+ * `showLabel` gesetzt ist - Screenreader lesen aria-label, nicht den
+ * sichtbaren Textinhalt, und title bleibt als Tooltip-Fallback
+ * nützlich). `visibleLabel` ist der KURZE Text, der bei showLabel
+ * zusätzlich neben dem Icon erscheint - eigenständig von `label`, weil
+ * der Tooltip ausführlicher sein darf als der Chip-Text.
  */
 export function IconButton({
   icon: Icon,
   label,
+  visibleLabel,
+  showLabel = false,
   onClick,
   variant = "ghost",
   active = false,
@@ -25,6 +30,9 @@ export function IconButton({
   icon: LucideIcon;
   /** Pflicht - wird aria-label UND title. */
   label: string;
+  /** Kurzer sichtbarer Text neben dem Icon, nur gerendert wenn showLabel. */
+  visibleLabel?: string;
+  showLabel?: boolean;
   onClick?: () => void;
   variant?: "ghost" | "accent";
   /** Toggle ist eingeschaltet bzw. Werkzeug ist ausgewählt. */
@@ -40,8 +48,15 @@ export function IconButton({
   badge?: number;
   size?: "sm" | "md";
 }) {
-  const box = size === "sm" ? "h-8 w-8" : "h-9 w-9";
   const glyph = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const box = showLabel
+    ? size === "sm"
+      ? "h-8 gap-1.5 px-2.5"
+      : "h-9 gap-2 px-3"
+    : size === "sm"
+      ? "h-8 w-8"
+      : "h-9 w-9";
+  const text = size === "sm" ? "text-xs" : "text-sm";
 
   const tone =
     variant === "accent"
@@ -61,6 +76,9 @@ export function IconButton({
       className={`relative inline-flex shrink-0 items-center justify-center rounded-lg border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-35 ${box} ${tone}`}
     >
       {pending ? <Loader2 className={`${glyph} animate-spin`} /> : <Icon className={glyph} />}
+      {showLabel && !pending && (
+        <span className={`${text} font-medium whitespace-nowrap`}>{visibleLabel ?? label}</span>
+      )}
       {dot && !pending && (
         <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-surface bg-accent" />
       )}
