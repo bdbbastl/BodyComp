@@ -131,9 +131,9 @@ def submit_checkin(
         try:
             parsed_photo_date = date_.fromisoformat(photo_date)
         except ValueError:
-            raise HTTPException(400, "Invalid date format")
+            raise HTTPException(400, "Photo date must be a valid ISO date (YYYY-MM-DD)")
         if parsed_photo_date > date_.today():
-            raise HTTPException(400, "Date cannot be in the future")
+            raise HTTPException(400, "Photo date cannot be in the future")
 
     submission = CheckinSubmission(
         client_id=client_row.id, weight_kg=parsed_weight_kg, client_note=client_note
