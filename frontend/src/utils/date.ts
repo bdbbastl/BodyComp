@@ -29,3 +29,14 @@ export function formatDateShortWithWeek(iso: string): string {
   });
   return `${formatted} · Week ${getISOWeek(date)}`;
 }
+
+/** Formatiert ein Date als lokales YYYY-MM-DD (für <input type="date">
+ * value/max-Attribute) - bewusst NICHT über toISOString(), das würde ins
+ * UTC-Datum konvertieren und nahe Mitternacht in vielen Zeitzonen auf
+ * den falschen Tag springen. */
+export function toIsoDateLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
