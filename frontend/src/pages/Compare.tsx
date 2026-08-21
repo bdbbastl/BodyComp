@@ -293,8 +293,16 @@ export default function Compare() {
   const filterFor = (brightness: number) =>
     brightness === BRIGHTNESS_DEFAULT ? undefined : `brightness(${brightness}%)`;
 
-  const handleExportRender = useCallback(
-    (canvas: HTMLCanvasElement, aspect: ExportAspect) => {
+  // Gemeinsamer Render-Pfad für Export UND Big Mode - beide sollen
+  // exakt dieselbe Geometrie zeigen (siehe Design-Spec Leitprinzip).
+  // Unterscheiden sich nur in der Zielgröße (fest vs. bildschirmfüllend)
+  // und im Wasserzeichen (nur beim echten Download).
+  const renderComparisonToCanvas = useCallback(
+    (
+      canvas: HTMLCanvasElement,
+      target: ExportAspect | { width: number; height: number },
+      showWatermark: boolean
+    ) => {
       if (!result) return;
       const imgX = new Image();
       const imgY = new Image();
@@ -304,26 +312,25 @@ export default function Compare() {
       imgY.src = resolveSrc(result.photo_y);
       const draw = () => {
         if (!imgX.complete || !imgY.complete) return;
-        const watermark = shouldShowWatermark(currentUser);
         if (mode === "side-by-side") {
           const stateX = paneXRef.current?.getExportState();
           const stateY = paneYRef.current?.getExportState();
           if (!stateX || !stateY) return;
           renderSideBySideToCanvas(
             canvas,
-            aspect,
+            target,
             imgX,
             { ...stateX, brightness: brightnessX },
             imgY,
             { ...stateY, brightness: brightnessY },
-            watermark
+            showWatermark
           );
         } else {
           const sliderState = sliderPaneRef.current?.getExportState();
           if (!sliderState) return;
           renderSliderToCanvas(
             canvas,
-            aspect,
+            target,
             imgX,
             imgY,
             {
@@ -331,7 +338,7 @@ export default function Compare() {
               x: { ...sliderState.x, brightness: brightnessX },
               y: { ...sliderState.y, brightness: brightnessY },
             },
-            watermark
+            showWatermark
           );
         }
       };
@@ -339,7 +346,21 @@ export default function Compare() {
       imgY.onload = draw;
       draw();
     },
-    [result, mode, brightnessX, brightnessY, currentUser]
+    [result, mode, brightnessX, brightnessY]
+  );
+
+  const handleExportRender = useCallback(
+    (canvas: HTMLCanvasElement, aspect: ExportAspect) => {
+      renderComparisonToCanvas(canvas, aspect, shouldShowWatermark(currentUser));
+    },
+    [renderComparisonToCanvas, currentUser]
+  );
+
+  const handleBigModeRender = useCallback(
+    (canvas: HTMLCanvasElement, dims: { width: number; height: number }) => {
+      renderComparisonToCanvas(canvas, dims, false);
+    },
+    [renderComparisonToCanvas]
   );
 
   return (
