@@ -90,13 +90,43 @@ function drawDivider(ctx: CanvasRenderingContext2D, x: number, canvasHeight: num
   ctx.restore();
 }
 
+/** Zeichnet das Wasserzeichen mit einem dezenten dunklen Hintergrund-Chip
+ * dahinter. Ohne diesen Chip verschwindet der reine (teiltransparente,
+ * weiße) Text auf hellen/texturierten Foto-Hintergründen praktisch -
+ * das war der Grund, warum das Wasserzeichen im echten Export kaum
+ * bzw. gar nicht zu erkennen war, obwohl es korrekt gezeichnet wurde. */
 function drawWatermark(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
+  const text = "BodyComp Tracker";
+  const paddingX = 10;
+  const paddingY = 6;
+  const marginX = 16;
+  const marginY = 14;
+
   ctx.save();
   ctx.font = "600 20px sans-serif";
-  ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+  const textWidth = ctx.measureText(text).width;
+  const textHeight = 20;
+
+  const chipRight = canvasWidth - marginX;
+  const chipBottom = canvasHeight - marginY + paddingY;
+  const chipWidth = textWidth + paddingX * 2;
+  const chipHeight = textHeight + paddingY * 2;
+  const chipLeft = chipRight - chipWidth;
+  const chipTop = chipBottom - chipHeight;
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+  if (typeof ctx.roundRect === "function") {
+    ctx.beginPath();
+    ctx.roundRect(chipLeft, chipTop, chipWidth, chipHeight, chipHeight / 2);
+    ctx.fill();
+  } else {
+    ctx.fillRect(chipLeft, chipTop, chipWidth, chipHeight);
+  }
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
   ctx.textAlign = "right";
   ctx.textBaseline = "bottom";
-  ctx.fillText("BodyComp Tracker", canvasWidth - 16, canvasHeight - 14);
+  ctx.fillText(text, canvasWidth - marginX - paddingX, canvasHeight - marginY);
   ctx.restore();
 }
 
