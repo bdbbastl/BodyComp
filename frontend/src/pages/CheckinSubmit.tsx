@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import exifr from "exifr";
+import { Pencil } from "lucide-react";
 import { api, mediaUrl } from "../api/client";
 import { parseWeightInput } from "../utils/weight";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
-import { formatDateWithWeek } from "../utils/date";
+import { formatDateWithWeek, toIsoDateLocal } from "../utils/date";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
 import type { Photo } from "../types";
 
@@ -130,15 +131,35 @@ export default function CheckinSubmit() {
     };
   }, [files]);
 
+  // Manuelle Korrektur des ermittelten Datums (siehe Design-Spec "Check-in:
+  // Foto-Datum manuell korrigieren") - überschreibt NUR die Anzeige/den
+  // Submit-Wert, das EXIF-Auslesen selbst bleibt unverändert. null = kein
+  // Override, ermitteltes Datum gilt weiter.
+  const [photoDateOverride, setPhotoDateOverride] = useState<string | null>(null);
+  const [editingPhotoDate, setEditingPhotoDate] = useState(false);
+
+  const allExifDatesLoaded = files.length > 0 && photoDates.length === files.length;
+  const hasUniformPhotoDate =
+    allExifDatesLoaded && photoDates.every((d) => isSameCalendarDay(d, photoDates[0]));
+  // Einmal korrigiert bleibt das Datum editierbar, auch falls die
+  // ursprünglichen EXIF-Daten (rein hypothetisch) nicht uniform waren.
+  const isPhotoDateEditable = hasUniformPhotoDate || photoDateOverride !== null;
+
   const photoDateLabel =
     files.length === 0
       ? null
-      : photoDates.length === files.length &&
-          photoDates.every((d) => isSameCalendarDay(d, photoDates[0]))
-        ? formatDateWithWeek(photoDates[0].toISOString())
-        : photoDates.length === files.length
-          ? "Mixed dates"
-          : null; // EXIF-Reads noch nicht fertig - noch kein Label anzeigen
+      : photoDateOverride
+        ? // Feste lokale Mittagszeit anhängen (wie toIsoDateLocal's
+          // Kommentar in utils/date.ts erklärt) - sonst parst
+          // formatDateWithWeek den reinen YYYY-MM-DD-String als UTC-
+          // Mitternacht und springt in westlichen Zeitzonen auf den
+          // Vortag zurück.
+          formatDateWithWeek(`${photoDateOverride}T12:00:00`)
+        : hasUniformPhotoDate
+          ? formatDateWithWeek(photoDates[0].toISOString())
+          : allExifDatesLoaded
+            ? "Mixed dates"
+            : null; // EXIF-Reads noch nicht fertig - noch kein Label anzeigen
 
   const pageQuery = useQuery({
     queryKey: ["public-checkin", token],
@@ -154,6 +175,7 @@ export default function CheckinSubmit() {
         client_note: note.trim() === "" ? undefined : note.trim(),
         files,
         poseIds: files.map((_, i) => photoPoses[i] as number),
+        photoDate: photoDateOverride ?? undefined,
       });
     },
     onSuccess: () => {
@@ -163,6 +185,8 @@ export default function CheckinSubmit() {
       setNote("");
       setFiles([]);
       setPhotoPoses({});
+      setPhotoDateOverride(null);
+      setEditingPhotoDate(false);
       queryClient.invalidateQueries({ queryKey: ["public-checkin", token] });
     },
     onError: () => hide(),
@@ -202,7 +226,36 @@ export default function CheckinSubmit() {
         <div>
           <p className="text-xs text-slate-500">Check-in for</p>
           <h1 className="text-xl font-semibold text-white">{page.client_name}</h1>
-          {photoDateLabel && <p className="mt-1 text-sm text-slate-400">{photoDateLabel}</p>}
+          {photoDateLabel && !editingPhotoDate && (
+            isPhotoDateEditable ? (
+              <button
+                type="button"
+                onClick={() => setEditingPhotoDate(true)}
+                className="mt-1 flex items-center gap-1.5 text-sm text-slate-400 hover:text-white"
+              >
+                {photoDateLabel}
+                <Pencil className="h-3 w-3" />
+              </button>
+            ) : (
+              <p className="mt-1 text-sm text-slate-400">{photoDateLabel}</p>
+            )
+          )}
+          {editingPhotoDate && (
+            <input
+              type="date"
+              autoFocus
+              max={toIsoDateLocal(new Date())}
+              defaultValue={
+                photoDateOverride ?? (photoDates[0] ? toIsoDateLocal(photoDates[0]) : undefined)
+              }
+              onChange={(e) => {
+                if (e.target.value) setPhotoDateOverride(e.target.value);
+                setEditingPhotoDate(false);
+              }}
+              onBlur={() => setEditingPhotoDate(false)}
+              className="mt-1 rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-sm text-white focus:border-accent focus:outline-none"
+            />
+          )}
         </div>
 
         {confirmation && (
@@ -268,6 +321,8 @@ export default function CheckinSubmit() {
                 setFiles(e.target.files ? Array.from(e.target.files) : []);
                 setPhotoPoses({});
                 setConfirmation(null);
+                setPhotoDateOverride(null);
+                setEditingPhotoDate(false);
               }}
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-slate-900"
             />

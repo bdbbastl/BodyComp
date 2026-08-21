@@ -7,7 +7,7 @@ sondern über den opaken `Client.checkin_token` in der URL.
 import logging
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date as date_
+from datetime import date as date_, datetime, time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -85,6 +85,7 @@ def get_checkin_page(
 def submit_checkin(
     weight_kg: str | None = Form(default=None),
     client_note: str | None = Form(default=None),
+    photo_date: str | None = Form(default=None),
     files: list[UploadFile] = File(default=[]),
     pose_ids: list[int] = Form(default=[]),
     client_row: Client = Depends(get_client_by_checkin_token),
@@ -119,6 +120,20 @@ def submit_checkin(
         parsed_weight_kg = parse_weight_kg(weight_kg)
     except ValueError:
         raise HTTPException(400, "Weight must be a number (comma or dot as decimal separator)")
+
+    # Manuelle Datums-Korrektur des Klienten (siehe Design-Spec
+    # "Check-in: Foto-Datum manuell korrigieren") - überschreibt bei
+    # Erfolg unten das per EXIF/mtime ermittelte taken_at aller Fotos
+    # dieser Einreichung. Keine Zukunftsdaten (Server-seitig durchgesetzt,
+    # das Frontend begrenzt den Picker zusätzlich per `max`).
+    parsed_photo_date: date_ | None = None
+    if photo_date is not None:
+        try:
+            parsed_photo_date = date_.fromisoformat(photo_date)
+        except ValueError:
+            raise HTTPException(400, "Photo date must be a valid ISO date (YYYY-MM-DD)")
+        if parsed_photo_date > date_.today():
+            raise HTTPException(400, "Photo date cannot be in the future")
 
     submission = CheckinSubmission(
         client_id=client_row.id, weight_kg=parsed_weight_kg, client_note=client_note
@@ -197,6 +212,15 @@ def submit_checkin(
         ]
         for photo, _pose_id in photos_to_process:
             photo.checkin_submission_id = submission.id
+        if parsed_photo_date is not None:
+            # Klient hat das ermittelte Datum korrigiert - gilt für ALLE
+            # Fotos dieser Einreichung, überschreibt taken_at direkt, damit
+            # DayLog-Zuordnung (liest taken_at gleich unten), Timeline und
+            # Compare konsistent bleiben. Keine echte Aufnahme-Uhrzeit
+            # bekannt -> Mitternacht als Konvention.
+            override_taken_at = datetime.combine(parsed_photo_date, time.min)
+            for photo, _pose_id in photos_to_process:
+                photo.taken_at = override_taken_at
         db.commit()
 
         # Sofort vollständig verarbeiten (Pose ist ja schon bekannt) -
