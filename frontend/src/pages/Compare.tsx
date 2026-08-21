@@ -14,8 +14,9 @@ import type { AspectPreset } from "../utils/compareAspect";
 import { CompareFilterBar } from "../components/CompareFilterBar";
 import { PaneAdjustments } from "../components/PaneAdjustments";
 import PageHeader from "../components/PageHeader";
-import { Grid3x3, ImageDown, Scan, Sparkles } from "lucide-react";
+import { Grid3x3, ImageDown, Maximize2, Scan, Sparkles } from "lucide-react";
 import { IconButton } from "../components/IconButton";
+import { CompareBigMode } from "../components/CompareBigMode";
 import { useBusyOverlay } from "../contexts/BusyOverlayContext";
 import { CompareExportModal } from "../components/CompareExportModal";
 import type { ExportAspect } from "../utils/compareExport";
@@ -68,6 +69,7 @@ export default function Compare() {
   const paneYRef = useRef<ZoomPaneHandle>(null);
   const sliderPaneRef = useRef<SliderPaneHandle>(null);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showBigMode, setShowBigMode] = useState(false);
   const { data: currentUser } = useCurrentUser();
   function updateGridLine(index: number, value: number) {
     setGridLines((lines) => lines.map((l, i) => (i === index ? value : l)));
@@ -120,6 +122,9 @@ export default function Compare() {
   const poses = posesQuery.data ?? [];
   const result = comparisonQuery.data;
   const aspectRatio = resolveAspectRatio(formatPreset, result?.photo_x, result?.photo_y);
+  const currentPoseIndex = poses.findIndex((p) => p.id === poseSelection);
+  const currentPoseLabel =
+    currentPoseIndex >= 0 ? numberedPoseOptionLabel(currentPoseIndex, poses[currentPoseIndex].name) : "";
 
   // Für "Alle Posen": pro Pose (Settings-Reihenfolge) das Bildpaar der
   // zwei gewählten Termine heraussuchen - Posen ohne beide Fotos werden
@@ -383,6 +388,14 @@ export default function Compare() {
               active={showGrid}
               onClick={() => setShowGrid((v) => !v)}
             />
+            {!isAllPoses && (
+              <IconButton
+                icon={Maximize2}
+                label="Groß anzeigen"
+                disabled={!result}
+                onClick={() => setShowBigMode(true)}
+              />
+            )}
             <span className="mx-1 h-6 w-px bg-white/10" aria-hidden="true" />
             <IconButton
               icon={Sparkles}
@@ -588,6 +601,16 @@ export default function Compare() {
           onClose={() => setShowExportModal(false)}
           filename={exportFilename(`client-${clientIdNum}`, dateX, dateY)}
           render={handleExportRender}
+        />
+      )}
+
+      {showBigMode && !isAllPoses && result && (
+        <CompareBigMode
+          aspectRatio={aspectRatio}
+          render={handleBigModeRender}
+          poseLabel={currentPoseLabel}
+          onNavigate={goToPose}
+          onClose={() => setShowBigMode(false)}
         />
       )}
     </div>
