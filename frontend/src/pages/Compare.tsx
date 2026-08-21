@@ -122,7 +122,14 @@ export default function Compare() {
   const poses = posesQuery.data ?? [];
   const result = comparisonQuery.data;
   const aspectRatio = resolveAspectRatio(formatPreset, result?.photo_x, result?.photo_y);
-  const currentPoseIndex = poses.findIndex((p) => p.id === poseSelection);
+  // Bewusst von result.photo_x.pose_id abgeleitet statt von poseSelection:
+  // comparisonQuery nutzt keepPreviousData, zeigt beim Posenwechsel also
+  // kurz noch das alte Foto, während poseSelection schon die neue Pose
+  // wäre. Leitet man das Label stattdessen vom tatsächlich angezeigten
+  // result ab, wechseln Bild und Beschriftung in Big Mode immer
+  // gemeinsam - nie ein neues Label über einem noch alten Foto.
+  const currentPoseId = result?.photo_x.pose_id ?? (typeof poseSelection === "number" ? poseSelection : undefined);
+  const currentPoseIndex = poses.findIndex((p) => p.id === currentPoseId);
   const currentPoseLabel =
     currentPoseIndex >= 0 ? numberedPoseOptionLabel(currentPoseIndex, poses[currentPoseIndex].name) : "";
 
