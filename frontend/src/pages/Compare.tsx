@@ -9,6 +9,8 @@ import { COMPARE_ZOOM_MIN, transformStyle, usePanZoom } from "../hooks/usePanZoo
 import { ZoomSlider } from "../components/ZoomSlider";
 import { BrightnessSlider, BRIGHTNESS_DEFAULT } from "../components/BrightnessSlider";
 import { numberedPoseOptionLabel } from "../utils/poseLabel";
+import { resolveAspectRatio } from "../utils/compareAspect";
+import type { AspectPreset } from "../utils/compareAspect";
 import { CompareFilterBar } from "../components/CompareFilterBar";
 import { PaneAdjustments } from "../components/PaneAdjustments";
 import PageHeader from "../components/PageHeader";
@@ -59,6 +61,9 @@ export default function Compare() {
   // auf jedem Bild an derselben relativen Höhe erscheinen.
   const [showGrid, setShowGrid] = useState(false);
   const [gridLines, setGridLines] = useState<number[]>([25, 50, 75]);
+  // Bleibt bewusst über Posen-/Datumswechsel hinweg bestehen (siehe
+  // Design-Spec) - der User hat ihn bewusst gewählt.
+  const [formatPreset, setFormatPreset] = useState<AspectPreset>("auto");
   const paneXRef = useRef<ZoomPaneHandle>(null);
   const paneYRef = useRef<ZoomPaneHandle>(null);
   const sliderPaneRef = useRef<SliderPaneHandle>(null);
@@ -114,6 +119,7 @@ export default function Compare() {
 
   const poses = posesQuery.data ?? [];
   const result = comparisonQuery.data;
+  const aspectRatio = resolveAspectRatio(formatPreset, result?.photo_x, result?.photo_y);
 
   // Für "Alle Posen": pro Pose (Settings-Reihenfolge) das Bildpaar der
   // zwei gewählten Termine heraussuchen - Posen ohne beide Fotos werden
@@ -456,6 +462,7 @@ export default function Compare() {
             filter={filterFor(brightnessX)}
             brightness={brightnessX}
             onBrightnessChange={setBrightnessX}
+            aspectRatio={aspectRatio}
             showGrid={showGrid}
             gridLines={gridLines}
             onGridLineChange={updateGridLine}
@@ -467,6 +474,7 @@ export default function Compare() {
             filter={filterFor(brightnessY)}
             brightness={brightnessY}
             onBrightnessChange={setBrightnessY}
+            aspectRatio={aspectRatio}
             showGrid={showGrid}
             gridLines={gridLines}
             onGridLineChange={updateGridLine}
@@ -495,6 +503,7 @@ export default function Compare() {
             onBrightnessYChange={setBrightnessY}
             altX={formatDate(dateX)}
             altY={formatDate(dateY)}
+            aspectRatio={aspectRatio}
             showGrid={showGrid}
             gridLines={gridLines}
             onGridLineChange={updateGridLine}
@@ -508,37 +517,46 @@ export default function Compare() {
             <BrightnessSlider value={brightnessX} onChange={setBrightnessX} />
             <BrightnessSlider value={brightnessY} onChange={setBrightnessY} />
           </div>
-          {allPosePairs.map(({ pose, photoX, photoY }) => (
-            <section key={pose.id} className="space-y-2">
-              <h2 className="text-base font-semibold text-white">
-                {numberedPoseOptionLabel(poses.findIndex((p) => p.id === pose.id), pose.name)}
-              </h2>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <ComparePane
-                  label={formatDate(dateX)}
-                  src={resolveSrc(photoX)}
-                  filter={filterFor(brightnessX)}
-                  brightness={brightnessX}
-                  onBrightnessChange={setBrightnessX}
-                  showBrightnessSlider={false}
-                  showGrid={showGrid}
-                  gridLines={gridLines}
-                  onGridLineChange={updateGridLine}
-                />
-                <ComparePane
-                  label={formatDate(dateY)}
-                  src={resolveSrc(photoY)}
-                  filter={filterFor(brightnessY)}
-                  brightness={brightnessY}
-                  onBrightnessChange={setBrightnessY}
-                  showBrightnessSlider={false}
-                  showGrid={showGrid}
-                  gridLines={gridLines}
-                  onGridLineChange={updateGridLine}
-                />
-              </div>
-            </section>
-          ))}
+          {allPosePairs.map(({ pose, photoX, photoY }) => {
+            // Jede Pose hat ihr eigenes Fotopaar und damit potenziell
+            // ihre eigene Auto-Form - der formatPreset selbst ist ein
+            // einziger globaler Wert, nur das Auto-Ergebnis ist pro Zeile
+            // unterschiedlich (siehe Design-Spec Abschnitt 3).
+            const rowAspectRatio = resolveAspectRatio(formatPreset, photoX, photoY);
+            return (
+              <section key={pose.id} className="space-y-2">
+                <h2 className="text-base font-semibold text-white">
+                  {numberedPoseOptionLabel(poses.findIndex((p) => p.id === pose.id), pose.name)}
+                </h2>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <ComparePane
+                    label={formatDate(dateX)}
+                    src={resolveSrc(photoX)}
+                    filter={filterFor(brightnessX)}
+                    brightness={brightnessX}
+                    onBrightnessChange={setBrightnessX}
+                    aspectRatio={rowAspectRatio}
+                    showBrightnessSlider={false}
+                    showGrid={showGrid}
+                    gridLines={gridLines}
+                    onGridLineChange={updateGridLine}
+                  />
+                  <ComparePane
+                    label={formatDate(dateY)}
+                    src={resolveSrc(photoY)}
+                    filter={filterFor(brightnessY)}
+                    brightness={brightnessY}
+                    onBrightnessChange={setBrightnessY}
+                    aspectRatio={rowAspectRatio}
+                    showBrightnessSlider={false}
+                    showGrid={showGrid}
+                    gridLines={gridLines}
+                    onGridLineChange={updateGridLine}
+                  />
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
 
@@ -1044,12 +1062,24 @@ const ComparePane = forwardRef<ZoomPaneHandle, {
   filter: string | undefined;
   brightness: number;
   onBrightnessChange: (value: number) => void;
+  aspectRatio?: number;
   showBrightnessSlider?: boolean;
   showGrid?: boolean;
   gridLines?: number[];
   onGridLineChange?: (index: number, value: number) => void;
 }>(function ComparePane(
-  { label, src, filter, brightness, onBrightnessChange, showBrightnessSlider = true, showGrid, gridLines, onGridLineChange },
+  {
+    label,
+    src,
+    filter,
+    brightness,
+    onBrightnessChange,
+    aspectRatio = 3 / 4,
+    showBrightnessSlider = true,
+    showGrid,
+    gridLines,
+    onGridLineChange,
+  },
   ref
 ) {
   return (
@@ -1063,6 +1093,7 @@ const ComparePane = forwardRef<ZoomPaneHandle, {
         caption={label}
         brightness={brightness}
         onBrightnessChange={onBrightnessChange}
+        aspectRatio={aspectRatio}
         showBrightnessSlider={showBrightnessSlider}
         showGrid={showGrid}
         gridLines={gridLines}
