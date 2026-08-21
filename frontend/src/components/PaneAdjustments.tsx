@@ -36,6 +36,7 @@ export function PaneAdjustments({
   onOffsetChange,
   brightness,
   onBrightnessChange,
+  zoomMin = ZOOM_MIN,
   onReset,
 }: {
   scale: number;
@@ -46,6 +47,9 @@ export function PaneAdjustments({
   onOffsetChange?: (offset: Offset) => void;
   brightness?: number;
   onBrightnessChange?: (value: number) => void;
+  /** Unterer Zoom-Grenzwert für den Zoom-Regler - siehe usePanZoom
+   * COMPARE_ZOOM_MIN. Default ZOOM_MIN (Standardverhalten). */
+  zoomMin?: number;
   /** Setzt alle Werte dieses Panes auf Standard zurück. */
   onReset: () => void;
 }) {
@@ -139,7 +143,7 @@ export function PaneAdjustments({
 
       {openTool && (
         <div className="mt-2 rounded-lg border border-accent/30 bg-background p-3 shadow-xl">
-          {openTool === "zoom" && <ZoomSlider scale={scale} onChange={onScaleChange} />}
+          {openTool === "zoom" && <ZoomSlider scale={scale} onChange={onScaleChange} min={zoomMin} />}
           {openTool === "rotation" && (
             <RotationSlider degrees={rotation} onChange={onRotationChange} />
           )}
