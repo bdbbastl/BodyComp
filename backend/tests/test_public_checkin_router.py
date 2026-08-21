@@ -174,6 +174,47 @@ def test_submit_checkin_with_valid_pose_processes_photo_immediately(client, db_s
     assert photo["status"] == ProcessingStatus.NORMALIZATION_FAILED.value
 
 
+def test_submit_checkin_rejects_invalid_photo_date_format(client, db_session):
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    response = client.post(
+        f"/api/public/checkin/{token}/submit",
+        data={"weight_kg": "80", "photo_date": "not-a-date"},
+    )
+    assert response.status_code == 400
+
+
+def test_submit_checkin_rejects_future_photo_date(client, db_session):
+    from datetime import date, timedelta
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    response = client.post(
+        f"/api/public/checkin/{token}/submit",
+        data={"weight_kg": "80", "photo_date": tomorrow},
+    )
+    assert response.status_code == 400
+
+
+def test_submit_checkin_accepts_todays_photo_date(client, db_session):
+    from datetime import date
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+
+    response = client.post(
+        f"/api/public/checkin/{token}/submit",
+        data={"weight_kg": "80", "photo_date": date.today().isoformat()},
+    )
+    assert response.status_code == 201
+
+
 def test_submit_checkin_blocked_for_single_account_after_free_quota(client, db_session, monkeypatch):
     """Regression: der Magic-Link-Check-in muss dasselbe kumulative
     Freikontingent respektieren wie day_logs.py/photos.py - sonst wäre

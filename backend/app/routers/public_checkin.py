@@ -85,6 +85,7 @@ def get_checkin_page(
 def submit_checkin(
     weight_kg: str | None = Form(default=None),
     client_note: str | None = Form(default=None),
+    photo_date: str | None = Form(default=None),
     files: list[UploadFile] = File(default=[]),
     pose_ids: list[int] = Form(default=[]),
     client_row: Client = Depends(get_client_by_checkin_token),
@@ -119,6 +120,20 @@ def submit_checkin(
         parsed_weight_kg = parse_weight_kg(weight_kg)
     except ValueError:
         raise HTTPException(400, "Weight must be a number (comma or dot as decimal separator)")
+
+    # Manuelle Datums-Korrektur des Klienten (siehe Design-Spec
+    # "Check-in: Foto-Datum manuell korrigieren") - überschreibt bei
+    # Erfolg unten das per EXIF/mtime ermittelte taken_at aller Fotos
+    # dieser Einreichung. Keine Zukunftsdaten (Server-seitig durchgesetzt,
+    # das Frontend begrenzt den Picker zusätzlich per `max`).
+    parsed_photo_date: date_ | None = None
+    if photo_date is not None:
+        try:
+            parsed_photo_date = date_.fromisoformat(photo_date)
+        except ValueError:
+            raise HTTPException(400, "Invalid date format")
+        if parsed_photo_date > date_.today():
+            raise HTTPException(400, "Date cannot be in the future")
 
     submission = CheckinSubmission(
         client_id=client_row.id, weight_kg=parsed_weight_kg, client_note=client_note
