@@ -7,7 +7,7 @@ sondern über den opaken `Client.checkin_token` in der URL.
 import logging
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date as date_
+from datetime import date as date_, datetime, time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -212,6 +212,15 @@ def submit_checkin(
         ]
         for photo, _pose_id in photos_to_process:
             photo.checkin_submission_id = submission.id
+        if parsed_photo_date is not None:
+            # Klient hat das ermittelte Datum korrigiert - gilt für ALLE
+            # Fotos dieser Einreichung, überschreibt taken_at direkt, damit
+            # DayLog-Zuordnung (liest taken_at gleich unten), Timeline und
+            # Compare konsistent bleiben. Keine echte Aufnahme-Uhrzeit
+            # bekannt -> Mitternacht als Konvention.
+            override_taken_at = datetime.combine(parsed_photo_date, time.min)
+            for photo, _pose_id in photos_to_process:
+                photo.taken_at = override_taken_at
         db.commit()
 
         # Sofort vollständig verarbeiten (Pose ist ja schon bekannt) -

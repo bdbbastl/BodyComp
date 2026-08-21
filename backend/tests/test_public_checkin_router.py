@@ -253,6 +253,62 @@ def test_submit_checkin_uses_photo_exif_date_not_upload_date(client, db_session)
     assert today_day_log.weight_kg == 80
 
 
+def test_submit_checkin_photo_date_override_replaces_exif_date(client, db_session):
+    """Regression: wenn der Klient das ermittelte Datum korrigiert
+    (`photo_date`), muss das für ALLE Fotos der Einreichung gelten -
+    sowohl `Photo.taken_at` selbst (Timeline/Compare zeigen sonst das
+    falsche Datum) als auch die DayLog-Zuordnung. Das ursprüngliche
+    EXIF-Datum darf danach nirgends mehr als DayLog auftauchen."""
+    from datetime import date, datetime
+
+    from app.models.day_log import DayLog
+    from app.models.photo import Photo
+    from app.models.pose import Pose
+
+    _login(client, db_session)
+    created = client.post("/api/clients", json={"name": "Max"}).json()
+    token = created["checkin_token"]
+    pose = Pose(client_id=created["id"], name="Front Relaxed", sort_order=0)
+    db_session.add(pose)
+    db_session.commit()
+    db_session.refresh(pose)
+
+    exif_date = datetime(2026, 1, 5, 8, 30, 0)
+    override_date = date(2026, 1, 3)
+    assert override_date != exif_date.date()  # Testannahme: eindeutig unterschiedliche Daten
+    jpeg_bytes = _jpeg_with_exif_date_taken(exif_date)
+
+    response = client.post(
+        f"/api/public/checkin/{token}/submit",
+        data={
+            "weight_kg": "80",
+            "pose_ids": str(pose.id),
+            "photo_date": override_date.isoformat(),
+        },
+        files={"files": ("p1.jpg", jpeg_bytes, "image/jpeg")},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["photos"][0]["taken_at"].startswith("2026-01-03")
+
+    photo = db_session.query(Photo).filter(Photo.checkin_submission_id == body["id"]).first()
+    assert photo.taken_at == datetime(2026, 1, 3, 0, 0, 0)
+
+    photo_day_log = (
+        db_session.query(DayLog)
+        .filter(DayLog.client_id == created["id"], DayLog.date == override_date)
+        .first()
+    )
+    assert photo_day_log is not None
+
+    exif_day_log = (
+        db_session.query(DayLog)
+        .filter(DayLog.client_id == created["id"], DayLog.date == exif_date.date())
+        .first()
+    )
+    assert exif_day_log is None, "photo must NOT stay grouped under its original EXIF date"
+
+
 def test_submit_checkin_rejects_invalid_photo_date_format(client, db_session):
     _login(client, db_session)
     created = client.post("/api/clients", json={"name": "Max"}).json()
