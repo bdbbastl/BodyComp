@@ -411,6 +411,8 @@ export default function Compare() {
         mode={mode}
         onModeChange={setMode}
         showModeSwitch={!isAllPoses}
+        formatPreset={formatPreset}
+        onFormatPresetChange={setFormatPreset}
       />
 
       {!isAllPoses && comparisonQuery.isError && (
